@@ -1,0 +1,12 @@
+*.RDS
+.Rhistory
+
+/private/**
+/CatContModel/**
+
+**/Introduction_cache/**
+**/Introduction_files/**
+
+/examples/betweenAndWithin/*
+/examples/misc/*
+

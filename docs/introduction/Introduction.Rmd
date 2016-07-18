@@ -1,0 +1,560 @@
+---
+title: "CatContModel Introduction"
+author: "Kyle Hardman"
+date: "July 2016"
+output: html_document
+linkcolor: blue
+csl: apa-single-spaced.csl
+bibliography: references.bib
+toc: yes
+---
+
+# Introduction
+
+This package contains implementations of a few variants of psychological process models for delayed-estimation working memory experiments. Primarily, it implements the models used by @HardmanVergauweRicker2016. It also implements a version of the model used by @ZhangLuck2008.
+
+All of the models use Bayesian parameter estimation and model comparison methods. There is nothing inherently Bayesian about the models, but maximum likelihood estimation is, in my experience, relatively slow and unreliable. The unreliability only appears if the model is somewhat complex and you know what to look for. The slowness of maximum likelihood only really appears once models become complex.  The categorical models in this package are very complex, by virtue of having a large number of parameters. As such, the choice of Bayesian methods is obvious.
+
+There are two basic steps to using this package: 1) Running the parameter estimation and 2) analyzing the posterior distributions of the parameters. These steps each have many substeps, which are described in detail below.
+
+# Parameter Estimation
+
+## Data Format
+
+The data must be stored in a `data.frame` where each row of the data frame has the data for a single study/response pair, with information about which participant and condition the study/response pair are from. The data should have 4 columns, in no particular order:
+
+1. `pnum`: Character (or convertible to character). Participant number. You should have more than 1 participant, otherwise the hierarchical nature of the model becomes dead weight that may distort the results.
+2. `cond`: Character (or convertible to character). Condition name. If you only have 1 condition, just give any constant value here.
+3. `study`: Numeric. The angle, in degrees, that the participant studied.
+4. `response`: Numeric. The angle, in degrees, that the participant responded.
+
+```{r, eval=FALSE, include=FALSE}
+setwd("~/../Programming/R/CatContModel/docs/introduction/")
+```
+```{r}
+library(CatContModel)
+
+data = read.delim("../../examples/betweenItem/betweenItem_data.txt")
+
+data[1:5,]
+```
+
+
+Ideally, you have a completely within-participants design, where all participants do all conditions. This allows for maximal interpretability of the condition effect parameters. With a between-participants design, the model will run, but it is possible to have differences between conditions get soaked up, at least in part, by participant level parameters due to different participants being in different conditions. In theory, this is mitigated by the fact that there is a hierarchical prior on all of the participant level parameters. This should keep all participants somewhat clustered around one population grand mean, while the condition effects account for differences between conditions, but this is only in theory. If using a between-participants design, you could consider using a mixed between/within design, where all participants do 2 conditions out of 3 possible conditions, for example. I have tested a partially between-participants test case, and the model seems to work ok.
+
+## Main Parameter Estimation Function
+
+The behavior of the parameter estimation is controlled by a few configuration lists. You only need to supply the `iterations` and `modelVariant` members of the primary configuration list and your data. See the documentation for `runParameterEstimation` for more information about the arguments and further arguments you can use.
+
+```{r eval=FALSE}
+config = list(iterations=500, modelVariant="betweenItem")
+
+results = runParameterEstimation(config, data)
+```
+```{r echo=FALSE}
+fullResults = readRDS("betweenItem_results.RDS")
+results = fullResults
+```
+
+Note that the number of iterations is set to a small value here because it is only an initial run for the purposes of tuning the Metropolis-Hastings acceptance rates. You almost certainly will not be able to call this function once and be done: You need to do the Metropolis-Hastings tuning procedure, which is described below. In the end, you will need to run thousands of iterations. Expect the parameter estimation to take a long time (hours for a typically sized data set).
+
+The results object returned by `runParameterEstimation` is a named list with a bunch of stuff in it.
+```{r}
+names(results)
+```
+See the documentation for `runParameterEstimation` for more information about the contents of the results object. You will not necessarily need to directly use the contents of the results object, provided that the analyses you want to perform are basically identical to the analyses that I have already done and programmed into this package. If this is not the case, you will need to dig into the results object a little. That said, the analyses that are already programmed in are fairly general.
+
+## Tuning Metropolis-Hastings Acceptance Rates
+
+Many of the parameters of the model are updated with a Metropolis-Hastings (MH) step. The MH procedure works best when the acceptance rates of sampled parameters are in a moderate range. It is up to the user to verify that the acceptance rates for the parameters are in a reasonable range, at about a 0.4 to 0.6 acceptance rate. Once you have parameter estimation results, the following helper function can be used:
+```{r}
+examineMHAcceptance(results)
+```
+Focus primarily on the mean acceptance rate.
+In my experience, the acceptance rates can be fairly accurately estimated from a short run of 500 to 1000 iterations. To tune the MH acceptance, the following process works well:
+
+1. Run a short parameter estimation with 500 to 1000 iterations.
+2. Check the MH acceptance rates.
+3. Override the MH tuning (see below) for the parameters with acceptance rates that are not in the acceptable range.
+
+Repeat steps 1 to 3 until the acceptance rates are in the acceptable range.
+
+### Adjusting MH Tuning
+
+Tuning the MH acceptance rate is accomplished by adjusting the standard deviation of candidate distributions for the parameters. A larger standard deviation will result in fewer acceptances because more candidate values will be far from good parameter values. Thus, if the acceptance rate is too high, you need to increase the MH tuning standard deviation to get fewer good candidates. If the acceptance rate is too low, you need to decrease the MH tuning standard deviation to get more good candidates. 
+
+You can find the values of the tuning parameters that were used for an estimation run by examining `results$mhTuning`. Both `pMem_cond` and `condSD_cond` had acceptance rates on the low end, so examine their tuning parameters and adjust them down. Smaller steps means more acceptance.
+
+```{r}
+results$mhTuning$pMem_cond
+results$mhTuning$contSD_cond
+```
+
+```{r eval=FALSE}
+mhTuning = list() 
+mhTuning$pMem_cond = 0.15 #Set some new values that are lower than before.
+mhTuning$contSD_cond = 2
+
+results = runParameterEstimation(config, data, mhTuningOverrides=mhTuning)
+```
+Note that it is not possible to tune the acceptance rate for the `catActive` parameters because they only take on the values 0 and 1. They tend to have a really low acceptance rate, but that's just how it is.
+
+For these new results, examine the MH acceptance rates and adjust the MH tuning values again. Keep doing this until the MH acceptance rates are all in the acceptance range before going on.
+
+## Main Parameter Estimation
+
+Once the MH tuning is complete, you can go on to the main parameter estimation. The parameter estimation is slow, taking on the order of seconds per iteration, while a relatively large number of iterations are required. I would say about 10,000 iterations is probably sufficient for publication quality results. You can do less for exploratory work, maybe 3,000 to 5,000 iterations, and get somewhat reliable results.
+
+In order to get these somewhat large number of iterations (at least with respect to how slow each iteration is), it can be helpful to run parallel parameter estimation chains and combine them together. On a 4 core CPU, you can run 4 chains in parallel, which can speed up the process dramatically. However, you must also remove burn-in iterations from the beginning of each chain. I would say that a burn in of at least 500 iterations is warranted, based on my experience, but that 1000 burn-in iterations is safer (see Verifying Convergence below). Given that there is a long burn-in period, you should probably run at least a few thousand iterations in each of the individual parallel chains so that the burn-in doesn't take too many iterations out of each chain. These ideas are addressed in the following sections.
+
+Once you have figured out the MH tuning, you can do something like this in each of a few parallel R sessions (or just one if you aren't doing it in parallel):
+
+```{r eval=FALSE}
+config = list(iterations=3000, modelVariant="betweenItem")
+
+mhTuning = list() 
+mhTuning$pMem_cond = 0.15
+mhTuning$contSD_cond = 2
+
+results = runParameterEstimation(config, data=data, mhTuningOverrides = mhTuning)
+
+#The only thing that needs to be different in each instance is the name of the results file
+saveRDS(results, file = "results_1.RDS")
+```
+
+
+I will show you how to combine these parallel chains in the "Combining Results from Parallel Chains" section.
+
+## Verifying Convergence
+
+It is important for the purposes of analysis that the posterior distribution of the parameters has converged. Many of the parameters in the model are estimated with the Metropolis-Hastings procedure, which are often somewhat slow to converge. As a result, it is important to find out when the posterior chains have converged so that the pre-convergence burn-in iterations can be removed.
+
+### Plotting Chains
+
+In order to know how many burn-in iterations to discard, it is necessary to examine parameter chains to verify that the Markov chain has converged. To start with, I usually just examine plots of chains to see when the mean of the chain becomes constant. For this model with categories, I have found that the average number of active categories across all participants is a reasonably good indicator of convergence, but I also examine other parameters.
+
+```{r fig.width=6, fig.height=6}
+par(mfrow=c(2,2))
+
+#Average number of active categories
+post = convertPosteriorsToMatrices(results, "catActive") #This will be discussed later
+activeCats = apply(post$catActive, 3, mean) * results$config$maxCategories
+plot(activeCats, type='l')
+
+#Some other parameters
+plot(results$posteriors$`contSD_cond[3]`, type='l')
+plot(results$posteriors$pMem.mu, type='l')
+plot(results$posteriors$pContBetween.var, type='l')
+
+```
+
+You can see from all of there parameter chains, with the possible exception of the variance parameter in the bottom-right, that convergence was fairly quick in this case. It seems like the chains are basically converged past 200 iterations, although convergence doesn't seem to be totally complete at that point.
+
+This is just a small sampling of parameters, you should check others as well. However, know that it is unlikely that one parameter will converge if another parameter has not converged because most of the parameters are at least a little correlated.
+
+
+### Removing Burn-In iterations
+
+Once you have examined convergence, usually you will find that there are quite a few pre-convergence iterations that should be removed as burn-in. This number is typically 500 to 1000 in my experience, but it depends on the convergence plots you get. You can remove burn-in iterations with the `removeBurnIn` function.
+```{r}
+results = removeBurnIn(results, burnIn=500)
+```
+
+
+### Geweke Post Burn-In Convergence Diagnostic
+
+once you have removed burn-in iterations, you should verify that you have removed enough iterations and that the remaining chains have converged. One way to do this is to use the Geweke convergence diagnostic, one implementation of which can be found in the `coda` package. To use the Geweke diagnostic, you must have one large matrix of all parameter chains. The helper function `convertPosteriorsToMatrix` makes this matrix.
+
+```{r}
+library(coda)
+
+pmat = convertPosteriorsToMatrix(results)
+pmat = mcmc(pmat) #convert to coda format
+```
+
+With this parameter matrix, you can use the Geweke diagnostic from the `coda` package. The Geweke diagnostic calculates a z statistic for each parameter. Under the hypothesis that the chains have converged, the z statistics follow a standard normal distribution. We can examine how well the z statistics follow a standard normal by making a QQ plot.
+
+```{r fig.width=3, fig.height=3}
+gr = geweke.diag(pmat, 0.3, 0.3)
+qqnorm(gr$z) #the z-scores should follow a standard normal distribution.
+abline(0,1)
+```
+
+This looks fairly good for most of the parameters, but with odd tails, so not perfect. Note that if a few participant-level parameters do not converge, that may not be a big deal. Inferences are generally based of estimates of the populations of participant-level parameters, which should be reasonably robust to the non-convergence of individual participant parameters. This means that you should focus on convergence of the condition effects and the population mean parameters (e.g. for `pMem`, `pMem_cond[2]` and `pMem.mu`; see the [Parameter Names](#parameterNames) section for more information). 
+
+```{r}
+gr$z[c("pMem_cond[2]", "pMem.mu")]
+```
+
+
+## Combining Results from Parallel Chains
+
+Imagine that you have saved results from a number of different R sessions. You can load the data into a single R session as follows:
+
+```{r eval=FALSE}
+results_1 = readRDS("results_1.RDS")
+results_2 = readRDS("results_2.RDS")
+results_3 = readRDS("results_3.RDS")
+#Load more results objects...
+```
+
+Once you have done that, you can combine together the parallel chains with `mergeResults`.
+
+```{r eval=FALSE}
+results = mergeResults(results_1, results_2, results_3)
+```
+
+This final results object can now be used for final analyses. **Note**: You must remove burn-in iterations _before_ merging results.
+
+
+## Continuing Parameter Estimation
+
+Since it can take hours do to a single parameter estimation run, I made a way to continue sampling from the end of a completed chain, which is done with the `continueSampling` function, which returns a list containing the `oldResults`, the `newResults`, and the `combinedResults`. In this example, you would get 1000 more iterations from the current results chain.
+
+```{r eval=FALSE}
+# Assume that the "results" object already exists
+continueList = continueSampling(results, iterations=1000)
+results = continueList$combinedResults
+```
+
+A perhaps even more interesting way to use `continueSampling` is as a way to regularly save progress while sampling. Instead of sampling 1000 iterations at once, this example samples 10 blocks of 100 iterations, saving to a file as it goes.
+
+```{r eval=FALSE}
+for (i in 1:10) {
+	continueList = continueSampling(results, iterations=100)
+	results = continueList$combinedResults
+	saveRDS(results, file="results/loopUpdatedResults.RDS")
+}
+```
+
+
+# Examining Results
+
+As these are complex models, there are a variety of ways in which the results can be examined. I have implemented several basic analyses, most of which are presented below. For all of the functions below, more information can found in the documentation of the function, including, typically, function arguments that I leave at the default values here.
+
+## Color Generating Function
+
+This section is an aside about prettifying plots: Feel free to skip it.
+
+This model was designed to work with color delayed estimation tasks, in which case the study and response angles are not as good of a description of the stimuli as what the study and response _colors_ were. To add color information to the plots, you may add a function named `colorGeneratingFunction` to the results object that takes an angle in degrees as a argument and returns a color. The result of this is that plots made by this package will plot color information, where appropriate. You will be able to see this in the following plots. If the color generating function is not set, the plots will still work, just without color information.
+
+```{r}
+results$colorGeneratingFunction = function(x) {
+	hsv((x %% 360) / 360, 1, 1)
+}
+```
+
+Obviously, you should use a color generating function that is the same as what you used to generate your stimuli rather than this generic one.
+
+
+## Parameter Summary Plot
+
+You can make a plot that summarizes the parameters of the model with `plotParameterSummary`. This is a good place to start.
+
+```{r fig.width=6.5, fig.height=6.5}
+par(cex=0.75)
+plotParameterSummary(results)
+```
+
+## Posterior Means and Credible Intervals
+
+The posterior means and credible intervals for parameters with condition effects are plotted with `plotParameterSummary`. You can access the data used to make these plots by calling the `posteriorMeansAndCredibleIntervals`.
+```{r}
+posteriorMeansAndCredibleIntervals(results)
+```
+
+## Posterior Predictive Distribution
+
+You can examine data generated from the fitted model by sampling from the posterior predictive distribution. In the following plots, a single participant's real data is plotted alongside data generated from the model. The sampled data are returned invisibly in a data frame.
+
+```{r fig.height=5, fig.width=5}
+sampled = posteriorPredictivePlot(results, pnums=4, conditions=c(1,3))
+sampled[1:5,]
+```
+
+You can use a vector of `pnum`s, which allows you to make plots that include data from any number of participants at once. The different participants are all included in the same plot, which can help you to see overall patterns of fit.
+
+```{r eval=FALSE}
+posteriorPredictivePlot(results, pnums=1:length(results$pnums), alpha=0.1) #not run
+```
+
+
+## Condition Effects
+
+If you have more than one condition in your data, one important question is whether the primary parameters of the model change as a function of conditions. You can examine results of hypothesis tests about whether conditions differ with the following function:
+
+```{r warning=FALSE, message=FALSE, error=FALSE}
+condEff = testConditionEffects(results)
+condEff
+```
+
+The null hypothesis in each test is that the listed conditions do not differ from one another. The `bf01` and `bf10` columns give the Bayes factor in favor of the null and alternative hypotheses, respectively.
+
+
+
+## Testing Categorical Responding
+
+One research question is whether there is any categorical responding present in the data. One quick way to check this is to see if the parameters that reflect the proportion of categorical responding indicate that no categorical responding is present. These parameters are `pContBetween` and `pCatGuess`. If `pContBetween` = 1 and `pCatGuess` = 0, then there is no categorical responding. That is effectively what the `testCategoricalResponding` function tests, although the probabilities that are tested by default are 0.99 and 0.01 for reasons discussed in Hardman, Vergauwe, and Ricker (2016). See the documentation for `testCategoricalResponding` for more information.
+
+```{r}
+testCategoricalResponding(results)
+```
+
+Note that the test is done in each condition individually. The null hypothesis for each test is that the parameter value is equal to the null hypothesized value, `H0_value`.
+
+## Testing Parameter Means
+
+The test of categorical responding uses a more general function that can test hypotheses about the means of any model parameters (other than `catActive` and `catMu`). The test that is performed is on the population mean in a condition of the experiment.
+
+```{r}
+testMeanParameterValue(results, param = "pMem", cond = 1, H0_value = 0.5)
+```
+
+## Model Fit Statistics
+
+Models are often compared to one another with model fit statistics like AIC and BIC. For the kinds of Bayesian hierarchical models fit with this package, an appropriate fit statistic is WAIC. WAIC is conceptually similar to AIC, but cannot be directly compared with AIC values (although they do often end up being fairly similar in magnitude). You can caluate WAIC for a fitted model as follows.
+
+```{r cache=TRUE, include=FALSE}
+waic = calculateWAIC(results)
+```
+```{r eval=FALSE}
+waic = calculateWAIC(results)
+```
+```{r}
+waic
+```
+
+This can be used to compare model variants (e.g. the between-item and within-item variants). It can also be used to examine the effects of changing constraints (i.e. constant parameter values or priors) within a model variant.
+
+
+
+# Working With Parameters
+
+## Parameter Names {#parameterNames}
+
+The parameters are named as follows:
+
+1. Probability parameters:
+
++ `pMem`: The probability that the tested item is in memory.
++ `pBetween`: The probability that a memory response is a between-item response.
++ `pContBetween`: The probability that a between-item memory response is continuous in nature.
++ `pContWithin`: The proportion of a within-item memory response that is continuous in nature.
++ `pCatGuess`: The probability that a guess is from one of the color categories (rather than from a uniform distribution).
+
+2. Standard deviation parameters:
+
++ `contSD`: The standard deviation in degrees of continuous memory responses.
++ `catSD`: The standard deviation in degrees of categorical memory responses and of categorical guesses.
++ `catSelectivity`: A standard deviation in degrees related to how the probability that a study item is assigned to different categories. See the article.
+
+3. Additional category parameters:
+
++ `catMu`: The location of a color category. Each participant has several of these parameters.
++ `catActive`: Whether a color category is active. Each participant has several of these parameters.
+
+
+Each participant has 1 of each of the probability and standard deviation parameters. They have several of the additional category parameters, the number of which is controlled by the `maxCategories` member of the configuration that is used for parameter estimation. The number of parameters is constant, but the number of categories actually used by participants is controlled by the `catActive` parameters.
+
+Different model variants have different parameters. Parameters that are not used by a model variant are set to constant values.
+
++ `betweenAndWithin` uses all parameters. 
++ `betweenItem` does not use `pBetween` or `pContWithin` (`pBetween` is effectively set to 1). 
++ `withinItem` does not use `pBetween` or `pContBetween` (`pBetween` is effectively set to 0). 
++ `ZL` uses only `pMem` and `contSD` (`pBetween` and `pContBetween` both effectively set to 1, `pCatGuess` effectively set to 0).
+
+The parameter chains can be found within the `results$posteriors` list. The names of the participant level parameters are formatted as follows: `parameter[pnum]`, where `pnum` is the participant number of the participant associated with that parameter. For example, for the participant with `pnum` 7, the `pMem` parameter is named `pMem[7]`.
+
+Each participant has several `catMu` and `catActive` parameters. Their names are formatted like `catMu[pnum,catIndex]`, where `catIndex` is 0-indexed. For example, the first `catMu` parameter for the participant with `pnum` 7 would be `catMu[7,0]`.
+
+Hierarchical parameters have `.mu` or `.var` appended to them. For example, `pMem.mu` is the mean of the `pMem` parameters.
+
+The condition effects names have `_cond[c]` appended to them, where `c` is replaced with the name of a condition. For example, the `pMem` condition effect for the condition named "ss0" would be `pMem_cond[ss0]`.
+
+
+## Parameter Chains
+
+The raw parameter chains are stored in `results$posteriors`, which is a named list:
+
+```{r}
+names(results$posteriors)[1:5]
+```
+
+These first 5 are participant level parameters where the `[1]` is the participant number. You can access individual parameter chains the same way you would access any named list element:
+
+```{r}
+pMem1 = results$posteriors[["pMem[1]"]]
+pMem1[1:10]
+```
+
+For convenience, it is possible to get the posterior chains for participant level parameters in matrices by calling `convertPosteriorsToMatrices`. The results is a named list of matrices (or arrays, for the `catMu` and `catActive` parameters). Each column of the matrices is a single participant and each row is a single iteration of the chain. The `catMu` and `catActive` arrays are 3 dimensional. The first dimension is participant, the second is category within participant, and the third is iteration.
+
+```{r}
+post = convertPosteriorsToMatrices(results)
+names(post)
+post$contSD[1:3,]
+```
+
+
+## Parameter Transformations
+
+If working with parameters directly, it is extremely important that you remember that most of the parameters exist in a latent space. For example, the probability parameters exist on the interval `(-Inf, Inf)` and are transformed to probabilities with the logit transformation. Critically, you must also apply condition effects to participant level parameters before transforming parameters.
+
+This means that, for example, to find out what a given participant's probability of having the tested item in memory is in a given condition of the experiment, you must do the following:
+
+1. Retrieve the participant level parameter chain for `pMem`.
+2. Retrieve the condition effect chain for `pMem` in the condition.
+3. Add the two chains together elementwise.
+4. Transform the resulting chain from the latent space to the manifest space with the correct transformation function.
+
+In the following code, the process is done for participant number 4 in condition 3:
+
+```{r}
+pMem_part = results$posteriors[["pMem[4]"]] #step 1
+pMem_cond = results$posteriors[["pMem_cond[3]"]] #step 2
+pMem_latent = pMem_part + pMem_cond #step 3: add the chains
+
+#step 4 in two parts: getting the transformation function, then doing the transformation
+transformationFunction = getParameterTransformation("pMem", results)
+pMem_manifest = transformationFunction(pMem_latent)
+```
+
+Now you can work with the manifest `pMem` values, like getting their posterior mean or credible interval. This whole process is performed by the helper function `getParameterPosterior` which can be used as follows:
+
+```{r}
+pMem_manifest = getParameterPosterior(results, param="pMem", pnum=4, cond=3)
+```
+
+### Helper Function for Parameters for an Iteration
+
+Sometimes you might want all of the transformed parameters for one iteration, in which case you may want use the `getTransformedParameters` function, which provides the transformed parameters for a given participant, condition, and iteration.
+
+```{r}
+param = getTransformedParameters(results, pnum=2, cond=1, iteration=7)
+param
+```
+
+Note that inactive categories have already been removed from `param` which is why it does not include the `catActive` parameters. The limitation of this function is that it gives all parameters but only for 1 iteration.
+
+
+
+# Setting Parameters to Constant Values
+
+It is possible to set any parameters of the models to constant values. This prevents those parameters from being estimated, but there are reasons for doing this. For example, you may not have enough data to estimate the locations of categories. You might also have very strong beliefs about where the categories are, such as if you have orientation data and believe that participant categories are at the canonical compass points. You might also want to make a reduced model in which some parameters are set to constant values. For example, you might want to disallow categorical guessing, so you set `pCatGuess` to 0.
+
+The way you set parameters to constant values is to provide a list containing constant values for parameters and give it as the `constantValueOverrides` argument to `runParameterEstimation`.
+
+```{r eval=FALSE}
+constantParam = list()
+constantParam[["pMem[3]"]] = 1.5 #Set pMem for participant with pnum 3 to 1.5 (in the latent space, so pMem = 0.82)
+constantParam[["contSD_cond[A]"]] = -1 #Set the contSD condition effect for condition A to -1
+runParameterEstimation(config, data, constantValueOverrides = constantParam)
+```
+
+Note that the `constantValueOverrides` must specify parameters for each participant individually. Also note that values must be provided in the latent space.
+
+To simplify this, there are two functions that help to build the list of constant parameter values, a simple usage of which is shown below. See the function documentation for more information.
+
+```{r eval=FALSE}
+
+pMemConstant = setConstantParameterValue(data, param="pMem", value=0.8)
+
+catParam = data.frame(pnum = rep(c(1,2), each=4),
+											catMu = rep(c(0, 90, 180, 270), 2),
+											catActive = 1 )
+
+categoryConstant = setConstantCategoryParameters(data, catParam, maxCategories = results$config$maxCategories)
+
+constantParam = c(pMemConstant, categoryConstant)
+
+runParameterEstimation(config, data, constantValueOverrides = constantParam)
+```
+
+This is a totally general and flexible system, which also means that it is possible for you to do stupid things with it, like set a variance to 0, so be careful.
+
+
+
+# Controlling the Number of Categories
+
+One of the issues with this model is that it is eager to use a lot of categories. However, it is reasonable to think 1) that people do not have a huge number of categories and 2) that those categories are not extremely close to one another. As discussed in the Category Center and Active Parameters subsection in the Appendix of Hardman, Vergauwe, and Ricker (2016), with a uniform prior on the `catMu` and `catActive` parameters, the maximum number of parameters was always used for all participants, which is unreasonable.
+
+There are two ways to control the number of categories used by participants: Setting the maximum number of categories and setting a prior on category locations.
+
+## Maximum Number of Categories
+
+The simpler way to limit the number of parameters is to set the `maxCategories` setting in the configuration of the parameter estimation. Participants will not be able to have more categories than this number.
+
+```{r eval=FALSE}
+#assume the config list is already partially made
+config$maxCategories = 12 #set the maximum number of catgeories.
+results = runParameterEstimation(config, data)
+```
+
+There are a few guidelines to follow here.
+1. If you set `maxCategories` to a very large value (like 100), it will make the parameter estimation take a really long time. This is because every category has parameters that are estimated regardless of whether the category is active or not. Specifically, even inactive categories, the `catActive` parameter is consistently checking whether the category should become active and the `catMu` parameter is wandering around.
+2. If you set `maxCategories` to the exact number of categories that you want to be the maximum, the effective maximum will be slightly lower than `maxCategories` because even categories in good locations will occasionally be deactivated.
+Thus, you should set `maxCategories` to a value slightly larger (maybe 20%) than the value you want as the effective maximum.
+
+## Prior on Category Locations
+
+The more complex way is to set a prior which penalizes categories which are too close to one another. This is the $\sigma_{0\mu}$ prior from the article and is called `catMuPriorSD` in the package. You can set its value by providing a list with it as a prior override, as shown in the code snippet below.
+
+```{r eval=FALSE}
+priors = list(catMuPriorSD = 12)
+results = runParameterEstimation(config, data, priorOverrides=priors)
+```
+
+The mathematical behavior of the prior is described in the article. Below is a plot of what this prior looks like for the given category centers. The solid points are at the category centers.
+
+```{r fig.width=4, fig.height=3}
+par(mar=c(5,4,1,1), cex=0.8)
+catMus = c(60, 110, 150, 180, 300, 320)
+plotCatMuPrior(12, catMus)
+```
+
+This function can be thought of as the prior density for a new category that is trying to be added to the existing categories. In the vicinity of existing categories, the prior density for the new category is quite low, which makes it less likely that the new category will go in that location. However, far from an existing category, such as near 240 degrees, the prior density is relatively high and locally uniform, which makes it relatively easy for a new category to be placed there.
+
+Note that this prior is on both `catMu` and `catActive`. The effect it has on `catActive` is to make it more likely that an active category that has moved too near another category will be deactivated, if active, along with making it less likely that an inactive category would become active when it is near an active category. The effect it has on `catMu` is that it makes it less likely that an active category would move nearer to another active category. It has no effect on inactive `catMu`s (in general, inactive `catMu` parameters move around with a random walk, looking for a good place to become active).
+
+
+# Notes
+
+## Models
+
+### Between-Item
+
+This was the best model selected by @HardmanVergauweRicker2016. If you are going to use one categorical model from this package, you should use this model.
+
+### Within-Item
+
+The within-item model has an issue, which is that if very few categories are active, `pContWithin` is essentially forced to be 1. Imagine the case in which there is only 1 active category at 180 degrees and that `pContWithin` is 0.5. This means that the model will predict that memory responses will be on a line essentially going from (0, 90) to (360, 270). This forces `pContWithin` to 1 so that the line will go from (0, 0) to (360, 360) and capture the bulk of the data. The between-item model doesn't have this issue because the categorical and continuous response are treated separately
+
+One possible solution to this is to use constant parameter values overrides to force a few categories (maybe 4) to always be active, but that does have the effect of always having a few active categories.
+
+
+### ZL (Zhang & Luck)
+
+There is nothing particularly interesting about my implementation of the ZL model, but it is still a hierarchical Bayesian model with main effects of experimental condition. It may be useful on its own or as a model to compare the other models to.
+
+## Stimuli
+
+These models were developed with colors in mind, but there is nothing about the models that restricts them to color stimuli. The models can be used with any stimuli that exist on a circular space, although this does not mean that the models will necessarily be appropriate for those data.
+
+## Citing this Package and Models
+
+For referencing ideas in the models, please cite the Hardman, Vergauwe, and Ricker (2016) article.
+
+If you use this package, please cite it:
+
+Hardman, K.O. (2016). CatContModel: CatContModel: Categorical and Continuous Working
+Memory Models for Delayed Estimation Tasks (Version 0.5.0) [Computer software]. Retrieved from
+https://github.com/hardmanko/CatContModel/releases/tag/v0.5.0
+
+Make sure to update the version number in both the name and the URL.
+
+
+
+# References
+
+
+

@@ -1,0 +1,1 @@
+year = sub("-.*", "", meta$Date)bibentry(bibtype = "Manual",title = "{CatContModel}: Categorical and Continuous Working Memory Models for Delayed Estimation Tasks (Version 0.5.0)",author = person("Kyle O", "Hardman", role="aut"), year = year, url = "https://github.com/hardmanko/CatContModel")
