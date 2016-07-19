@@ -77,16 +77,6 @@ namespace CatCont {
 	double Bayesian::normalPriorParameter_ll(double thisParam, const ParameterList& param, unsigned int pIndex, string paramName) const {
 		double ll = singleParticipant_ll(param, pIndex);
 		double prior = normalLL(thisParam, param.at(paramName + ".mu"), param.at(paramName + ".var"));
-
-		/*
-		if (ll != ll) {
-			Rcpp::Rcout << "Death for param: " << paramName << " & pnum " << pIndex << " with value " << thisParam << endl;
-		}
-		if (ll == std::numeric_limits<double>::infinity() || ll == -std::numeric_limits<double>::infinity()) {
-			Rcpp::Rcout << "Infinite Death for param: " << paramName << " & pnum " << pIndex << " with value " << thisParam << endl;
-		}
-		*/
-
 		return ll + prior;
 	}
 
@@ -104,8 +94,7 @@ namespace CatCont {
 					if (config.dataType == DataType::Circular) {
 						like = vmLut.dVonMises(mus[k], mus[kp], this->_catMuPriorData.kappa);
 					} else {
-						//TODO: It really seems like just a normal would be fine, not truncated.
-						like = Linear::dnorm(mus[k], mus[kp], _catMuPriorData.sd);
+						like = Linear::dnorm(mus[k], mus[kp], _catMuPriorData.sd); //NOT truncated
 					}
 
 					double ratio = 1 - like / _catMuPriorData.maxLikelihood;
@@ -126,7 +115,7 @@ namespace CatCont {
 		double startPoint = 0;
 
 		if (config.dataType == DataType::Linear) {
-			stepSize = (config.linearConfiguration.catMu.upper - config.linearConfiguration.catMu.lower) / steps; //TODO: Is this ok???
+			stepSize = (config.linearConfiguration.catMu.upper - config.linearConfiguration.catMu.lower) / steps;
 			startPoint = config.linearConfiguration.catMu.lower;
 		}
 
@@ -145,6 +134,7 @@ namespace CatCont {
 	double Bayesian::_scaledCatMuDensity(const vector<double>& mus, const vector<unsigned int>& catActives, unsigned int k, unsigned int steps) const {
 
 		if (config.dataType == DataType::Linear) {
+			//This is the uniform distribution that is multiplied by the rest of the prior.
 			if (mus[k] < config.linearConfiguration.catMu.lower || mus[k] > config.linearConfiguration.catMu.upper) {
 				//Rcpp::Rcout << "mu[k] rejected: " << mus[k] << endl;
 				return 0;
@@ -154,7 +144,7 @@ namespace CatCont {
 		//If this category is inactive, the density is just the height of a uniform distribution
 		if (catActives[k] == 0) {
 			if (config.dataType == DataType::Linear) {
-				return 1.0 / (config.linearConfiguration.catMu.upper - config.linearConfiguration.catMu.lower); //TODO: Is this correct?
+				return 1.0 / (config.linearConfiguration.catMu.upper - config.linearConfiguration.catMu.lower);
 			} else {
 				//circular
 				return 1.0 / (2 * PI); 
@@ -354,7 +344,7 @@ namespace CatCont {
 						catMuCandidateSd = Circular::degreesToRadians(catMuCandidateSd);
 					}
 
-					catMu.deviateFunction = bind(normalDeviate, _1, catMuCandidateSd); //TODO: Is this a good candidate distribution??? VM?
+					catMu.deviateFunction = bind(normalDeviate, _1, catMuCandidateSd);
 					catMu.llFunction = bind(&Bayesian::catMu_ll, this, _1, _2, i, j);
 
 					//The start value is in a grid within the response range
@@ -841,9 +831,8 @@ namespace CatCont {
 
 		} else if (config.dataType == DataType::Linear) {
 
-			//TODO
-			_catMuPriorData.kappa = std::numeric_limits<double>::infinity();
-			_catMuPriorData.maxLikelihood = Linear::dnorm(0, 0, _catMuPriorData.sd); //TODO: Not truncated???
+			_catMuPriorData.kappa = std::numeric_limits<double>::infinity(); //This isn't used anywhere
+			_catMuPriorData.maxLikelihood = Linear::dnorm(0, 0, _catMuPriorData.sd); //NOT truncated.
 
 		}
 	}

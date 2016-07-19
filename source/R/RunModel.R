@@ -43,13 +43,18 @@ verifyConfigurationList = function(config, data) {
 			stop("config$responseRange[1] >= config$responseRange[2]. The lower end of the response range must be lower!")
 		}
 		
+		if (any(data$response < config$responseRange[1]) || any(data$response > config$responseRange[2])) {
+			stop("Some responses are outside of responseRange. responseRange must contain all responses.")
+		}
+		
 		if (is.null(config$catMuRange)) {
 			config$catMuRange = config$responseRange #TODO: catMuRange is not currently documented anywhere. This is intentional, but you should still decide what to do with it.
 		}
 		
-		if (any(data$response < config$responseRange[1]) || any(data$response > config$responseRange[2])) {
-			stop("Some responses are outside of responseRange.")
+		if (config$catMuRange[1] >= config$catMuRange[2]) {
+			stop("config$catMuRange[1] >= config$catMuRange[2]. The lower end of the catMu range must be lower!")
 		}
+
 	}
 	
 
@@ -643,11 +648,6 @@ removeBurnIn = function(results, burnIn) {
 	}
 	
 	results$config$iterations = length(keep)
-	
-	#remake post
-	#if (!is.null(results$post)) {
-	#	results$post = convertPosteriorsToMatrices(results)
-	#}
 	
 	results
 }

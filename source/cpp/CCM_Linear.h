@@ -38,7 +38,7 @@ namespace CatCont {
 		double dnorm(double x, double mu, double sd);
 		double dtnorm_denominator(double mu, double sd, double lower, double upper);
 		double dtnorm(double x, double mu, double sd, double lower, double upper, bool log = false);
-		double dtnorm_fast(double x, double mu, double sd, double lower, double upper);
+		double dtnorm_noBoundCheck(double x, double mu, double sd, double lower, double upper);
 
 		vector<double> betweenAndWithinLikelihood(const CombinedParameters& par, const ConditionData& data, const LinearConfiguration& config);
 		double betweenAndWithinLL(const CombinedParameters& par, const ConditionData& data, const LinearConfiguration& config);

@@ -167,6 +167,9 @@ convertParameterListToDataFrame = function(paramList, maxCat) {
 compareTrueAndRecovered = function(results, trueParam) {
 	recPart = participantPosteriorSummary(results)
 	
+	trueParam$pnum = as.character(trueParam$pnum)
+	trueParam = trueParam[ order(trueParam$pnum), ]
+	
 	if (is.factor(trueParam$param)) {
 		trueParam$param = levels(trueParam$param)[trueParam$param]
 	}

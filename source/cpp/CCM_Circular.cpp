@@ -109,8 +109,6 @@ namespace CatCont {
 					OUT_weights[i] /= densSum;
 				}
 			}
-
-
 		}
 
 

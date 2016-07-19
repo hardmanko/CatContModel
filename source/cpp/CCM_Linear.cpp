@@ -8,7 +8,7 @@
 namespace CatCont {
 	namespace Linear {
 
-		//TODO: Test all of these density functions
+		/*
 		double dtnorm_denominator(double mu, double sd, double lower, double upper) {
 			double a;
 			double b;
@@ -27,8 +27,10 @@ namespace CatCont {
 
 			return b - a;
 		}
+		*/
 
-		double dtnorm_denominator_fast(double mu, double sd, double lower, double upper) {
+		//This does NOT test for infinity (which pnorm probably does anyway)
+		double dtnorm_denominator(double mu, double sd, double lower, double upper) {
 
 			double a = R::pnorm(lower, mu, sd, R_TRUE, R_FALSE); //q, mu, sd, lower tail=T, log.p=F
 			double b = R::pnorm(upper, mu, sd, R_TRUE, R_FALSE);
@@ -40,11 +42,8 @@ namespace CatCont {
 			return R::dnorm(x, mu, sd, R_FALSE);
 		}
 
+		//Does not enforce lower < upper, but why would that ever happen?
 		double dtnorm(double x, double mu, double sd, double lower, double upper, bool log_) {
-			//??? do this check???
-			//if (lower > upper) {
-			//	return 0;
-			//}
 
 			//This may not be needed as the data bounds always contain the data...
 			if (x < lower || x > upper) {
@@ -60,9 +59,23 @@ namespace CatCont {
 			return d;
 		}
 
-		double dtnorm_fast(double x, double mu, double sd, double lower, double upper) {
+		double dtnorm(double x, double mu, double sd, double lower, double upper) {
 
-			double denominator = dtnorm_denominator_fast(mu, sd, lower, upper);
+			//This may not be needed as the data bounds always contain the data...
+			if (x < lower || x > upper) {
+				return 0;
+			}
+
+			double denominator = dtnorm_denominator(mu, sd, lower, upper);
+
+			return R::dnorm(x, mu, sd, R_FALSE) / denominator;
+		}
+
+		//This does NOT check that x is in the interval. It assumes that the data range is wider than the
+		//observed data, which is enforced in R.
+		double dtnorm_noBoundCheck(double x, double mu, double sd, double lower, double upper) {
+
+			double denominator = dtnorm_denominator(mu, sd, lower, upper);
 
 			return R::dnorm(x, mu, sd, R_FALSE) / denominator;
 		}
@@ -93,7 +106,7 @@ namespace CatCont {
 
 		double dtnorm_unifEdge(double x, double mu, double sd, double lower, double upper, double edgeWidth) {
 
-			double probInInterval = dtnorm_denominator_fast(mu, sd, lower, upper);
+			double probInInterval = dtnorm_denominator(mu, sd, lower, upper);
 			double excessProb = 1 - probInInterval;
 
 			double normalDens = R::dnorm(x, mu, sd, R_FALSE);
@@ -115,6 +128,62 @@ namespace CatCont {
 			return dens;
 		}
 
+		double dtnorm_tnormEdge(double x, double mu, double sd, double lower, double upper, double edgeSD) {
+
+			if (x < lower || x > upper) {
+				return 0;
+			}
+
+			double probInInterval = dtnorm_denominator(mu, sd, lower, upper);
+
+			double probOutsideInterval = 1 - probInInterval;
+
+			double normalDens = R::dnorm(x, mu, sd, R_FALSE);
+			double linearCenter = (upper + lower) / 2;
+			double edgeNormalDens;
+
+			if (mu > linearCenter) {
+				edgeNormalDens = R::dnorm(x, upper, edgeSD, R_FALSE);
+			} else {
+				edgeNormalDens = R::dnorm(x, lower, edgeSD, R_FALSE);
+			}
+
+			//You know that half of the edge normal's mass is outside of the interval, so multiply by 2 to scale it up to have a mass of 1.
+			//Then multiply by the amount of mass outside of the interval to scale it back down.
+			edgeNormalDens *= 2 * probOutsideInterval;
+
+			double dens = normalDens + edgeNormalDens;
+
+			return dens;
+		}
+
+		//If mu and sd put the distribution away from the bounds so far that the proportion within the bounds is tiny,
+		//return 0 density.
+		//NOTE: Don't use this, it's conceptually difficult. Should pWithinInterval < 0.01?
+		double dtnorm_clampToZero(double x, double mu, double sd, double lower, double upper) {
+
+			double pWithinInterval = dtnorm_denominator(mu, sd, lower, upper);
+			if (pWithinInterval < 1e-100) {
+				return 0;
+			}
+
+			double dens = R::dnorm(x, mu, sd, R_FALSE);
+
+			return dens / pWithinInterval;
+		}
+
+		//This limits how much the density can be scaled by only allowing the prob within interval to be so small.
+		double dtnorm_limitProbWithin(double x, double mu, double sd, double lower, double upper) {
+			double pWithinInterval = dtnorm_denominator(mu, sd, lower, upper);
+			pWithinInterval = std::max(pWithinInterval, 0.5); //No less that a 0.5 scale value.
+			//0.5 is an important point. if x == upper, then if p < 0.5, the density is higher when mu > x than when mu == x.
+			//If p == 0 (i.e. a standard truncated normal), then dens increases as mu goes beyond x. This is stupid.
+
+			double dens = R::dnorm(x, mu, sd, R_FALSE);
+
+			return dens / pWithinInterval;
+		}
+
 
 		//OUT_weights must be an array of the correct size (par.cat.mu.size()). 
 		//This code is nasty for the sake of efficiency, avoiding lots of little allocations of weights vectors.
@@ -126,12 +195,11 @@ namespace CatCont {
 			double densSum = 0;
 			for (unsigned int i = 0; i < n; i++) {
 				//There is an argument that this distribution is not truncated: Category assignment is perceptual, independent of the study/response space.
-				double d = Linear::dnorm(study, par.cat.mu[i], par.cat.selectivity);
+				double d = R::dnorm(study, par.cat.mu[i], par.cat.selectivity, R_FALSE);
 				densSum += d;
 				OUT_weights[i] = d;
 			}
 
-			//TODO: What do you do if densSum is tiny/zero???
 			if (densSum < 1e-250) {
 
 				//If densSum is tiny, give equal weights
@@ -159,7 +227,8 @@ namespace CatCont {
 
 			for (unsigned int i = 0; i < data.study.size(); i++) {
 
-				double memDens = par.pMem * dtnorm_fast(data.response[i], data.study[i], par.contSD, lc.response.lower, lc.response.upper);
+				double memDens = par.pMem * dtnorm_noBoundCheck(data.response[i], data.study[i], par.contSD, lc.response.lower, lc.response.upper);
+				//double memDens = par.pMem * dtnorm_tnormEdge(data.response[i], data.study[i], par.contSD, lc.response.lower, lc.response.upper, par.contSD / 5);
 
 				likelihoods[i] = memDens + guessDens;
 			}
@@ -176,17 +245,6 @@ namespace CatCont {
 
 				return zlLikelihood(zlPar, data, lc);
 			}
-
-			//Zero likelihood if any catMu outside of the allowed interval
-			//TODO: I think that this check is irrelevant because the prior checks as well.
-			/*
-			for (unsigned int i = 0; i < par.cat.mu.size(); i++) {
-				if (par.cat.mu[i] < lc.catMu.lower || par.cat.mu[i] > lc.catMu.upper) {
-					//Rcpp::Rcout << "catMu rejected. catMu = " << par.cat.mu[i] << " with bounds " << lc.catMu.lower << ", " << lc.catMu.upper << endl;
-					return vector<double>(data.study.size(), 0);
-				}
-			}
-			*/
 
 			bool calculateWithinComponent = (lc.modelVariant == ModelVariant::BetweenAndWithin) || (lc.modelVariant == ModelVariant::WithinItem);
 			bool calculateBetweenComponent = (lc.modelVariant == ModelVariant::BetweenAndWithin) || (lc.modelVariant == ModelVariant::BetweenItem);
@@ -221,7 +279,8 @@ namespace CatCont {
 
 					if (par.cat.mu.size() == 0) {
 
-						withinDensity = dtnorm_fast(data.response[i], data.study[i], par.contSD, lc.response.lower, lc.response.upper);
+						withinDensity = dtnorm_noBoundCheck(data.response[i], data.study[i], par.contSD, lc.response.lower, lc.response.upper);
+						//withinDensity = dtnorm_tnormEdge(data.response[i], data.study[i], par.contSD, lc.response.lower, lc.response.upper, par.contSD / 5);
 
 					} else {
 
@@ -229,7 +288,8 @@ namespace CatCont {
 
 							double predictedCenter = par.pContWithin * data.study[i] + (1 - par.pContWithin) * par.cat.mu[j];
 
-							double thisDens = dtnorm_fast(data.response[i], predictedCenter, combinedWithinSd, lc.response.lower, lc.response.upper);
+							double thisDens = dtnorm_noBoundCheck(data.response[i], predictedCenter, combinedWithinSd, lc.response.lower, lc.response.upper);
+							//double thisDens = dtnorm_tnormEdge(data.response[i], predictedCenter, combinedWithinSd, lc.response.lower, lc.response.upper, combinedWithinSd / 5);
 
 							withinDensity += weights[j] * thisDens;
 						}
@@ -242,7 +302,8 @@ namespace CatCont {
 
 				//For both between and guessing. This is always calculated for guessing even if between isn't calculated.
 				for (unsigned int j = 0; j < weights.size(); j++) {
-					double dens = dtnorm_fast(data.response[i], par.cat.mu[j], par.cat.SD, lc.response.lower, lc.response.upper);
+					double dens = dtnorm_noBoundCheck(data.response[i], par.cat.mu[j], par.cat.SD, lc.response.lower, lc.response.upper);
+					//double dens = dtnorm_tnormEdge(data.response[i], par.cat.mu[j], par.cat.SD, lc.response.lower, lc.response.upper, par.cat.SD / 5);
 					betweenCatDens += weights[j] * dens;
 					catGuessDens += dens;
 				}
@@ -251,7 +312,8 @@ namespace CatCont {
 				double betweenDensity = 0;
 				if (calculateBetweenComponent) {
 
-					double contDensity = dtnorm_fast(data.response[i], data.study[i], par.contSD, lc.response.lower, lc.response.upper);
+					double contDensity = dtnorm_noBoundCheck(data.response[i], data.study[i], par.contSD, lc.response.lower, lc.response.upper);
+					//double contDensity = dtnorm_tnormEdge(data.response[i], data.study[i], par.contSD, lc.response.lower, lc.response.upper, par.contSD / 5);
 
 					betweenDensity = (par.pContBetween * contDensity) + ((1 - par.pContBetween) * betweenCatDens);
 				}

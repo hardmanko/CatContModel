@@ -7,7 +7,7 @@ data = read.delim("betweenItem_data.txt")
 
 
 # Set up a basic configuration
-config = list(iterations=500, modelVariant="betweenItem",  maxCategories=15)
+config = list(iterations=500, modelVariant="betweenItem", maxCategories=15)
 
 
 # MH tuning steps

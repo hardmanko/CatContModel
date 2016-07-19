@@ -2,6 +2,7 @@
 
 This R package implements the models used by Hardman, Vergauwe, and Ricker (2016). These models are difficult to implement and difficult to use. This package simplifies the process of using the models.
 
+This package is under development, as are the models. If you run into bugs or unusual model behavior, please report them in the issue tracker (click on the "Issues" tab).
 
 # Installation
 
@@ -58,3 +59,7 @@ At this point, you should be able to install from source. Make sure to install t
 
 This package is released under the MIT license. See LICENSE.md for more information.
 
+
+# Versions
+
+0.5.0 - Initial release.

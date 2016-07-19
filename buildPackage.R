@@ -94,7 +94,7 @@ write.dcf(dcf, file = paste(fullPackagePath, "DESCRIPTION", sep="") )
 
 #Copy over CITATION and LICENSE
 dir.create(paste(fullPackagePath, "inst/", sep=""))
-file.copy(from = paste(baseDir, "docs/toCopy/CITATION", sep=""), to = paste(fullPackagePath, "inst/CITATION", sep=""))
+#file.copy(from = paste(baseDir, "docs/toCopy/CITATION", sep=""), to = paste(fullPackagePath, "inst/CITATION", sep=""))
 file.copy(from = paste(baseDir, "LICENSE.md", sep=""), to = paste(fullPackagePath, "LICENSE", sep=""))
 
 

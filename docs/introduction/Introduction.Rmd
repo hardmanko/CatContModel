@@ -2,7 +2,7 @@
 title: "CatContModel Introduction"
 author: "Kyle Hardman"
 date: "July 2016"
-output: html_document
+output: pdf_document
 linkcolor: blue
 csl: apa-single-spaced.csl
 bibliography: references.bib
@@ -519,6 +519,18 @@ Note that this prior is on both `catMu` and `catActive`. The effect it has on `c
 
 # Notes
 
+## Citing this Package and Models
+
+For referencing ideas in the models, please cite the Hardman, Vergauwe, and Ricker (2016) article.
+
+If you use this package, please cite it:
+
+Hardman, K.O. (2016). CatContModel: CatContModel: Categorical and Continuous Working
+Memory Models for Delayed Estimation Tasks (Version 0.5.0) [Computer software]. Retrieved from
+https://github.com/hardmanko/CatContModel/releases/tag/v0.5.0
+
+Make sure to update the version number in both the name and the URL.
+
 ## Models
 
 ### Between-Item
@@ -540,18 +552,11 @@ There is nothing particularly interesting about my implementation of the ZL mode
 
 These models were developed with colors in mind, but there is nothing about the models that restricts them to color stimuli. The models can be used with any stimuli that exist on a circular space, although this does not mean that the models will necessarily be appropriate for those data.
 
-## Citing this Package and Models
+## Parameters
 
-For referencing ideas in the models, please cite the Hardman, Vergauwe, and Ricker (2016) article.
+### catSelectivity
 
-If you use this package, please cite it:
-
-Hardman, K.O. (2016). CatContModel: CatContModel: Categorical and Continuous Working
-Memory Models for Delayed Estimation Tasks (Version 0.5.0) [Computer software]. Retrieved from
-https://github.com/hardmanko/CatContModel/releases/tag/v0.5.0
-
-Make sure to update the version number in both the name and the URL.
-
+`catSelectivity` is really hard to estimate. Don't expect to be able to do anything fancy with it, like giving it a condition effect.
 
 
 # References
