@@ -128,6 +128,7 @@ namespace CatCont {
 			return dens;
 		}
 
+		//This isn't really important
 		double dtnorm_tnormEdge(double x, double mu, double sd, double lower, double upper, double edgeSD) {
 
 			if (x < lower || x > upper) {
@@ -228,7 +229,6 @@ namespace CatCont {
 			for (unsigned int i = 0; i < data.study.size(); i++) {
 
 				double memDens = par.pMem * dtnorm_noBoundCheck(data.response[i], data.study[i], par.contSD, lc.response.lower, lc.response.upper);
-				//double memDens = par.pMem * dtnorm_tnormEdge(data.response[i], data.study[i], par.contSD, lc.response.lower, lc.response.upper, par.contSD / 5);
 
 				likelihoods[i] = memDens + guessDens;
 			}
@@ -280,7 +280,6 @@ namespace CatCont {
 					if (par.cat.mu.size() == 0) {
 
 						withinDensity = dtnorm_noBoundCheck(data.response[i], data.study[i], par.contSD, lc.response.lower, lc.response.upper);
-						//withinDensity = dtnorm_tnormEdge(data.response[i], data.study[i], par.contSD, lc.response.lower, lc.response.upper, par.contSD / 5);
 
 					} else {
 
@@ -289,7 +288,6 @@ namespace CatCont {
 							double predictedCenter = par.pContWithin * data.study[i] + (1 - par.pContWithin) * par.cat.mu[j];
 
 							double thisDens = dtnorm_noBoundCheck(data.response[i], predictedCenter, combinedWithinSd, lc.response.lower, lc.response.upper);
-							//double thisDens = dtnorm_tnormEdge(data.response[i], predictedCenter, combinedWithinSd, lc.response.lower, lc.response.upper, combinedWithinSd / 5);
 
 							withinDensity += weights[j] * thisDens;
 						}
@@ -303,7 +301,6 @@ namespace CatCont {
 				//For both between and guessing. This is always calculated for guessing even if between isn't calculated.
 				for (unsigned int j = 0; j < weights.size(); j++) {
 					double dens = dtnorm_noBoundCheck(data.response[i], par.cat.mu[j], par.cat.SD, lc.response.lower, lc.response.upper);
-					//double dens = dtnorm_tnormEdge(data.response[i], par.cat.mu[j], par.cat.SD, lc.response.lower, lc.response.upper, par.cat.SD / 5);
 					betweenCatDens += weights[j] * dens;
 					catGuessDens += dens;
 				}
@@ -313,7 +310,6 @@ namespace CatCont {
 				if (calculateBetweenComponent) {
 
 					double contDensity = dtnorm_noBoundCheck(data.response[i], data.study[i], par.contSD, lc.response.lower, lc.response.upper);
-					//double contDensity = dtnorm_tnormEdge(data.response[i], data.study[i], par.contSD, lc.response.lower, lc.response.upper, par.contSD / 5);
 
 					betweenDensity = (par.pContBetween * contDensity) + ((1 - par.pContBetween) * betweenCatDens);
 				}

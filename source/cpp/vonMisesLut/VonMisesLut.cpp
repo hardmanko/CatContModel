@@ -28,6 +28,10 @@ void VonMisesLut::setup(double rangeUpper_, double stepSize_, double (*besselFun
 		++step;
 		x = step * stepSize; //This is better
 	}
+
+	//TODO: The LUT is biased because the function is monotonically decreasing.
+	//Adjust by taking the midpoint between two LUT values, calculate the bessel there, then adjust the LUT
+	//endpoints to something like half the distance between the midpoint lerp and midpoint bessel.
 }
 
 //x must be non-negative and must be less than rangeUpper/maxValue(). It is up to the user to verify this.

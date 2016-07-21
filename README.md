@@ -6,7 +6,7 @@ This package is under development, as are the models. If you run into bugs or un
 
 # Installation
 
-I would recommend that you download the whole repository and unzip it somewhere on your computer. From there, the easiest way to install the package is to use the "installPackage.R" script in the root directory. It installs a binary version of the package that should work for most people. If you need to install from source, see the "Installing from Source" section below.
+I would recommend that you download a release of the package (see the Releases tab). A release contains the whole repository at a particular point in time. Unzip it somewhere on your computer. From there, the easiest way to install the package is to use the "installPackage.R" script in the root directory. It installs a binary version of the package that should work for most people. If you need to install from source, see the "Installing from Source" section below.
 
 
 # Usage
