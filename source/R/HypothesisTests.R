@@ -124,26 +124,79 @@ testMeanParameterValue = function(results, param, cond, H0_value) {
 }
 
 
+getSubsampleIterationsToRemove = function(totalIterations, subsamples, subsampleProportion) {
+	if (subsamples < 1) {
+		stop("You need to use at least one subsample.")
+	}
+	
+	independentSubsamples = FALSE
+	if (is.null(subsampleProportion)) {
+		independentSubsamples = TRUE
+		subsampleProportion = 1 / subsamples
+	}
+	
+	subsampleProportion = min( max(subsampleProportion, 0), 1 )
+	
+	if (subsamples > 1 && subsampleProportion == 1) {
+		stop("The subsample proportion should be less than 1 if using multiple subsamples.")
+	}
+	
+	subsampleIterationsToRemove = list()
+	
+	if (independentSubsamples) {
+		
+		shuffledIterations = sample(1:totalIterations, totalIterations, replace=FALSE)
+		
+		for (sub in 1:subsamples) {
+			
+			iterationsToUse = floor(subsampleProportion * totalIterations)
+			indicesToUse = ((sub - 1) * iterationsToUse + 1):(sub * iterationsToUse)
+			subsampleIterationsToRemove[[sub]] = shuffledIterations[-indicesToUse]
+			
+		}
+	} else {
+		
+		for (sub in 1:subsamples) {
+			iterationsToRemove = round((1 - subsampleProportion) * totalIterations, 0)
+			subsampleIterationsToRemove[[sub]] = sample(1:totalIterations, iterationsToRemove, replace = FALSE)
+		}
+		
+	}
+	
+	subsampleIterationsToRemove
+}
+
+
 
 #' Test Condition Effects
 #' 
 #' Tests the differences between the conditions in the experiment for different parameters. This test does all pairwise comparisons between all conditions.
 #' 
+#' You can estimate how much the variability in the posterior chains affects the Bayes factors by using the \code{subsamples} and \code{subsampleProportion} arguments. If \code{subsamples} is greater than 1, multiple subsamples from the posterior chains will be taken and the standard deviation (and other measures) of the Bayes factors across the subsamples will be calculated. The number of iterations used in each subsample is a proportion of the total number of iterations and is set by \code{subsampleProportion}. Note that this is not the standard deviation of the Bayes factors over repeated samples of data sets, so it tells you nothing about what would happen if you had different data. It essentially tells you whether or not you ran enough iterations to have a stable Bayes factor estimate. The closer \code{subsampleProportion} is to 1, the less independent the subsamples will be, so you should use a reasonably low value of \code{subsampleProportion}. The degree to which the subsamples are independent influences to what extent the standard deviation is underestimated: The less independent, the larger the underestimate will be. If you want fully independent subsamples, you can set \code{subsampleProportion} to \code{NULL}. However, this means that the number of subsamples and the proportion of iterations in each subsample to be inversely related, which means that you have to choose between a low number of subsamples or a low number of iterations per subsample.
+#' 
 #' @param results The results from the \code{\link{runParameterEstimation}} function.
 #' @param param A vector of basic parameter names for which to perform condition tests (e.g. "pMem"). If NULL (the default), tests are performed for all parameters with condition effects.
+#' @param subsamples Number of subsamples of the posterior chains to take. If greater than 1, subsampleProportion should be set to a value between 0 and 1 (exclusive).
+#' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should only be less than 1 if subsamples is greater than 1 or you want to only calculate Bayes factors based on part of the posterior samples for some reason. If \code{NULL}, \code{subsampleProportion} will be set to \code{1 / subsamples} and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
 #' 
 #' @return A data frame containing test results. It has the following columns:
 #' \tabular{ll}{
 #' 	\code{param} \tab The name of the parameter being tested.\cr
 #' 	\code{cond} \tab The zero-indexed condition indices being compared.\cr
-#' 	\code{bf01} \tab The Bayes factor in favor of the null hypothesis that the two conditions did not differ.\cr
-#' 	\code{bf10} \tab The Bayes factor in favor of the alternative hypothesis that the two conditions differed.\cr
+#' 	\code{bfType} \tab The type of Bayes factor in the "bf" column. "10" means that the Bayes factor is in favor of the alternative hypothesis that the two conditions differed. "01" means that the Bayes factor is in favor of the null hypothesis that the two conditions did not differ.\cr
+#' 	\code{bf} \tab The Bayes factor. If using multiple subsamples, this is the mean Bayes factor. \cr
+#' 	\code{sd} \tab Standard deviation of the Bayes factors. \cr
+#' 	\code{min, median, max} \tab The minimum, median, and maximum of the Bayes factors. \cr
+#' 	\code{p2.5, p97.5} \tab The 2.5 and 97.5 percentiles of the Bayes factors. 	
 #' }
 #'
 #' @export
 #'
-testConditionEffects = function(results, param = NULL) {
+testConditionEffects = function(results, param = NULL, subsamples = 1, subsampleProportion = 1) {
 
+	subsampleIterationsToRemove = getSubsampleIterationsToRemove(results$config$iterations, subsamples, subsampleProportion)
+	
+	
 	if (is.null(param)) {
 		param = results$config$parametersWithConditionEffects
 	}
@@ -151,48 +204,84 @@ testConditionEffects = function(results, param = NULL) {
 	condNames = results$conditions$levels
 	csName = results$config$cornerstoneConditionName
 	nonCsNames = condNames[ condNames != csName ]
-	
-	rval = NULL
-	
-	for (p in param) {
-		
-		scale = results$priors[[ paste(p, "_cond.scale", sep="") ]]
-		
-		nonCsPrior = function(x) { stats::dcauchy(x, 0, scale) }
-		difPrior = function(x) { stats::dcauchy(x, 0, scale * 2) }
-		
 
-		#do each non-cs condition on its own (i.e. comparisons to cs cond)
-		for (i in 1:length(nonCsNames)) {
-			x = results$posteriors[[ paste(p, "_cond[", nonCsNames[i], "]", sep="") ]]
-			
-			sdr = savageDickey(x, h0_val=0, priorDensAtH0 = nonCsPrior(0))
-			
-			temp = data.frame(param=p, cond=paste(csName, " - ", nonCsNames[i], sep=""),
-												bf01=sdr$bf01, bf10=sdr$bf10)
-			rval = rbind(rval, temp)
+	
+	allSubsamples = NULL
+	for (sub in 1:length(subsampleIterationsToRemove)) {
+		
+		if (length(subsampleIterationsToRemove[[sub]]) > 0) {
+			resultSubsample = removeBurnIn(results, subsampleIterationsToRemove[[sub]])
+		} else {
+			resultSubsample = results
 		}
 		
-		#do each pairwise comparison of non-cs conditions
-		for(i in 1:length(nonCsNames)) {
-			for(j in 1:length(nonCsNames)) {
-				if (i < j) {
-					
-					xi = results$posteriors[[ paste(p, "_cond[", nonCsNames[i], "]", sep="") ]]
-					xj = results$posteriors[[ paste(p, "_cond[", nonCsNames[j], "]", sep="") ]]
-					
-					sdr = savageDickey(xi - xj, h0_val=0, priorDensAtH0 = difPrior(0))
-					
-					temp = data.frame(param=p, cond=paste(nonCsNames[i], " - ", nonCsNames[j], sep=""), 
-														bf01=sdr$bf01, bf10=sdr$bf10)
-					rval = rbind(rval, temp)
+		for (p in param) {
+			
+			location = resultSubsample$priors[[ paste(p, "_cond.loc", sep="") ]]
+			scale = resultSubsample$priors[[ paste(p, "_cond.scale", sep="") ]]
+			
+			#The test is (cond - cornerstone), so the location is (location - 0).
+			nonCsPrior = function(x) { stats::dcauchy(x, location, scale) }
+			
+			#Location is 0 because the locations are the same for both conditions and are subtracted
+			difPrior = function(x) { stats::dcauchy(x, 0, 2 * scale) } 
+			
+			
+			#do each non-cs condition on its own (i.e. comparisons to cs cond)
+			for (i in 1:length(nonCsNames)) {
+				x = resultSubsample$posteriors[[ paste(p, "_cond[", nonCsNames[i], "]", sep="") ]]
+				
+				testRes = savageDickey(x, h0_val=0, priorDensAtH0 = nonCsPrior(0))
+				
+				temp = data.frame(param=p, cond=paste(csName, " - ", nonCsNames[i], sep=""),
+													bf01=testRes$bf01, bf10=testRes$bf10, stringsAsFactors=FALSE)
+				allSubsamples = rbind(allSubsamples, temp)
+			}
+			
+			#do each pairwise comparison of non-cs conditions
+			for(i in 1:length(nonCsNames)) {
+				for(j in 1:length(nonCsNames)) {
+					if (i < j) {
+						
+						xi = resultSubsample$posteriors[[ paste(p, "_cond[", nonCsNames[i], "]", sep="") ]]
+						xj = resultSubsample$posteriors[[ paste(p, "_cond[", nonCsNames[j], "]", sep="") ]]
+						
+						testRes = savageDickey(xi - xj, h0_val=0, priorDensAtH0 = difPrior(0))
+						
+						temp = data.frame(param=p, cond=paste(nonCsNames[i], " - ", nonCsNames[j], sep=""), 
+															bf01=testRes$bf01, bf10=testRes$bf10, stringsAsFactors=FALSE)
+						allSubsamples = rbind(allSubsamples, temp)
+					}
 				}
+			}
+		}
+	}
+	
+	rval = NULL
+	for (p in param) {
+		for (cond in unique(allSubsamples$cond)) {
+			for (bf in c("bf01", "bf10")) {
+				x = allSubsamples[ allSubsamples$param == p & allSubsamples$cond == cond, bf ]
+				
+				qs = as.numeric(stats::quantile(x, c(0, 0.025, 0.5, 0.975, 1)))
+				
+				if (subsamples > 1) {
+					temp = data.frame(param = p, cond = cond, bfType = substr(bf, 3, 4),
+														bf = mean(x), sd = stats::sd(x), 
+														min=qs[1], p2.5=qs[2], median=qs[3], p97.5=qs[4], max=qs[5],
+														stringsAsFactors=FALSE)
+				} else {
+					temp = data.frame(param = p, cond = cond, bfType = substr(bf, 3, 4), bf = mean(x), stringsAsFactors=FALSE)
+				}
+				
+				rval = rbind(rval, temp)
 			}
 		}
 	}
 	
 	rval
 }
+
 
 
 #' Calculate Whole Model WAIC
@@ -206,19 +295,37 @@ testConditionEffects = function(results, param = NULL) {
 #' 
 #' There are two ways to estimate the effective number of free parameters for WAIC and results from both are reported.
 #'  
-#' WAIC is a whole-model fit statistic. These models have shared parameters that are shared by participants (the hierarchical parameters and condition effects). This means that the participants are not independent, so examining WAIC for individual participants is unprincipled and may give inaccurate results. Thus, you should leave onlyTotal at the default value of TRUE.
+#' WAIC is a whole-model fit statistic. These models have shared parameters that are shared by participants (the hierarchical parameters and condition effects). This means that the participants are not independent, so examining WAIC for individual participants is unprincipled and may give inaccurate results. Thus, you should leave \code{onlyTotal} at the default value of TRUE.
 #' 
-#' Note that you can use WAIC to compare model variants, like the betweenItem and withinItem variants. You can also compare models that differ in other ways, such as which parameters have condition effects, the maximum number of categories, etc.
+#' Note that you can use WAIC to compare model variants, like the between-item and within-item variants. You can also compare models that differ in other ways, such as which parameters have condition effects, the maximum number of categories, reduced models with some parameters set to constant values, more or less restrictive priors, etc.
+#' 
+#' You can estimate how much the variability in the posterior chains affects WAIC by using the \code{subsamples} and \code{subsampleProportion} arguments. If \code{subsamples} is greater than 1, multiple subsamples from the posterior chains will be taken and the standard deviation of WAIC (et al.) across the subsamples will be calculated. The number of iterations used in each subsample is a proportion of the total number of iterations and is set by \code{subsampleProportion}. Note that this is not the standard deviation of WAIC over repeated samples of data sets, so it tells you nothing about what would happen if you had different data. It essentially tells you whether or not you ran enough iterations to have a stable WAIC estimate. The closer \code{subsampleProportion} is to 1, the less independent the subsamples will be, so you should use a reasonably low value of \code{subsampleProportion}. The degree to which the subsamples are independent influences to what extent the standard deviation is underestimated: The less independent, the larger the underestimate will be. If you want fully independent subsamples, you can set \code{subsampleProportion} to NULL. However, this means that the number of subsamples and the proportion of iterations in each subsample to be inversely related, which means that you have to choose between a low number of subsamples or a low number of iterations per subsample.
 #' 
 #' @param results The results from the \code{\link{runParameterEstimation}} function.
-#' @param onlyTotal If TRUE, exclude participant-level WAIC values (which aren't valid because of the fact that participants are not independent).
+#' @param subsamples Number of subsamples of the posterior chains to take. If greater than 1, subsampleProportion should be set to a value between 0 and 1 (exclusive).
+#' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should only be less than 1 if subsamples is greater than 1 or you want to only calculate WAIC based on part of the posterior samples for some reason. If \code{NULL}, \code{subsampleProportion} will be set to \code{1 / subsamples} and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
+#' @param onlyTotal If \code{TRUE}, exclude participant-level WAIC values (which aren't really valid because of the fact that participants are not independent). I recommend you leave this at TRUE.
 #' 
-#' @return A data.frame containing WAIC values, estimates of the effective number of free parameters, and LPPD (basically log likelihood).
+#' @return A data.frame containing WAIC values, estimates of the effective number of free parameters, and LPPD.
+#' \tabular{ll}{
+#'  \code{pnum} \tab If \code{onlyTotal == FALSE}, the participant related to the statistic. \cr
+#' 	\code{stat} \tab The name of the fit statistic.\cr
+#' 	\code{value} \tab The statistic value. If \code{subsamples > 1}, the mean statistic value across all subsamples. \cr
+#' 	\code{sd} \tab The standard deviation of the statistic. \cr
+#' 	\code{min, median, max} \tab The minimum, median, and maximum of the statistic. \cr
+#' 	\code{p2.5, p97.5} \tab The 2.5 and 97.5 percentiles of the statistic. 	
+#' }
 #' 
 #' @export
-calculateWAIC = function(results, onlyTotal=TRUE) {
+calculateWAIC = function(results, subsamples=1, subsampleProportion=1, onlyTotal=TRUE) {
 	
-	#Convert catMu from degrees to radians
+	subsampleIterationsToRemove = getSubsampleIterationsToRemove(results$config$iterations, subsamples, subsampleProportion)
+	
+	
+	#???
+	results$config = verifyConfigurationList(config=results$config, data=results$data)
+	
+	#Convert catMu from degrees to radians if circular. This should really be done in C++
 	if (results$config$dataType == "circular" && results$config$maxCategories > 0) {
 		for (p in unique(results$data$pnum)) {
 			for (i in 1:results$config$maxCategories) {
@@ -228,13 +335,53 @@ calculateWAIC = function(results, onlyTotal=TRUE) {
 		}
 	}
 	
-	res = CCM_CPP_calculateWAIC(results)
+	allWAIC = NULL
+	
+	for (sub in 1:length(subsampleIterationsToRemove)) {
+		if (length(subsampleIterationsToRemove[[sub]]) > 0) {
+			noBurnIn = removeBurnIn(results, subsampleIterationsToRemove[[sub]])
+		} else {
+			noBurnIn = results
+		}
+		
+		waic = CCM_CPP_calculateWAIC(noBurnIn)
+		waic$subsample = sub
+		
+		allWAIC = rbind(allWAIC, waic)
+	}
+
+	summaryWAIC = NULL
+	
+	for (p in unique(allWAIC$pnum)) {
+		
+		stats = c("WAIC_1", "WAIC_2", "P_1", "P_2", "LPPD")
+		
+		for (s in stats) {
+			x = allWAIC[allWAIC$pnum == p, s]
+
+			qs = as.numeric(stats::quantile(x, c(0, 0.025, 0.5, 0.975, 1)))
+			
+			if (subsamples > 1) {
+				temp = data.frame(pnum = p, stat = s, value = mean(x), sd = stats::sd(x), 
+													min=qs[1], p2.5=qs[2], median=qs[3], p97.5=qs[4], max=qs[5],
+													stringsAsFactors=FALSE)
+			} else {
+				temp = data.frame(pnum = p, stat = s, value = mean(x), stringsAsFactors=FALSE)
+			}
+			
+			summaryWAIC = rbind(summaryWAIC, temp)
+			
+		}
+	}
 	
 	if (onlyTotal) {
-		res = res[ res$pnum == "Total", ]
+		summaryWAIC = summaryWAIC[ summaryWAIC$pnum == "Total", ]
+		summaryWAIC$pnum = NULL
 	}
-	res
+	
+	summaryWAIC
 }
+
 
 #' Calculate Standard Fit Statistics that are Inappropriate for these Models
 #' 

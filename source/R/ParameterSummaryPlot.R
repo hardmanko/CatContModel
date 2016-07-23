@@ -76,6 +76,55 @@ plotPosteriorLineChart = function(results, param, ylab=param) {
 	
 }
 
+plotCatMu = function(results, catMuPrec) {
+	
+	post = convertPosteriorsToMatrices(results, param=c("catMu", "catActive"))
+	
+	actCm = as.vector(post$catMu[ post$catActive == 1 ])
+	if (results$config$dataType == "circular") {
+		actCm = actCm %% 360
+	}
+	
+	if (results$config$dataType == "circular") {
+		angles = seq(0, 360, catMuPrec)
+	} else {
+		angles = seq(results$config$responseRange[1], results$config$responseRange[2], catMuPrec)
+	}
+	
+	heights = rep(0, length(angles) - 1)
+	for (i in 1:(length(angles) - 1)) {
+		heights[i] = mean(actCm >= angles[i] & actCm < (angles[i] + 1))
+	}
+	
+	xStart = c(0, 360)
+	if (results$config$dataType == "linear") {
+		xStart = results$config$responseRange
+	}
+	
+	graphics::plot(xStart, c(0, max(heights) * 1.05), type='n', 
+								 xlab=bquote("Category Location ("*mu*")"), ylab="Posterior Density", axes=FALSE)
+	graphics::box()
+	if (results$config$dataType == "linear") {
+		graphics::axis(1)
+	} else {
+		graphics::axis(1, at=seq(0, 360, 60))
+	}
+	graphics::axis(2)
+	
+	colorGeneratingFunction = function(a) { grDevices::rgb(0.5, 0.5, 0.5) }
+	if (!is.null(results$colorGeneratingFunction)) {
+		colorGeneratingFunction = results$colorGeneratingFunction
+	}
+	for (i in 1:length(heights)) {
+		a = angles[i]
+		
+		col = colorGeneratingFunction(a + catMuPrec/2) #halfway between ends
+		
+		graphics::polygon( c(a, a, a+catMuPrec, a+catMuPrec), c(0, heights[i], heights[i], 0), col=col, border=FALSE)
+	}
+	
+}
+
 
 #' Plot Parameter Summaries
 #' 
@@ -189,32 +238,7 @@ plotParameterSummary = function(results, paramSymbols=NULL, catMuPrec=2) {
 			
 			if (param == "catMu") {
 				
-				actCm = post$catMu[ post$catActive == 1 ]
-				actCm = as.vector(actCm %% 360)
-				
-				angles = seq(0, 360, catMuPrec)
-				heights = rep(0, length(angles) - 1)
-				for (i in 1:(length(angles) - 1)) {
-					heights[i] = mean(actCm >= angles[i] & actCm < (angles[i] + 1))
-				}
-				
-				graphics::plot(c(0, 360), c(0, max(heights) * 1.05), type='n', 
-											 xlab=bquote("Category Location ("*mu*")"), ylab="Posterior Density", axes=FALSE)
-				graphics::box()
-				graphics::axis(1, at=seq(0, 360, 60))
-				graphics::axis(2)
-				
-				colorGeneratingFunction = function(a) { grDevices::rgb(0.5, 0.5, 0.5) }
-				if (!is.null(results$colorGeneratingFunction)) {
-					colorGeneratingFunction = results$colorGeneratingFunction
-				}
-				for (i in 1:length(heights)) {
-					a = angles[i]
-					
-					col = colorGeneratingFunction(a + catMuPrec/2) #halfway between ends
-					
-					graphics::polygon( c(a, a, a+catMuPrec, a+catMuPrec), c(0, heights[i], heights[i], 0), col=col, border=FALSE)
-				}
+				plotCatMu(results, catMuPrec)
 				
 			} else if (param == "catActive") {
 				

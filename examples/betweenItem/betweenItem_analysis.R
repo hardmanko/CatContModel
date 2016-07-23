@@ -39,6 +39,7 @@ results = continueResults$combinedResults
 # So that you can read them back in later
 results = readRDS("betweenItem_results.RDS")
 
+
 # Examine convergence for some stuff
 post = convertPosteriorsToMatrices(results, "catActive")
 activeCats = apply(post$catActive, 3, mean) * results$config$maxCategories
@@ -64,6 +65,13 @@ qqnorm(gr$z) #the z-scores should follow a standard normal distribution.
 abline(0,1)
 
 
+# Add a color generating function
+
+results$colorGeneratingFunction = function(angle) {
+	hsv((angle / 360) %% 1, 1, 1)
+}
+
+
 # Examine the results
 
 plotParameterSummary(results)
@@ -86,7 +94,7 @@ compareTrueAndRecovered(results, trueParam)
 
 
 # Fit the ZL model to this data that was generated from the betweenItem model.
-# We want to see that the ZL models fits the data poorly.
+# We want to see that the ZL models fits the data poorly, which is done with WAIC.
 
 zlConfig = list(iterations=3000, modelVariant="ZL", iterationsPerStatusUpdate = 200)
 

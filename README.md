@@ -4,14 +4,15 @@ This R package implements the models used by Hardman, Vergauwe, and Ricker (2016
 
 This package is under development, as are the models. If you run into bugs or unusual model behavior, please report them in the issue tracker (click on the "Issues" tab).
 
+
 # Installation
 
-I would recommend that you download a release of the package (see the Releases tab). A release contains the whole repository at a particular point in time. Unzip it somewhere on your computer. From there, the easiest way to install the package is to use the "installPackage.R" script in the root directory. It installs a binary version of the package that should work for most people. If you need to install from source, see the "Installing from Source" section below.
+I would recommend that you download a release of the package (see the releases tab). A release contains the whole repository at a particular point in time. Unzip it somewhere on your computer. From there, the easiest way to install the package is to use the "installPackage.R" script in the root directory. It installs a binary version of the package that should work for most people. If you need to install from source, see the "Installing from Source" section below.
 
 
 # Usage
 
-Read the vignette in docs/introduction/Introduction.pdf. It is the best way to learn about how to use the package.
+Start by reading the introduction to use of this package in docs/introduction/Introduction.pdf.
 
 Some examples that use simulated data can be found in "examples". They are not necessarily supposed to be run in a totally linear fashion and they are used for testing the package, so they are not the cleanest, but they do give some usage examples.
 
@@ -54,12 +55,13 @@ guesses to get it to work.
 At this point, you should be able to install from source. Make sure to install the dependencies using the above script.
 
 
-
 # License
 
 This package is released under the MIT license. See LICENSE.md for more information.
 
 
 # Versions
+
+0.6.0 - Added linear data type. Additional changes.
 
 0.5.0 - Initial release.

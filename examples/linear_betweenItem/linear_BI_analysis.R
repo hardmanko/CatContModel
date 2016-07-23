@@ -3,7 +3,6 @@ setwd("~/../Programming/R/CatContModel/examples/linear_betweenItem") #or whereve
 
 library(CatContModel)
 
-
 data = read.delim("linear_BI_data.txt")
 
 
@@ -63,7 +62,7 @@ library(coda)
 pmat = convertPosteriorsToMatrix(results)
 pmat = mcmc(pmat) #convert to coda format
 
-gr = geweke.diag(pmat, 0.5, 0.5)
+gr = geweke.diag(pmat, 0.3, 0.3)
 qqnorm(gr$z) #the z-scores should follow a standard normal distribution.
 abline(0,1)
 
@@ -90,7 +89,7 @@ compareTrueAndRecovered(results, trueParam)
 
 
 # Fit the ZL model to this data that was generated from the betweenItem model.
-# We want to see that the ZL models fits the data poorly.
+# We want to see that the ZL models fits the data poorly, which is done with WAIC.
 
 zlConfig = list(iterations=3000, modelVariant="ZL", dataType = "linear", iterationsPerStatusUpdate = 200)
 

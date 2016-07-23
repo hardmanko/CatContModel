@@ -626,6 +626,11 @@ convertPosteriorsToMatrix = function(results, stripConstantParameters=TRUE, stri
 #' @export
 removeBurnIn = function(results, burnIn) {
 	
+	if (length(burnIn) == 0) {
+		warning("No burn-in iterations removed because length(burnIn) == 0.")
+		return(results)
+	}
+	
 	if (length(burnIn) == 1) {
 		burnIn = 1:burnIn
 	}

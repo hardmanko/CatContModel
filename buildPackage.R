@@ -1,10 +1,13 @@
 
+# This file is useful to developers of the package, not so much for users of the package.
+# Users should see "installPackage.R" to install the package.
+
 
 library(Rcpp)
 library(devtools)
 library(roxygen2)
 
-CatContPackageVersion = "0.5.0"
+CatContPackageVersion = "0.6.0"
 addingDataSets = FALSE
 
 baseDir = "~/../Programming/R/CatContModel/"
@@ -105,8 +108,10 @@ install.packages(pkgs=paste(packagePath, packageName, sep=""), repos=NULL, type=
 devtools::check(packageLocation)
 
 
-devtools::build(packageLocation, path=paste(baseDir, "packaged/", sep="") ) #source
 
+
+#Make sure that you remember to increment the version number!!!
+devtools::build(packageLocation, path=paste(baseDir, "packaged/", sep="") ) #source
 devtools::build(packageLocation, path=paste(baseDir, "packaged/", sep=""), binary = TRUE)
 
 
