@@ -344,6 +344,10 @@ calculateWAIC = function(results, subsamples=1, subsampleProportion=1, onlyTotal
 			noBurnIn = results
 		}
 		
+		if (length(subsampleIterationsToRemove) > 1) {
+			cat(paste("Starting subsample ", sub, ".\n"))
+		}
+		
 		waic = CCM_CPP_calculateWAIC(noBurnIn)
 		waic$subsample = sub
 		

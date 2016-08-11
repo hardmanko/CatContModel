@@ -318,15 +318,23 @@ categoryWeightsFunction = function(study, catMu, catSelectivity, dataType = "cir
 #' @param colors A vector of colors for the different categories.
 #' @param lty A vector of line types for the different categories.
 #' @param lwd A vector of line width for the different categories.
-#' @param study The study angles at which the category weights are plotted. This should be a grid from 0 to 360 degrees.
-#' @param axes Should axes be plotted?
+#' @param study The study angles at which the category weights are plotted (i.e. a grid of x-values).
+#' @param axes If TRUE, axes are plotted.
 #'  
 #' @seealso \link{categoryWeightsFunction} to get the vector of probabilities for a single study angle.
 #' @export
 plotWeightsFunction = function(catMu, catSelectivity, dataType = "circular",
 															 colors=grDevices::rainbow(length(catMu)), lty=1:length(catMu),
-															 lwd=rep(1, length(catMu)), study = seq(0, 360, length.out=100), axes=TRUE) 
+															 lwd=rep(1, length(catMu)), study = NULL, axes=TRUE) 
 {
+	if (is.null(study)) {
+		if (dataType == "circular") {
+			study = seq(0, 360, length.out=100)
+		} else {
+			stop("If dataType == \"linear\", study must be provided.")
+		}
+	}
+	
 	dens = matrix(0, nrow=length(study), ncol=length(catMu))
 	
 	graphics::plot(c(0, 360), c(0,1), type='n', axes=FALSE, 

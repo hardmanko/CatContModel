@@ -240,6 +240,8 @@ public:
 	ConstantParameter(double val, std::string name_, std::string group_) :
 		fixedValue(val)
 	{
+		dimension = ParameterDimension::SCALAR;
+
 		this->name = name_;
 		this->group = group_;
 	};
@@ -469,11 +471,12 @@ class VectorMH_Parameter : public VectorParameter {
 public:
 
 	VectorMH_Parameter(void) {
-		startValues.resize(0); //whatev
 		dimension = ParameterDimension::VECTOR;
+		startValues.resize(0); //whatev
 	}
 
 	VectorMH_Parameter(unsigned int size) {
+		dimension = ParameterDimension::VECTOR;
 		startValues.resize(size, 0);
 		ranges.resize(size, std::make_pair(-std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity()));
 	}

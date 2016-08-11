@@ -104,10 +104,10 @@ plotCatMu = function(results, catMuPrec) {
 	graphics::plot(xStart, c(0, max(heights) * 1.05), type='n', 
 								 xlab=bquote("Category Location ("*mu*")"), ylab="Posterior Density", axes=FALSE)
 	graphics::box()
-	if (results$config$dataType == "linear") {
-		graphics::axis(1)
-	} else {
+	if (results$config$dataType == "circular") {
 		graphics::axis(1, at=seq(0, 360, 60))
+	} else {
+		graphics::axis(1)
 	}
 	graphics::axis(2)
 	
@@ -139,7 +139,7 @@ plotCatMu = function(results, catMuPrec) {
 #' 
 #' If you want the category location part of the plot to be colored, you need to add a 
 #' colorGeneratingFunction function to the results object (i.e. results$colorGeneratingFunction).
-#' This is function that takes an angle in the interval [0, 360) and produces a color value corresponding
+#' This is a function that takes an angle in the interval [0, 360) and produces a color value corresponding
 #' to that angle.
 #' 
 #' @param results A results object.

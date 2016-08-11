@@ -302,7 +302,7 @@ Rcpp::DataFrame CCM_CPP_calculateWAIC(Rcpp::List resultsObject) {
 		}
 	}
 
-	Rcpp::Rcout << "Calculating WAIC" << std::endl;
+	//Rcpp::Rcout << "Calculating WAIC" << std::endl;
 
 	map<string, map<string, double>> waicData = CatCont::calculateWAIC(partData, config, posteriorIterations);
 

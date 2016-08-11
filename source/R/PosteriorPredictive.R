@@ -9,20 +9,20 @@
 #' @param colorStepSize The distance from the start of one color rectangle in a color bar to the next color rectangle.
 #' @param xlim A 2-length vector of the xlim for plotting.
 #' @param ylim A 2-length vector of the ylim for plotting.
+#' @param xat A vector of the x-values for which axis tick marks are provided.
+#' @param yat A vector of the y-values for which axis tick marks are provided.
 #' 
 #' @export
-scatterplotWithColorBars = function(data, colorGeneratingFunction = NULL, alpha=0.1, overlap=0.1, colorStepSize=2, xlim=c(0,360), ylim=c(0,360)) {
+scatterplotWithColorBars = function(data, colorGeneratingFunction = NULL, alpha=0.1, overlap=0.1, colorStepSize=2, xlim=c(0,360), ylim=c(0,360), xat = NULL, yat = NULL) {
 
 	graphics::plot(data$study, data$response, xlim=xlim, ylim=ylim, 
 			 pch=16, col=grDevices::rgb(0,0,0,alpha), xlab="Study angle", ylab="Response angle", axes=FALSE)
 	graphics::box()
 	
-	xat = yat = NULL
-	
-	if (all(xlim == c(0, 360))) {
+	if (is.null(xat) && all(xlim == c(0, 360))) {
 		xat = seq(0, 360, 60)
 	}
-	if (all(ylim == c(0, 360))) {
+	if (is.null(yat) && all(ylim == c(0, 360))) {
 		yat = seq(0, 360, 60)
 	}
 	graphics::axis(1, at=xat)
@@ -81,6 +81,8 @@ scatterplotWithColorBars = function(data, colorGeneratingFunction = NULL, alpha=
 #' @param rowLabels A vector of labels of length equal to the number of conditions. The labels are put on each row of plots. If \code{NULL}, rowLabels are made from the \code{conditions} list in \code{results}.
 #' @param xlim A 2-length vector of the xlim for plotting.
 #' @param ylim A 2-length vector of the ylim for plotting.
+#' @param xat A vector of the x-values for which axis tick marks are provided.
+#' @param yat A vector of the y-values for which axis tick marks are provided.
 #' @param alpha Transparency for plotted points.
 #' @param plotPnum Include the participant number in the plot headers.
 #'
@@ -88,7 +90,7 @@ scatterplotWithColorBars = function(data, colorGeneratingFunction = NULL, alpha=
 #'
 #' @export
 #'
-posteriorPredictivePlot = function(results, pnums, conditions=NULL, rowLabels=NULL, xlim=NULL, ylim=NULL, alpha=0.5, plotPnum=FALSE) {
+posteriorPredictivePlot = function(results, pnums, conditions=NULL, rowLabels=NULL, xlim=NULL, ylim=NULL, xat=NULL, yat=NULL, alpha=0.5, plotPnum=FALSE) {
 	
 	plotPnum = plotPnum && (length(pnums) == 1) #don't plot pnum if there is more than 1
 
@@ -161,12 +163,12 @@ posteriorPredictivePlot = function(results, pnums, conditions=NULL, rowLabels=NU
 		
 		scatterplotWithColorBars(thisCondData, 
 														 colorGeneratingFunction = results$colorGeneratingFunction, 
-														 alpha=alpha, xlim=xlim, ylim=ylim)
+														 alpha=alpha, xlim=xlim, ylim=ylim, xat=xat, yat=yat)
 		graphics::mtext(paste("Data - ", labelBase, sep=""), side=3, line=1.5, cex=graphics::par()$cex * 1.3, adj=0)
 		
 		scatterplotWithColorBars(allSampled[ allSampled$cond == cond, ], 
 														 colorGeneratingFunction = results$colorGeneratingFunction, 
-														 alpha=alpha, xlim=xlim, ylim=ylim)
+														 alpha=alpha, xlim=xlim, ylim=ylim, xat=xat, yat=yat)
 		graphics::mtext(paste("Model - ", labelBase, sep=""), side=3, line=1.5, cex=graphics::par()$cex * 1.3, adj=0)
 		
 	}

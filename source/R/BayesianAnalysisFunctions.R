@@ -178,7 +178,10 @@ getTransformedParameters = function(results, pnum, cond, iteration) {
 		ca[i] = results$posteriors[[ paste("catActive", istr, sep="") ]][iteration]
 	}
 	
-	combinedParam$catMu = cm[ ca == 1 ] %% 360 #limit to the interval [0, 360)
+	combinedParam$catMu = cm[ ca == 1 ]
+	if (results$config$dataType == "circular") {
+		combinedParam$catMu = combinedParam$catMu %% 360 #limit to the interval [0, 360)
+	}
 	
 	combinedParam
 }
