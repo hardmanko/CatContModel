@@ -34,6 +34,10 @@ verifyConfigurationList = function(config, data) {
 	
 	if (config$dataType == "linear") {
 		
+		if (!is.null(config$responseRange) && length(config$responseRange) != 2) {
+			stop("responseRange provided, but it is not valid. It must be a length 2 vector of numeric values.")
+		}
+		
 		if (is.null(config$responseRange)) {
 			config$responseRange = range(data$response)
 			cat(paste("Note: config$responseRange not set. Set to (", paste(config$responseRange, collapse=", "), ").\n", sep=""))

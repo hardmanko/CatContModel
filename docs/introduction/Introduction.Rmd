@@ -11,9 +11,9 @@ toc: yes
 
 # Introduction
 
-This package contains implementations of a few variants of psychological process models for delayed-estimation working memory experiments. Primarily, it implements the models used by @HardmanVergauweRicker2016. It also implements a version of the model used by @ZhangLuck2008.
+This package contains implementations of a few variants of psychological process models for delayed-estimation working memory experiments. Primarily, it implements the models used by @HardmanVergauweRicker2016. It also implements a version of the model used by @ZhangLuck2008. It includes variations on the models that allow for linear (i.e. non-circular) data.
 
-All of the models use Bayesian parameter estimation and model comparison methods. There is nothing inherently Bayesian about the models, but maximum likelihood estimation is, in my experience, relatively slow and unreliable. The unreliability only appears if the model is somewhat complex and you know what to look for. The slowness of maximum likelihood only really appears once models become complex.  The categorical models in this package are very complex, by virtue of having a large number of parameters. As such, the choice of Bayesian methods is obvious.
+All of the models use Bayesian parameter estimation and model comparison methods. There is nothing inherently Bayesian about the models, but maximum likelihood estimation is, in my experience, relatively slow and unreliable. The unreliability only appears if the model is somewhat complex and if you know what to look for. The slowness of maximum likelihood only really appears once models become complex. The categorical models in this package are complex, by virtue of having a large number of parameters. As such, the choice of Bayesian methods is obvious.
 
 There are two basic steps to using this package: 1) Running the parameter estimation and 2) analyzing the posterior distributions of the parameters. These steps each have many substeps, which are described in detail below.
 
@@ -21,12 +21,14 @@ There are two basic steps to using this package: 1) Running the parameter estima
 
 ## Data Format
 
+This package works with two kinds of data, circular and linear. Circular data come from a circular study/response space, such as used by @HardmanVergauweRicker2016. Linear data, unlike circular data, do not wrap around. This package assumes that linear data is bounded within finite limits. See the [Linear Data](#linearData) section for more information on using linear data.
+
 The data must be stored in a `data.frame` where each row of the data frame has the data for a single study/response pair, with information about which participant and condition the study/response pair are from. The data should have 4 columns, in no particular order:
 
-1. `pnum`: Character (or convertible to character). Participant number. You should have more than 1 participant, otherwise the hierarchical nature of the model becomes dead weight that may distort the results.
+1. `pnum`: Character (or convertible to character). Participant number. You should have more than 1 participant, otherwise the hierarchical nature of the model will, at best, become dead weight and will, at worst, distort the results.
 2. `cond`: Character (or convertible to character). Condition name. If you only have 1 condition, just give any constant value here.
-3. `study`: Numeric. The angle, in degrees, that the participant studied.
-4. `response`: Numeric. The angle, in degrees, that the participant responded.
+3. `study`: Numeric. If the data are circular, the angle in degrees that the participant studied. If the data are linear, the studied value.
+4. `response`: Numeric. If the data are circular, the angle in degrees that the participant responded with. If the data are linear, the responded value.
 
 ```{r, eval=FALSE, include=FALSE}
 setwd("~/../Programming/R/CatContModel/docs/introduction/")
@@ -103,7 +105,7 @@ For these new results, examine the MH acceptance rates and adjust the MH tuning 
 
 ## Main Parameter Estimation
 
-Once the MH tuning is complete, you can go on to the main parameter estimation. The parameter estimation is slow, taking on the order of seconds per iteration, while a relatively large number of iterations are required. I would say about 10,000 iterations is probably sufficient for publication quality results. You can do less for exploratory work, maybe 3,000 to 5,000 iterations, and get somewhat reliable results.
+Once the MH tuning is complete, you can go on to the main parameter estimation. The parameter estimation is slow, taking on the order of seconds per iteration, while a relatively large number of iterations are required. I would say about 10,000 iterations is probably sufficient for publication quality results. You can do less for exploratory work, maybe 3,000 to 5,000 iterations, and get somewhat reliable results. Publishable results, however, must be based on at least 10,000 iterations. Results can be excessively variable with substantially smaller numbers of iterations. The more iterations you run, the more precise your results will be.
 
 In order to get these somewhat large number of iterations (at least with respect to how slow each iteration is), it can be helpful to run parallel parameter estimation chains and combine them together. On a 4 core CPU, you can run 4 chains in parallel, which can speed up the process dramatically. However, you must also remove burn-in iterations from the beginning of each chain. I would say that a burn in of at least 500 iterations is warranted, based on my experience, but that 1000 burn-in iterations is safer (see Verifying Convergence below). Given that there is a long burn-in period, you should probably run at least a few thousand iterations in each of the individual parallel chains so that the burn-in doesn't take too many iterations out of each chain. These ideas are addressed in the following sections.
 
@@ -116,7 +118,7 @@ mhTuning = list()
 mhTuning$pMem_cond = 0.15
 mhTuning$contSD_cond = 2
 
-results = runParameterEstimation(config, data=data, mhTuningOverrides = mhTuning)
+results = runParameterEstimation(config, data, mhTuningOverrides = mhTuning)
 
 #The only thing that needs to be different in each instance is the name of the results file
 saveRDS(results, file = "results_1.RDS")
@@ -354,7 +356,7 @@ The parameters are named as follows:
 + `catActive`: Whether a color category is active. Each participant has several of these parameters.
 
 
-Each participant has 1 of each of the probability and standard deviation parameters. They have several of the additional category parameters, the number of which is controlled by the `maxCategories` member of the configuration that is used for parameter estimation. The number of parameters is constant, but the number of categories actually used by participants is controlled by the `catActive` parameters.
+Each participant has 1 of each of the probability and standard deviation parameters. They have several of the additional category parameters, the number of which is controlled by the `maxCategories` setting of the configuration that is used for parameter estimation. The number of category parameters is constant, but the number of categories actually used by participants is controlled by the `catActive` parameters.
 
 Different model variants have different parameters. Parameters that are not used by a model variant are set to constant values.
 
@@ -363,11 +365,11 @@ Different model variants have different parameters. Parameters that are not used
 + `withinItem` does not use `pBetween` or `pContBetween` (`pBetween` is effectively set to 0). 
 + `ZL` uses only `pMem` and `contSD` (`pBetween` and `pContBetween` both effectively set to 1, `pCatGuess` effectively set to 0).
 
-The parameter chains can be found within the `results$posteriors` list. The names of the participant level parameters are formatted as follows: `parameter[pnum]`, where `pnum` is the participant number of the participant associated with that parameter. For example, for the participant with `pnum` 7, the `pMem` parameter is named `pMem[7]`.
+The names of the participant level parameters are formatted as follows: `parameter[pnum]`, where `pnum` is the participant number of the participant associated with that parameter. For example, for the participant with `pnum` 7, the `pMem` parameter is named `pMem[7]`.
 
-Each participant has several `catMu` and `catActive` parameters. Their names are formatted like `catMu[pnum,catIndex]`, where `catIndex` is 0-indexed. For example, the first `catMu` parameter for the participant with `pnum` 7 would be `catMu[7,0]`.
+Each participant has several `catMu` and `catActive` parameters. Their names are formatted as follows: `catMu[pnum,catIndex]`, where `catIndex` is 0-indexed. For example, the first (i.e. 0-th) `catMu` parameter for the participant with `pnum` 7 would be `catMu[7,0]`.
 
-Hierarchical parameters have `.mu` or `.var` appended to them. For example, `pMem.mu` is the mean of the `pMem` parameters.
+Population level (hierarchical) parameters have `.mu` or `.var` appended to them. For example, `pMem.mu` is the mean of the participant-level `pMem` parameters.
 
 The condition effects names have `_cond[c]` appended to them, where `c` is replaced with the name of a condition. For example, the `pMem` condition effect for the condition named "ss0" would be `pMem_cond[ss0]`.
 
@@ -380,11 +382,11 @@ The raw parameter chains are stored in `results$posteriors`, which is a named li
 names(results$posteriors)[1:5]
 ```
 
-These first 5 are participant level parameters where the `[1]` is the participant number. You can access individual parameter chains the same way you would access any named list element:
+These first 5 are participant level parameters where the value in brackets is the participant number. You can access individual parameter chains the same way you would access any named list element:
 
 ```{r}
 pMem1 = results$posteriors[["pMem[1]"]]
-pMem1[1:10]
+pMem1[1:10] #first 10 iterations of the chain
 ```
 
 For convenience, it is possible to get the posterior chains for participant level parameters in matrices by calling `convertPosteriorsToMatrices`. The results is a named list of matrices (or arrays, for the `catMu` and `catActive` parameters). Each column of the matrices is a single participant and each row is a single iteration of the chain. The `catMu` and `catActive` arrays are 3 dimensional. The first dimension is participant, the second is category within participant, and the third is iteration.
@@ -398,12 +400,13 @@ post$contSD[1:3,]
 
 ## Parameter Transformations
 
-If working with parameters directly, it is extremely important that you remember that most of the parameters exist in a latent space. For example, the probability parameters exist on the interval `(-Inf, Inf)` and are transformed to probabilities with the logit transformation. Critically, you must also apply condition effects to participant level parameters before transforming parameters.
+If working with parameters directly, it is extremely important that you remember that most of the parameters exist in a latent space. For example, the probability parameters exist on the interval `(-Inf, Inf)` and are transformed to probabilities in the interval $[0,1]$ with the logit transformation. 
 
+Critically, you must apply condition effects to participant level parameters before transforming parameters.
 This means that, for example, to find out what a given participant's probability of having the tested item in memory is in a given condition of the experiment, you must do the following:
 
 1. Retrieve the participant level parameter chain for `pMem`.
-2. Retrieve the condition effect chain for `pMem` in the condition.
+2. Retrieve the condition effect chain for `pMem` in the condition of interest.
 3. Add the two chains together elementwise.
 4. Transform the resulting chain from the latent space to the manifest space with the correct transformation function.
 
@@ -419,7 +422,9 @@ transformationFunction = getParameterTransformation("pMem", results)
 pMem_manifest = transformationFunction(pMem_latent)
 ```
 
-Now you can work with the manifest `pMem` values, like getting their posterior mean or credible interval. This whole process is performed by the helper function `getParameterPosterior` which can be used as follows:
+Now you can work with the manifest `pMem` values, like getting their posterior mean or credible interval. 
+
+The aforementioned process is performed by the helper function `getParameterPosterior` which can be used as follows:
 
 ```{r}
 pMem_manifest = getParameterPosterior(results, param="pMem", pnum=4, cond=3)
@@ -434,7 +439,7 @@ param = getTransformedParameters(results, pnum=2, cond=1, iteration=7)
 param
 ```
 
-Note that inactive categories have already been removed from `param` which is why it does not include the `catActive` parameters. The limitation of this function is that it gives all parameters but only for 1 iteration.
+Note that inactive categories have already been removed from `param` which is why it does not include the `catActive` parameters (but see the `removeInactiveCategories` argument).
 
 
 
@@ -453,24 +458,28 @@ runParameterEstimation(config, data, constantValueOverrides = constantParam)
 
 Note that the `constantValueOverrides` must specify parameters for each participant individually. Also note that values must be provided in the latent space.
 
-To simplify this, there are two functions that help to build the list of constant parameter values, a simple usage of which is shown below. See the function documentation for more information.
+Typically, you will set all parameter values for all participants to the same value, so there is a helper function called `setConstantParameterValue` for that purpose. In addition, setting the category parameters (`catMu` and `catActive`) to constant values is complex, so `setConstantCategoryParameters` helps with that.
+
+A simple usage of each of the helper funcions is shown below. See the documentation of those functions for more information on usage. You should 
 
 ```{r eval=FALSE}
-
+#Set pMem to 0.8 for all participants
 pMemConstant = setConstantParameterValue(data, param="pMem", value=0.8)
 
+#For pnums 1 and 2, set the locations of the first 4 categories to the compass points.
 catParam = data.frame(pnum = rep(c(1,2), each=4),
 											catMu = rep(c(0, 90, 180, 270), 2),
 											catActive = 1 )
 
 categoryConstant = setConstantCategoryParameters(data, catParam, maxCategories = results$config$maxCategories)
 
+
 constantParam = c(pMemConstant, categoryConstant)
 
 runParameterEstimation(config, data, constantValueOverrides = constantParam)
 ```
 
-This is a totally general and flexible system, which also means that it is possible for you to do stupid things with it, like set a variance to 0, so be careful.
+Setting parameters to constant values is a totally general and flexible system, which also means that it is possible for you to do stupid things with it, like set a variance to 0, so be careful.
 
 
 
@@ -525,17 +534,74 @@ For referencing ideas in the models, please cite the Hardman, Vergauwe, and Rick
 
 If you use this package, please cite it:
 
-Hardman, K.O. (2016). CatContModel: CatContModel: Categorical and Continuous Working
-Memory Models for Delayed Estimation Tasks (Version 0.5.0) [Computer software]. Retrieved from
-https://github.com/hardmanko/CatContModel/releases/tag/v0.5.0
+Hardman, K.O. (2016). CatContModel: Categorical and Continuous 
+Working Memory Models for Delayed Estimation Tasks (Version 0.6.1) [Computer software]. Retrieved from
+https://github.com/hardmanko/CatContModel/releases/tag/v0.6.1
 
 Make sure to update the version number in both the name and the URL.
+
+## Linear Data {#linearData}
+
+To use this package with linear data (i.e. data the do not wrap around/are not circular), you will need to modify the main parameter estimation configuration in a few ways. 
+Imagine that you have linear data and that the possible range of responses goes from -100 to 100 (in whatever units). You would create a configuration list as follows:
+
+```{r eval=FALSE}
+config = list(iterations=500, modelVariant="betweenItem", dataType = "linear", responseRange = c(-100, 100))
+
+results = runParameterEstimation(config, data)
+```
+
+Note that two new, important values are provided: `dataType` and `responseRange`. `dataType` is either "linear" or "circular" (defaults to "circular"). `responseRange` is a length 2 vector of numeric values giving the range of possible responses.
+
+Note that you do not need to provide `responseRange`. If you do not provide it, `responseRange` will be set to the range of the observed data. This is done across all participants, not per participant. If different participants were given tasks that differed in terms of the possible range of responses, you won't be able to use this package without modification. In many cases, the observed range of the data and the possible range of responses are very similar, but if you have data in which the observed and possible ranges differ substantially, you should provide the possible range.
+
+You do not need to provide the possible range of the studied values. The possible range of studied values is irrelevant because studied values are treated as having known true values, which means that they have no distributional form.
+
+Once the model is configured to work with linear data, all of the analyses proceed as usual. All of the parameters have the same basic meaning regardless of whether circular or linear data are used. Some plotting functions might behave a little differently, but they should work.
+
+The choice of `modelVariant` (e.g. betweenItem) is independent of the `dataType`: All model variants work will either data type.
+
+Note that the default priors assume that the data are circular in degrees, which is sort of like saying that they have a range of 360 degrees. If your linear data have a much smaller range, like 30 units, or a much larger range, like 5000 units, you should consider whether you need to adjust the hierarchical priors on `contSD`, `catSD`, and `catSelectivity`. In particular, I would mostly consider adjusting the prior mean and variance on the means of those three parameters. Likewise, you should probably change the condition effect prior scales for those parameters. Finally, you should probably adjust the Metropolis-Hastings tuning values for those three parameters. See the code example below:
+
+```{r eval=FALSE}
+# Imagine that the data are on the interval [0, 20]. The continuous imprecision
+# standard deviations will likely be small-ish. 
+# Use continuous SD with mean 5 and variance 225.
+# Set condition effect scale to 2 to reflect that you are expecting small-ish effects.
+priorOverrides = list(contSD.mu = 5, contSD.var = 225, contSD_cond.scale = 2)
+
+# If the contSD values are small, they don't need to jump as far in the MH steps.
+# Use small-ish MH tuning values.
+mhTuningOverrides = list(contSD = 1, contSD_cond = 0.5)
+
+# You should probably also do this for catSD and catSelectivity, too 
+# (except that there are usually no condition effects for catSD and catSelectivity).
+
+# Use the prior and MH tuning overrides.
+results = runParameterEstimation(config, data, priorOverrides = priorOverrides, mhTuningOverrides = mhTuningOverrides)
+```
+
+Currently, the `catMu` parameters are not allowed outside of the range of the data. This may change at some point once I make a hard decision about how to allow it to happen. Details: There is a calculation in the likelihood function in which the density of an observed response given a `catMu` parameter is calculated. The density function is a truncated normal. If the `catMu` parameter is far outside of the possible range of responses, the proportion of the normal distribution within the response range (which is the truncation scale factor) is approximately 0. To calculate the truncated density, a normal density is divided by the truncation scale factor. Division by 0 is bad, so I have to choose how to prevent division by 0. There are no good solutions (at least that I know of), only less bad solutions. The current less bad solution is to prevent the `catMu` parameters from being outside of the response range.
+
 
 ## Models
 
 ### Between-Item
 
 This was the best model selected by @HardmanVergauweRicker2016. If you are going to use one categorical model from this package, you should use this model.
+
+#### Fully Categorical Model
+
+If you want a fully categorical model (i.e., no continuous responding allowed), use the "betweenItem" model variant with the constant parameter value overrides functionality, as demonstrated in the following (incomplete) code snippet.
+
+```{r eval=FALSE}
+config = list(iterations=500, modelVariant="betweenItem")
+
+#Set the probability of continuous responding to 0
+pcbOverrides = setConstantParameterValue(data, "pContBetween", 0)
+
+results = runParameterEstimation(config, data, constantValueOverrides = pcbOverrides)
+```
 
 ### Within-Item
 
@@ -547,6 +613,7 @@ One possible solution to this is to use constant parameter values overrides to f
 ### ZL (Zhang & Luck)
 
 There is nothing particularly interesting about my implementation of the ZL model, but it is still a hierarchical Bayesian model with main effects of experimental condition. It may be useful on its own or as a model to compare the other models to.
+
 
 ## Stimuli
 

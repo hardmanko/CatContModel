@@ -85,6 +85,17 @@ participantPosteriorSummary = function(results, params=NULL, doCatActive=TRUE, c
 
 #' Population/Condition Posterior Means and Credible Intervals
 #' 
+#' Calculates posterior means and credible intervals for the population means in each condition for the
+#' given parameters. For each condition, condition effects are added to population means, the result is transformed
+#' to the manifest space, and the mean and credible interval for the manifest value is calculated.
+#' 
+#' Note that this is different from adding condition effects to participant-level parameters, tranforming the result,
+#' calculating on each iteration the mean of the transformed participant parameters, and calculating the posterior 
+#' mean and credible interval of the iteration means. 
+#' Using iteration means rather than population means will generally result in less than the true
+#' amount of variability, which is why population means are used. Note, however, that this is a little strange,
+#' because in the model, condition effects are not added to population means, but participant means.
+#' 
 #' In the return value of this function, the lower and upper columns give the endpoints of the credible interval.
 #' 
 #' Note that parameters without condition effects do not have values specific to conditions, so the cond will be NA for those parameters.
@@ -129,8 +140,9 @@ posteriorMeansAndCredibleIntervals = function(results, params=NULL, credLevel=0.
 			
 			#For parameters without condition effects, only include one condition 
 			#(the cornerstone condition, but it doesn't matter)
-			if (param %in% results$config$parametersWithConditionEffects || cond == results$config$cornerstoneConditionName) {
-				
+			if (param %in% results$config$parametersWithConditionEffects || 
+					cond == results$config$cornerstoneConditionName) 
+			{
 				rval = rbind(rval, temp)
 			}
 			
@@ -151,11 +163,12 @@ posteriorMeansAndCredibleIntervals = function(results, params=NULL, credLevel=0.
 #' @param pnum A single participant number.
 #' @param cond A single condition name.
 #' @param iteration The index of an iteration of the chain.
+#' @param removeInactiveCategories Whether catMu parameters for inactive categories should be removed. If FALSE, both catMu and catActive parameters are provided.
 #' 
 #' @return A list containing transformed parameters.
 #' 
 #' @export
-getTransformedParameters = function(results, pnum, cond, iteration) {
+getTransformedParameters = function(results, pnum, cond, iteration, removeInactiveCategories = TRUE) {
 	
 	allParam = c(getProbParams(results, filter=FALSE), getSdParams(results, filter=FALSE))
 	
@@ -178,7 +191,13 @@ getTransformedParameters = function(results, pnum, cond, iteration) {
 		ca[i] = results$posteriors[[ paste("catActive", istr, sep="") ]][iteration]
 	}
 	
-	combinedParam$catMu = cm[ ca == 1 ]
+	if (removeInactiveCategories) {
+		combinedParam$catMu = cm[ ca == 1 ]
+	} else {
+		combinedParam$catMu = cm
+		combinedParam$catActive = ca
+	}
+	
 	if (results$config$dataType == "circular") {
 		combinedParam$catMu = combinedParam$catMu %% 360 #limit to the interval [0, 360)
 	}

@@ -7,7 +7,7 @@ library(Rcpp)
 library(devtools)
 library(roxygen2)
 
-CatContPackageVersion = "0.6.0"
+CatContPackageVersion = "0.6.1"
 addingDataSets = FALSE
 
 baseDir = "~/../Programming/R/CatContModel/"
@@ -102,16 +102,27 @@ file.copy(from = paste(baseDir, "LICENSE.md", sep=""), to = paste(fullPackagePat
 
 
 
+#At this point, there is a proper R package structure in packageLocation
+#You may not be able to do the four steps below in the same R session:
+#I have had issues with building the binary package after installing from source.
+#YMMV.
+
+
+#Install the package from source.
 install.packages(pkgs=paste(packagePath, packageName, sep=""), repos=NULL, type="source")
 
 
+#Check the package (as for submission to CRAN).
 devtools::check(packageLocation)
 
 
+#Make sure that you remember to increment the version number before you
+#run either of the following commands!!!
 
+#Build source archive of package
+devtools::build(packageLocation, path=paste(baseDir, "packaged/", sep="") ) 
 
-#Make sure that you remember to increment the version number!!!
-devtools::build(packageLocation, path=paste(baseDir, "packaged/", sep="") ) #source
+#Build binary archive of package
 devtools::build(packageLocation, path=paste(baseDir, "packaged/", sep=""), binary = TRUE)
 
 

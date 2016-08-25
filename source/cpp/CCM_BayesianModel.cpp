@@ -136,7 +136,6 @@ namespace CatCont {
 		if (config.dataType == DataType::Linear) {
 			//This is the uniform distribution that is multiplied by the rest of the prior.
 			if (mus[k] < config.linearConfiguration.catMu.lower || mus[k] > config.linearConfiguration.catMu.upper) {
-				//Rcpp::Rcout << "mu[k] rejected: " << mus[k] << endl;
 				return 0;
 			}
 		}

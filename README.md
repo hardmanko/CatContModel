@@ -21,7 +21,9 @@ Simulated sample data and analyses on those data sets can be found in the exampl
 
 # Building the Package
 
-This repo contains packaged versions of the package that can be installed by R fairly directly. In order to get to those packaged versions, you need to combine together various pieces of data in this repo. This is done in a pretty automatic way with buildPackage.R, which is in the root directory.
+This repo contains packaged versions of the package that can be installed by R fairly directly. If you just want to use the package as is, you just need to install those packaged versions (see Installation).
+
+If you want to develop/modify the package, you will need to rebuild the package after making any changes. This repository is not itself in the correct format for an R package, but rather a collection of files that are combined together into an R package with buildPackage.R, which is in the root directory. You can typically just run that whole file, but sometimes the
 
 
 # Installing from Source
@@ -61,6 +63,8 @@ This package is released under the MIT license. See LICENSE.md for more informat
 
 
 # Versions
+
+0.6.1 - Minor bugfix in a plotting function. Additional documentation for the linear dataType.
 
 0.6.0 - Added linear data type. Additional changes.
 
