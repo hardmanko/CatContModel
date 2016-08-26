@@ -7,7 +7,13 @@ This package is under development, as are the models. If you run into bugs or un
 
 # Installation
 
-I would recommend that you download a release of the package (see the releases tab). A release contains the whole repository at a particular point in time. Unzip it somewhere on your computer. From there, the easiest way to install the package is to use the "installPackage.R" script in the root directory. It installs a binary version of the package that should work for most people. If you need to install from source, see the "Installing from Source" section below.
+I would recommend that you download a release of the package (see the releases tab). A release contains the whole repository at a particular point in time, which includes the introduction documentation pdf and examples. The release itself is not an installable R package, but it contains, in the "packaged" directory, compiled versions of the package that can be installed by R.
+
+Once you have downloaded a release, unzip it somewhere on your computer. From there, the easiest way to install the package is to use the "installPackage.R" script in the root directory. Once you set a path in it to point to one of the installable packages, it installs a version of the package that should work for most people. 
+
+Alternately, if you don't want the introduction documentation or examples (you will still get function documentation), you can just download a compiled version of the package from the "packaged" subdirectory of this repository. A .zip extension on a packaged file there indicates that it is a binary (compiled) version of the package, which is almost certaintly what you want, not the .tar.gz, which is a source version of the package.  You should still use "InstallPackage.R" if you go this route.
+
+If you need to install from source, see the "Installing from Source" section below.
 
 
 # Usage
@@ -27,6 +33,8 @@ If you want to develop/modify the package, you will need to rebuild the package 
 
 
 # Installing from Source
+
+Source versions of the package can be found in the "packaged" subdirectory.
 
 Basically, installing from source requires that you have a C++ compiler that R knows how to work with configured on your computer. Below are some instructions to help with it.
 
@@ -54,7 +62,7 @@ That page supposedly explains what Makevars is, where it should go, and what nam
 but I disagree with the "experts" that the page actually does that. I had to make a few educated
 guesses to get it to work.
 
-At this point, you should be able to install from source. Make sure to install the dependencies using the above script.
+At this point, you should be able to install from source. Make sure to install the dependencies using the "InstallPackage.R" script.
 
 
 # License
