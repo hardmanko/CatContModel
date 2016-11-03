@@ -149,10 +149,20 @@ convertParameterListToDataFrame = function(paramList, maxCat) {
 	
 	if (length(unique(df$cond)) > 1) {
 		for (n in unique(df$param)) {
-			eq = df$value[ df$param == n & df$cond == 1 ] == df$value[ df$param == n & df$cond == 2 ]
-			eq[ is.na(eq) ] = TRUE
-			if (all(eq)) {
-				df = df[ !(df$param == n & df$cond > 1), ]
+			thisParam = df[ df$param == n, ]
+			
+			conds = unique(thisParam$cond)
+			firstCond = conds[1]
+			otherConds = conds[2:length(conds)]
+			
+			allEqual = TRUE
+			for (cond in otherConds) {
+				eq = thisParam$value[ thisParam$cond == firstCond ] == thisParam$value[ thisParam$cond == cond ]
+				allEqual = allEqual && all(eq)
+			}
+			
+			if (!is.na(allEqual) && allEqual) {
+				df = df[ !(df$param == n & df$cond != firstCond), ]
 			}
 		}
 	}
@@ -171,7 +181,7 @@ compareTrueAndRecovered = function(results, trueParam) {
 	trueParam = trueParam[ order(trueParam$pnum), ]
 	
 	if (is.factor(trueParam$param)) {
-		trueParam$param = levels(trueParam$param)[trueParam$param]
+		trueParam$param = as.vector(trueParam$param)
 	}
 	trueParam$param[ trueParam$param == "nCat" ] = "catActive"
 	

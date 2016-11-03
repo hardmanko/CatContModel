@@ -147,29 +147,43 @@ posteriorPredictivePlot = function(results, pnums, conditions=NULL, rowLabels=NU
 		}
 	}
 	
-	if (is.null(rowLabels)) {
-		rowLabels = paste(results$conditions$type, conditions, sep=" ")
-	}
 	
 	graphics::par(mfrow=c(length(conditions), 2), mar=c(5,4,3,1))
 	
 	for (condIndex in 1:length(conditions)) {
-
+		
 		cond = conditions[condIndex]
 		
 		thisCondData = pnumData[ pnumData$cond == cond, ]
 		
-		labelBase = paste(ifelse(plotPnum, paste("Part. ", pnums, ", ", sep=""), ""), rowLabels[condIndex], sep="")
+		if (!is.null(rowLabels)) {
+			rowLabel = rowLabels[condIndex]
+		} else {
+			rowLabel = ""
+			thisFactorLevels = results$config$factors[ results$config$factors$cond == cond, ]
+			for (i in 1:length(results$config$factorNames)) {
+				n = results$config$factorNames[i]
+				level = thisFactorLevels[1,n]
+				
+				rowLabel = paste0(rowLabel, n, " ", level)
+				
+				if (i < length(results$config$factorNames)) {
+					rowLabel = paste0(rowLabel, ", ")
+				}
+			}
+		}
+		labelEnd = paste(ifelse(plotPnum, paste("Part. ", pnums, ", ", sep=""), ""), rowLabel, sep="")
+
 		
 		scatterplotWithColorBars(thisCondData, 
 														 colorGeneratingFunction = results$colorGeneratingFunction, 
 														 alpha=alpha, xlim=xlim, ylim=ylim, xat=xat, yat=yat)
-		graphics::mtext(paste("Data - ", labelBase, sep=""), side=3, line=1.5, cex=graphics::par()$cex * 1.3, adj=0)
+		graphics::mtext(paste("Data - ", labelEnd, sep=""), side=3, line=1.5, cex=graphics::par()$cex * 1.3, adj=0)
 		
 		scatterplotWithColorBars(allSampled[ allSampled$cond == cond, ], 
 														 colorGeneratingFunction = results$colorGeneratingFunction, 
 														 alpha=alpha, xlim=xlim, ylim=ylim, xat=xat, yat=yat)
-		graphics::mtext(paste("Model - ", labelBase, sep=""), side=3, line=1.5, cex=graphics::par()$cex * 1.3, adj=0)
+		graphics::mtext(paste("Model - ", labelEnd, sep=""), side=3, line=1.5, cex=graphics::par()$cex * 1.3, adj=0)
 		
 	}
 	

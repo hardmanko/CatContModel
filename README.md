@@ -11,7 +11,7 @@ I would recommend that you download a release of the package (see the releases t
 
 Once you have downloaded a release, unzip it somewhere on your computer. From there, the easiest way to install the package is to use the "installPackage.R" script in the root directory. Once you set a path in it to point to one of the installable packages, it installs a version of the package that should work for most people. 
 
-Alternately, if you don't want the introduction documentation or examples (you will still get function documentation), you can just download a compiled version of the package from the "packaged" subdirectory of this repository. A .zip extension on a packaged file there indicates that it is a binary (compiled) version of the package, which is almost certaintly what you want, not the .tar.gz, which is a source version of the package.  You should still use "InstallPackage.R" if you go this route.
+Alternately, if you don't want the introduction documentation or examples (you will still get function documentation), you can just download a compiled version of the package from the "packaged" subdirectory of this repository. A .zip extension on a package file there indicates that it is a binary (compiled) version of the package, which is almost certaintly what you want, whereas a .tar.gz indicates a source version of the package, which is probably not what you want. You should generally install the most recent version of the package.
 
 If you need to install from source, see the "Installing from Source" section below.
 
@@ -21,8 +21,6 @@ If you need to install from source, see the "Installing from Source" section bel
 Start by reading the introduction to use of this package in docs/introduction/Introduction.pdf.
 
 Some examples that use simulated data can be found in "examples". They are not necessarily supposed to be run in a totally linear fashion and they are used for testing the package, so they are not the cleanest, but they do give some usage examples.
-
-Simulated sample data and analyses on those data sets can be found in the example folders.
 
 
 # Building the Package
@@ -59,8 +57,8 @@ R 3.3 can use "c++11".
 The location of the Makevars file and even what name it should have is a little bit of a mystery.
 See https://cran.r-project.org/doc/manuals/r-release/R-exts.html#Using-Makevars
 That page supposedly explains what Makevars is, where it should go, and what name it has,
-but I disagree with the "experts" that the page actually does that. I had to make a few educated
-guesses to get it to work.
+but I disagree with the "experts" that the page actually does any of those things.
+I had to make a few educated guesses to get it to work.
 
 At this point, you should be able to install from source. Make sure to install the dependencies using the "InstallPackage.R" script.
 
@@ -71,6 +69,8 @@ This package is released under the MIT license. See LICENSE.md for more informat
 
 
 # Versions
+
+0.7.0 - Intial support for two-factor designs. See the "factorial_betweenItem" example.
 
 0.6.1 - Minor bugfix in a plotting function. Additional documentation for the linear dataType.
 

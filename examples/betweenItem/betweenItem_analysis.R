@@ -19,7 +19,7 @@ mhTuning$contSD = 2
 mhTuning$contSD_cond = 1.2
 mhTuning$pContBetween = 0.4
 mhTuning$pContBetween_cond = 0.2
-mhTuning$pMem_cond = 0.15
+mhTuning$pMem_cond = 0.12
 
 
 # 2. Run with those MH tuning values
@@ -77,6 +77,8 @@ results$colorGeneratingFunction = function(angle) {
 plotParameterSummary(results)
 
 testConditionEffects(results)
+
+mei = testMainEffectsAndInteractions(results, subsamples=10, subsampleProportion = NULL)
 
 posteriorMeansAndCredibleIntervals(results)
 

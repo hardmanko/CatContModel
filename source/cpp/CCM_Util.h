@@ -39,8 +39,6 @@ namespace CatCont {
 	ModelVariant modelVariantFromString(string modelVariantStr);
 	
 
-
-
 	extern VonMisesLut vmLut;
 
 
@@ -51,6 +49,9 @@ namespace CatCont {
 
 
 	double clamp(double x, double minimum, double maximum);
+
+	string extractIndex(string s);
+	string extractBaseParameterName(string s);
 
 	void logMessage(string module, string message, bool endLine = true);
 
@@ -66,8 +67,9 @@ namespace CatCont {
 		vector<ConditionData> condData;
 	};
 
+	vector<ParticipantData> copyParticipantData(vector<string> pnumsCol, vector<string> condsCol, vector<double> studyCol, vector<double> responseCol, DataType dataType, bool verbose);
 #if COMPILING_WITH_CX
-	vector<ParticipantData> getParticipantData(string filename);
+	vector<ParticipantData> getParticipantData(string filename, DataType dataType, bool verbose);
 #endif
 #if COMPILING_WITH_RCPP
 	vector<ParticipantData> getParticipantData(Rcpp::DataFrame df, DataType dataType, bool verbose);
@@ -179,6 +181,16 @@ namespace CatCont {
 		return data;
 	}
 
+	template<typename T>
+	vector<T> uniqueElements(vector<T> v) {
+		std::sort(v.begin(), v.end());
+		auto lastIndex = std::unique(v.begin(), v.end());
+		v.erase(lastIndex, v.end());
+		return v;
+	}
+
+#ifdef COMPILING_WITH_CX
 	void useModel_Bayesian(void); // Freestanding interface
+#endif
 
 }

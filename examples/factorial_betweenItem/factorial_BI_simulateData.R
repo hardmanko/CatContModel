@@ -1,17 +1,20 @@
 
-setwd("~/../Programming/R/CatContModel/examples/betweenItem")
+setwd("~/../Programming/R/CatContModel/examples/factorial_betweenItem")
 
 source("../DataSimulatingFunctions.R")
 
 
 conditionEffects = list()
 
-conditionEffects$pMem = c(0, -0.5, -1.5) #in the latent space
-conditionEffects$pContBetween = c(0, 0.7, -1.2) #in the latent space
-conditionEffects$contSD = c(0, 5, 15)
+
+#factors: a1 a2 a3 b1 b2 b3
+
+conditionEffects$pMem = c(0, -0.5, -1.5, 0, -0.5, -1.5)
+conditionEffects$pContBetween = c(0, 0, 0, 0.2, 0.4, 0.6)
+conditionEffects$contSD = c(0, 5, 10, 20, 15, 10)
 
 # Don't use condition effects for these parameters.
-nCond = 3
+nCond = 6
 conditionEffects$pCatGuess = rep(0, nCond) 
 conditionEffects$catSelectivity = rep(0, nCond)
 conditionEffects$catSD = rep(0, nCond)
@@ -42,15 +45,15 @@ for (i in 1:nPart) {
 }
 
 
-betweenSim = sampleSimulatedData(conditionEffects, partParam, trialsPerCondition=c(150, 150, 150), 
+betweenSim = sampleSimulatedData(conditionEffects, partParam, trialsPerCondition=rep(100, nCond), 
 																 modelVariant = "betweenItem")
 
 betweenData = betweenSim$simulatedData
 betweenParameters = convertParameterListToDataFrame(betweenSim$combinedParam, maxCat = maxCat)
 
+#Rename the conditions with factor-based names.
+betweenData$cond = c('a1', 'a2', 'a3', 'b1', 'b2', 'b3')[ betweenData$cond ]
 
+write.table(betweenData, file="factorial_BI_data.txt", row.names=FALSE, quote=FALSE, sep="\t")
 
-write.table(betweenData, file="betweenItem_data.txt", row.names=FALSE, quote=FALSE, sep="\t")
-
-write.table(betweenParameters, file="betweenItem_parameters.txt", row.names=FALSE, quote=FALSE, sep="\t")
-
+write.table(betweenParameters, file="factorial_BI_parameters.txt", row.names=FALSE, quote=FALSE, sep="\t")

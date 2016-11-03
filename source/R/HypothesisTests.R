@@ -1,9 +1,27 @@
 
+# Resulting parameters for a Cauchy RV that is a linear combination of other Cauchy RVs.
+# The general form of the combinations is
+# y = sum_i x_i * c_i
+# where y is the resulting Cauchy random variable,
+# x are the input CRVs, and c are coefficients.
+# For example, if subtracting two Cauchys, c = c(1, -1) (note that order matters).
+# For example, if taking the mean of many RVs, each weight is 1 / number of RVs.
+cauchyRvLinearCombination = function(locations, scales, coefs) {
+	
+	location = sum(coefs * locations)
+	
+	scale = sum(abs(coefs) * scales)
+	
+	list(location=location, scale=scale)
+}
+
+
+
 #postVect: vector of the posterior distribution of the parameter you want to test
 #h0_val: The value of the parameter tested in the null hypothesis.
 #priorDensAtH0: The density of the prior distribution at h0_val
-savageDickey = function(postVect, h0_val, priorDensAtH0) {
-
+savageDickey_unsafe = function(postVect, h0_val, priorDensAtH0) {
+	
 	ls = polspline::logspline(postVect)
 	
 	postDens = polspline::dlogspline(h0_val, ls)
@@ -11,6 +29,27 @@ savageDickey = function(postVect, h0_val, priorDensAtH0) {
 	bf10 = priorDensAtH0 / postDens
 	
 	list(bf01=1/bf10, bf10=bf10)
+}
+
+savageDickey = function(postVect, h0_val, priorDensAtH0) {
+	
+	success = tryCatch({
+		ls = polspline::logspline(postVect)
+		TRUE
+	}, error = function(e) {
+		print(e)
+		return(FALSE)
+	})
+	
+	if (success) {
+		postDens = polspline::dlogspline(h0_val, ls)
+		
+		bf10 = priorDensAtH0 / postDens
+	} else {
+		bf10 = NA
+	}
+	
+	list(bf01 = 1 / bf10, bf10 = bf10, success = success)
 }
 
 
@@ -36,18 +75,16 @@ testCategoricalResponding = function(results, pContBetween_test = 0.99, pCatGues
 	
 	rval = NULL
 	for (param in c("pContBetween", "pCatGuess")) {
-		for (cond in results$conditions$levels) {
+		for (cond in results$config$factors$cond) {
 			
 			res = testMeanParameterValue(results, param = param, cond = cond, H0_value = H0_test[[param]])
-			#temp = data.frame(param = param, cond = cond, H0_value = H0_test[[param]], bf01 = res$bf01, bf10 = res$bf10)
-			
+
 			rval = rbind(rval, res)
 			
 		}
 	}
 	
 	rval
-
 }
 
 
@@ -89,13 +126,12 @@ testMeanParameterValue = function(results, param, cond, H0_value) {
 	popMu0 = results$priors[[ paste(param, ".mu.mu", sep="") ]]
 	popSd0 = sqrt( results$priors[[ paste(param, ".mu.var", sep="") ]] )
 	
-	condLoc0 = results$priors[[ paste(param, "_cond.loc", sep="") ]]
-	condScale0 = results$priors[[ paste(param, "_cond.scale", sep="") ]]
+	condPrior = getConditionParameterPrior(results, param, cond)
 	
 	priorDensAtH0 = 0
-	if (cond == results$config$cornerstoneConditionName) {
-		
-		priorDensAtH0 = stats::dnorm(inverseH0, popMu0, popSd0)
+	if (condPrior$scale == 0) {
+
+		priorDensAtH0 = stats::dnorm(inverseH0, popMu0 + condPrior$location, popSd0)
 		
 	} else {
 		
@@ -103,22 +139,23 @@ testMeanParameterValue = function(results, param, cond, H0_value) {
 			stats::dnorm(x, popMu0, popSd0)
 		}
 		fCauchy = function(x) {
-			stats::dcauchy(x, condLoc0, condScale0)
+			stats::dcauchy(x, condPrior$location, condPrior$scale)
 		}
 		
 		priorDensAtH0 = convolveFuns(fNorm, fCauchy, inverseH0)
 	}
 	
 
-	#get the mean and condition effect
+	#get the mean and condition effect posterior
 	popMu = results$posteriors[[ paste(param, ".mu", sep="") ]]
 	condEffect = results$posteriors[[ paste(param, "_cond[", cond, "]", sep="") ]]
 	
-	combined = popMu + condEffect
+	combinedPosterior = popMu + condEffect
 	
-	res = savageDickey(combined, h0_val=inverseH0, priorDensAtH0 = priorDensAtH0)
+	res = savageDickey(combinedPosterior, h0_val=inverseH0, priorDensAtH0 = priorDensAtH0)
 	
-	temp = data.frame(param = param, cond = cond, H0_value = H0_value, bf01 = res$bf01, bf10 = res$bf10, stringsAsFactors = FALSE)
+	temp = data.frame(param = param, cond = cond, H0_value = H0_value, 
+										bf01 = res$bf01, bf10 = res$bf10, success = res$success, stringsAsFactors = FALSE)
 	
 	temp
 }
@@ -137,9 +174,9 @@ getSubsampleIterationsToRemove = function(totalIterations, subsamples, subsample
 	
 	subsampleProportion = min( max(subsampleProportion, 0), 1 )
 	
-	if (subsamples > 1 && subsampleProportion == 1) {
-		stop("The subsample proportion should be less than 1 if using multiple subsamples.")
-	}
+	#if (subsamples > 1 && subsampleProportion == 1) {
+	#	warning("The subsample proportion should be less than 1 if using multiple subsamples.")
+	#}
 	
 	subsampleIterationsToRemove = list()
 	
@@ -168,9 +205,12 @@ getSubsampleIterationsToRemove = function(totalIterations, subsamples, subsample
 
 
 
-#' Test Condition Effects
+
+
+
+#' Test Differences Between Conditions
 #' 
-#' Tests the differences between the conditions in the experiment for different parameters. This test does all pairwise comparisons between all conditions.
+#' Tests the differences between the conditions in the experiment for different parameters. This test does all pairwise comparisons between all conditions. For omnibus tests, see \code{\link{testMainEffectsAndInteractions}}.
 #' 
 #' You can estimate how much the variability in the posterior chains affects the Bayes factors by using the \code{subsamples} and \code{subsampleProportion} arguments. If \code{subsamples} is greater than 1, multiple subsamples from the posterior chains will be taken and the standard deviation (and other measures) of the Bayes factors across the subsamples will be calculated. The number of iterations used in each subsample is a proportion of the total number of iterations and is set by \code{subsampleProportion}. Note that this is not the standard deviation of the Bayes factors over repeated samples of data sets, so it tells you nothing about what would happen if you had different data. It essentially tells you whether or not you ran enough iterations to have a stable Bayes factor estimate. The closer \code{subsampleProportion} is to 1, the less independent the subsamples will be, so you should use a reasonably low value of \code{subsampleProportion}. The degree to which the subsamples are independent influences to what extent the standard deviation is underestimated: The less independent, the larger the underestimate will be. If you want fully independent subsamples, you can set \code{subsampleProportion} to \code{NULL}. However, this means that the number of subsamples and the proportion of iterations in each subsample to be inversely related, which means that you have to choose between a low number of subsamples or a low number of iterations per subsample.
 #' 
@@ -178,6 +218,7 @@ getSubsampleIterationsToRemove = function(totalIterations, subsamples, subsample
 #' @param param A vector of basic parameter names for which to perform condition tests (e.g. "pMem"). If NULL (the default), tests are performed for all parameters with condition effects.
 #' @param subsamples Number of subsamples of the posterior chains to take. If greater than 1, subsampleProportion should be set to a value between 0 and 1 (exclusive).
 #' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should only be less than 1 if subsamples is greater than 1 or you want to only calculate Bayes factors based on part of the posterior samples for some reason. If \code{NULL}, \code{subsampleProportion} will be set to \code{1 / subsamples} and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
+#' @param summarize Should the results be summarized by 
 #' 
 #' @return A data frame containing test results. It has the following columns:
 #' \tabular{ll}{
@@ -192,19 +233,24 @@ getSubsampleIterationsToRemove = function(totalIterations, subsamples, subsample
 #'
 #' @export
 #'
-testConditionEffects = function(results, param = NULL, subsamples = 1, subsampleProportion = 1) {
+testConditionEffects = function(results, param = NULL, subsamples = 1, subsampleProportion = 1, summarize=TRUE) {
 
 	subsampleIterationsToRemove = getSubsampleIterationsToRemove(results$config$iterations, subsamples, subsampleProportion)
 	
 	
 	if (is.null(param)) {
-		param = results$config$parametersWithConditionEffects
+		param = getParametersWithConditionEffects(results$config$conditionEffects)
 	}
 	
-	condNames = results$conditions$levels
+	condNames = results$config$factors$cond
 	csName = results$config$cornerstoneConditionName
 	nonCsNames = condNames[ condNames != csName ]
 
+	
+	pb = utils::txtProgressBar(0, 1, 0, style=3)
+	currentStep = 1
+	lastStep = length(subsampleIterationsToRemove) * length(param)
+	
 	
 	allSubsamples = NULL
 	for (sub in 1:length(subsampleIterationsToRemove)) {
@@ -216,67 +262,64 @@ testConditionEffects = function(results, param = NULL, subsamples = 1, subsample
 		}
 		
 		for (p in param) {
+		
+			equalConds = getEqualConditionParameters(results, p)
+			uniqueGroups = unique(equalConds$group)
 			
-			location = resultSubsample$priors[[ paste(p, "_cond.loc", sep="") ]]
-			scale = resultSubsample$priors[[ paste(p, "_cond.scale", sep="") ]]
+			pairs = expand.grid(i = 1:length(uniqueGroups), j = 1:length(uniqueGroups) )
+			pairs = pairs[ pairs$i < pairs$j, ]
 			
-			#The test is (cond - cornerstone), so the location is (location - 0).
-			nonCsPrior = function(x) { stats::dcauchy(x, location, scale) }
-			
-			#Location is 0 because the locations are the same for both conditions and are subtracted
-			difPrior = function(x) { stats::dcauchy(x, 0, 2 * scale) } 
-			
-			
-			#do each non-cs condition on its own (i.e. comparisons to cs cond)
-			for (i in 1:length(nonCsNames)) {
-				x = resultSubsample$posteriors[[ paste(p, "_cond[", nonCsNames[i], "]", sep="") ]]
+			for (r in 1:nrow(pairs)) {
+				i = pairs$i[r]
+				j = pairs$j[r]
 				
-				testRes = savageDickey(x, h0_val=0, priorDensAtH0 = nonCsPrior(0))
+				g1conds = equalConds$cond[ equalConds$group == uniqueGroups[i] ]
+				g2conds = equalConds$cond[ equalConds$group == uniqueGroups[j] ]
 				
-				temp = data.frame(param=p, cond=paste(csName, " - ", nonCsNames[i], sep=""),
-													bf01=testRes$bf01, bf10=testRes$bf10, stringsAsFactors=FALSE)
+				prior1 = getConditionParameterPrior(results, p, g1conds[1])
+				prior2 = getConditionParameterPrior(results, p, g2conds[1])
+				
+				post1 = resultSubsample$posteriors[[ paste(p, "_cond[", g1conds[1], "]", sep="") ]]
+				post2 = resultSubsample$posteriors[[ paste(p, "_cond[", g2conds[1], "]", sep="") ]]
+				
+				priorDensAtH0 = stats::dcauchy(0, prior1$location - prior2$location, prior1$scale + prior2$scale)
+				
+				testRes = savageDickey(post1 - post2, h0_val=0, priorDensAtH0 = priorDensAtH0)
+				
+				condLabel = paste( paste(g1conds, collapse=","), " - ", paste(g2conds, collapse=","), sep="")
+				
+				temp = data.frame(param=p, cond=condLabel, 
+													bf01=testRes$bf01, bf10=testRes$bf10, success = testRes$success, 
+													stringsAsFactors=FALSE)
+				
 				allSubsamples = rbind(allSubsamples, temp)
 			}
+		
+			utils::setTxtProgressBar(pb, value = currentStep / lastStep)
+			currentStep = currentStep + 1
 			
-			#do each pairwise comparison of non-cs conditions
-			for(i in 1:length(nonCsNames)) {
-				for(j in 1:length(nonCsNames)) {
-					if (i < j) {
-						
-						xi = resultSubsample$posteriors[[ paste(p, "_cond[", nonCsNames[i], "]", sep="") ]]
-						xj = resultSubsample$posteriors[[ paste(p, "_cond[", nonCsNames[j], "]", sep="") ]]
-						
-						testRes = savageDickey(xi - xj, h0_val=0, priorDensAtH0 = difPrior(0))
-						
-						temp = data.frame(param=p, cond=paste(nonCsNames[i], " - ", nonCsNames[j], sep=""), 
-															bf01=testRes$bf01, bf10=testRes$bf10, stringsAsFactors=FALSE)
-						allSubsamples = rbind(allSubsamples, temp)
-					}
-				}
-			}
 		}
+		
 	}
 	
-	rval = NULL
-	for (p in param) {
-		for (cond in unique(allSubsamples$cond)) {
-			for (bf in c("bf01", "bf10")) {
-				x = allSubsamples[ allSubsamples$param == p & allSubsamples$cond == cond, bf ]
-				
-				qs = as.numeric(stats::quantile(x, c(0, 0.025, 0.5, 0.975, 1)))
-				
-				if (subsamples > 1) {
-					temp = data.frame(param = p, cond = cond, bfType = substr(bf, 3, 4),
-														bf = mean(x), sd = stats::sd(x), 
-														min=qs[1], p2.5=qs[2], median=qs[3], p97.5=qs[4], max=qs[5],
-														stringsAsFactors=FALSE)
-				} else {
-					temp = data.frame(param = p, cond = cond, bfType = substr(bf, 3, 4), bf = mean(x), stringsAsFactors=FALSE)
-				}
-				
-				rval = rbind(rval, temp)
-			}
-		}
+	close(pb)
+	
+	#TODO: Failure shouldn't be possible any more, so this could be removed.
+	if (any(allSubsamples$success == FALSE)) {
+		failed = allSubsamples[ allSubsamples$success == FALSE, ]
+		failed = unique(failed)
+		failed = failed[ , c("param", "cond") ]
+		cat("Unable to test condition effects for the following parameters and conditions:")
+		print(failed)
+		cat("\n")
+	}
+	
+	if (summarize) {
+		rval = summarizeSubsampleResults(allSubsamples, aggregateBy = c("param", "cond"))
+		rval = rval[ order(rval$param, rval$bfType, rval$cond), ]
+	} else {
+		rval = allSubsamples
+		attr(rval, "aggregateColumns") = c("param", "cond")
 	}
 	
 	rval
@@ -322,8 +365,8 @@ calculateWAIC = function(results, subsamples=1, subsampleProportion=1, onlyTotal
 	subsampleIterationsToRemove = getSubsampleIterationsToRemove(results$config$iterations, subsamples, subsampleProportion)
 	
 	
-	#???
-	results$config = verifyConfigurationList(config=results$config, data=results$data)
+	#??? This should not be necessary
+	#results$config = verifyConfigurationList(config=results$config, data=results$data)
 	
 	#Convert catMu from degrees to radians if circular. This should really be done in C++
 	if (results$config$dataType == "circular" && results$config$maxCategories > 0) {
@@ -337,6 +380,7 @@ calculateWAIC = function(results, subsamples=1, subsampleProportion=1, onlyTotal
 	
 	allWAIC = NULL
 	
+	pb = txtProgressBar(0, 1, 0)
 	for (sub in 1:length(subsampleIterationsToRemove)) {
 		if (length(subsampleIterationsToRemove[[sub]]) > 0) {
 			noBurnIn = removeBurnIn(results, subsampleIterationsToRemove[[sub]])
@@ -344,15 +388,18 @@ calculateWAIC = function(results, subsamples=1, subsampleProportion=1, onlyTotal
 			noBurnIn = results
 		}
 		
-		if (length(subsampleIterationsToRemove) > 1) {
-			cat(paste("Starting subsample ", sub, ".\n"))
-		}
+		#if (length(subsampleIterationsToRemove) > 1) {
+		#	cat(paste("Starting subsample ", sub, ".\n", sep=""))
+		#}
 		
 		waic = CCM_CPP_calculateWAIC(noBurnIn)
 		waic$subsample = sub
 		
 		allWAIC = rbind(allWAIC, waic)
+
+		setTxtProgressBar(pb, sub / length(subsampleIterationsToRemove))
 	}
+	close(pb)
 
 	summaryWAIC = NULL
 	

@@ -12,7 +12,7 @@ conditionEffects$pMem = c(0, -0.5, -1.5) #in the latent space
 conditionEffects$pContWithin = c(0, 0.5, -0.5) #in the latent space
 conditionEffects$contSD = c(0, 5, 15)
 
-#The model does not have condition effects for these parameters, so they must be 0
+# Don't use condition effects for these parameters.
 nCond = 3
 conditionEffects$pCatGuess = rep(0, nCond) 
 conditionEffects$catSelectivity = rep(0, nCond)

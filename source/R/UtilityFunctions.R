@@ -214,7 +214,15 @@ circMean = function(angles, weights=1, degrees=TRUE) {
 	rval
 }
 
-#I don't actually use this anywhere
+
+#' Circular Absolute Distance Between Values
+#' 
+#' The cicular absolute distance is the smallest angular distance between two values. It is at most 180 degrees.
+#' 
+#' @param x, y Vectors of values in degrees or radians
+#' @param degrees If TRUE, x and y are treated as though they are in degrees. If FALSE, x and y are treated as being in radians.
+#' 
+#' @export
 circAbsDist = function(x, y, degrees=TRUE) {
 	offset = 2 * pi
 	if (degrees) {

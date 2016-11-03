@@ -17,6 +17,7 @@ All of the models use Bayesian parameter estimation and model comparison methods
 
 There are two basic steps to using this package: 1) Running the parameter estimation and 2) analyzing the posterior distributions of the parameters. These steps each have many substeps, which are described in detail below.
 
+
 # Parameter Estimation
 
 ## Data Format
@@ -592,7 +593,7 @@ This was the best model selected by @HardmanVergauweRicker2016. If you are going
 
 #### Fully Categorical Model
 
-If you want a fully categorical model (i.e., no continuous responding allowed), use the "betweenItem" model variant with the constant parameter value overrides functionality, as demonstrated in the following (incomplete) code snippet.
+If you want a fully categorical model (i.e., no continuous responding allowed), use the "betweenItem" model variant with the constant parameter value overrides functionality, as demonstrated in the following code snippet.
 
 ```{r eval=FALSE}
 config = list(iterations=500, modelVariant="betweenItem")
@@ -618,6 +619,33 @@ There is nothing particularly interesting about my implementation of the ZL mode
 ## Stimuli
 
 These models were developed with colors in mind, but there is nothing about the models that restricts them to color stimuli. The models can be used with any stimuli that exist on a circular space, although this does not mean that the models will necessarily be appropriate for those data.
+
+## Factorial Designs
+
+This package has some support for contraining parameter estimation and performing hypothesis tests for factorial designs. For now, only two fully-crossed factors are fully supported. I think that non-fully-crossed factors may be ok, but I haven't gone through the logic of it yet. Designs with three or more factors are only partially supported, so I would recommend only using two factors.
+
+I will work with the example of a design with two fully-crossed factors, inventively named "letters" and "numbers". The letters factor has the levels "a" and "b" and the numbers factor has the levels "1", "2", and "3". 
+
+With factorial designs, before running parameter estimation, you will need to add additional information to the `config` list: A `data.frame` called `factors` and (optionally) a `list` called `conditionEffects`. The `factors` data frame specifies the factor levels for the experimental conditions.
+
+```{r eval=FALSE}
+#config being the configuration list given to runParameterEstimation()
+
+config$factors = data.frame(letters = c('a',  'a',  'a',  'b',  'b',  'b'),
+														numbers = c('1',  '2',  '3',  '1',  '2',  '3'),
+														cond =    c('a1', 'a2', 'a3', 'b1', 'b2', 'b3'),
+														stringsAsFactors = FALSE)
+
+config$factors[3,]
+
+```
+
+As can be seen in this example, condition "a3" is associated with level "a" of the letters factor and level "3" of the numbers factor. This information is needed by the package so it can know what conditions go with what factor levels. If you have only one factor, you do not need to provide the factors data frame. It is not necessary to include the factors in the data set: You still only need the `cond` column in the data.
+
+
+
+
+
 
 ## Parameters
 

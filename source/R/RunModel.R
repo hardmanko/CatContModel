@@ -1,5 +1,23 @@
 require(Rcpp)
 
+
+getDefaultParametersWithConditionEffects = function(modelVariant) {
+	pce = c("pMem", "contSD") #ZL and all other models
+	
+	if (modelVariant == "betweenAndWithin") {
+		pce = c(pce, "pBetween", "pContBetween", "pContWithin")
+		
+	} else if (modelVariant == "betweenItem") {
+		pce = c(pce, "pContBetween")
+		
+	} else if (modelVariant == "withinItem") {
+		pce = c(pce, "pContWithin")
+	}
+	
+	pce
+}
+
+
 #' Verify Parameter Estimation Configuration Values
 #' 
 #' @param config A configuration to be used as the \code{config} argument of \link{runParameterEstimation}.
@@ -12,8 +30,8 @@ verifyConfigurationList = function(config, data) {
 	
 	allAllowedConfigKeys = c("iterations", "modelVariant", "iterationsPerStatusUpdate", 
 													 "cornerstoneConditionName", "maxCategories", "minSD", 
-													 "calculateParticipantLikelihoods", "parametersWithConditionEffects", 
-													 "dataType", "responseRange", "catMuRange")
+													 "calculateParticipantLikelihoods", "conditionEffects",
+													 "dataType", "responseRange", "catMuRange", "factors", "factorNames")
 	disallowedConfigKeys = names(config)[ !(names(config) %in% allAllowedConfigKeys) ]
 	if (length(disallowedConfigKeys) > 0) {
 		msg = paste("The following configuration settings were used, but are not allowed (check their spelling): ", paste(disallowedConfigKeys, collapse=", "), sep="")
@@ -80,7 +98,9 @@ verifyConfigurationList = function(config, data) {
 	
 	
 	if (is.null(config$cornerstoneConditionName)) {
-		config$cornerstoneConditionName = sort(unique(data$cond))[1]
+		#choose cornerstone condition based on the amount of data in the condition
+		dataCounts = aggregate(study ~ cond, data, length)
+		config$cornerstoneConditionName = dataCounts$cond[which.max(dataCounts$study)]
 		cat(paste("Note: config$cornerstoneConditionName not set. Set to ", config$cornerstoneConditionName, ".\n", sep=""))
 	}
 	if (!is.character(config$cornerstoneConditionName)) {
@@ -110,33 +130,68 @@ verifyConfigurationList = function(config, data) {
 	
 	
 	parametersWithPossibleConditionEffects = c( getProbParams(NULL), getSdParams(NULL) )
-	for (pce in config$parametersWithConditionEffects) {
-		if (!(pce %in% parametersWithPossibleConditionEffects)) {
-			msg = paste("In parametersWithConditionEffects, ", pce, " was included, but it is not a parameter that can have condition effects.", sep="")
-			cat( paste( msg, "\n", sep="") )
-			warning(msg)
+
+	if (is.null(config$conditionEffects)) {
+
+		pceToUse = getDefaultParametersWithConditionEffects(config$modelVariant)
+		
+		config$conditionEffects = list()
+		for (param in pceToUse) {
+			config$conditionEffects[[ param ]] = "all"
+		}
+		
+		cat(paste("Note: config$conditionEffects not set. It was set to use all factors for ", paste(pceToUse, collapse = ", "), ".\n", sep=""))
+		
+	} else {
+		
+		for (n in names(config$conditionEffects)) {
+			if (!(n %in% parametersWithPossibleConditionEffects)) {
+				config$conditionEffects[[n]] = NULL
+				msg = paste("In config$conditionEffects, ", n, " was included, but it is not a parameter that can have condition effects.", sep="")
+				cat( paste( msg, "\n", sep="") )
+				warning(msg)
+			}
+		}
+	
+	}
+	
+	#set all unmentioned condition effects to "none"
+	for (n in parametersWithPossibleConditionEffects) {
+		if (!(n %in% names(config$conditionEffects))) {
+			config$conditionEffects[[n]] = "none"
 		}
 	}
 	
-	if (is.null(config$parametersWithConditionEffects)) {
-		config$parametersWithConditionEffects = c("pMem", "contSD")
-		
-		if (config$modelVariant == "betweenAndWithin") {
-			config$parametersWithConditionEffects = c(config$parametersWithConditionEffects, "pBetween", "pContBetween", "pContWithin")
-			
-		} else if (config$modelVariant == "betweenItem") {
-			config$parametersWithConditionEffects = c(config$parametersWithConditionEffects, "pContBetween")
-			
-		} else if (config$modelVariant == "withinItem") {
-			config$parametersWithConditionEffects = c(config$parametersWithConditionEffects, "pContWithin")
+	
+	if (is.null(config$factors)) {
+		#If no factors provided, assume one-factor design
+		config$factors = data.frame(cond=unique(data$cond))
+		config$factors$Factor1 = config$factors$cond
+		cat("Note: config$factors not provided. A one-factor design is assumed.\n")
+	} else {
+		dataConds = unique(data$cond)
+		allConds = union( dataConds, config$factors$cond )
+
+		for (cond in allConds) {
+			if (!(cond %in% config$factors$cond)) {
+				stop(paste("The condition ", cond, " is in the data but not in config$factors.", sep=""))
+			}
+			if (!(cond %in% dataConds)) {
+				stop(paste("The condition ", cond, " is in config$factors but not in the data.", sep=""))
+			}
 		}
-		
-		cat(paste("Note: config$parametersWithConditionEffects not set. Set to ", paste(config$parametersWithConditionEffects, collapse = ", "), ".\n", sep=""))
+	}
+	for (n in names(config$factors)) {
+		config$factors[ , n ] = as.character(config$factors[ , n ])
 	}
 	
+	if (is.null(config$factorNames)) {
+		config$factorNames = guessFactorNames(config$factors)
+	}
 	
 	config
 }
+
 
 checkStartingValueOverrides = function(config, svo) {
 	
@@ -174,6 +229,7 @@ checkConstantValueOverrides = function(config, cvo) {
 	cvo
 }
 
+
 #' Estimate Parameters of the Models
 #' 
 #' This function runs the Gibbs sampler for the selected delayed estimation model.
@@ -197,7 +253,7 @@ checkConstantValueOverrides = function(config, cvo) {
 #' 	\code{startingValues} \tab A named list of the starting values of the parameters. \cr
 #' 	\code{constantValueOverrides} \tab A named list of constant parameter value overrides (that were provided by the user). \cr
 #' 	\code{pnums} \tab A vector of the participant numbers. \cr
-#' 	\code{conditions} \tab A list containing \code{levels}, which is a vector of the condition levels, and \code{type}, which is a string naming the type of the levels. \code{type} defaults to \code{"Condition"}, but may be set by the user to specify what the levels mean, which is used in plots.
+#' 	\code{equalityConstraints} \tab A list mapping from the names of parameters to the name of the parameter that they obtain their value from, if any.
 #' }
 #' 
 #' @details
@@ -206,9 +262,10 @@ checkConstantValueOverrides = function(config, cvo) {
 #' 	\code{iterations} \tab Required. The number of iterations of the Gibbs sampler to run. No default value.\cr
 #' 	\code{modelVariant} \tab Required. Which variant of the model to use. Choose from "betweenItem", "withinItem", and "ZL". "betweenItem" and "withinItem" are the two model variants used by Hardman, Vergauwe, and Ricker. "ZL" is the Zhang and Luck (2008) model. Defaults to "betweenItem".\cr
 #' 	\code{dataType} \tab The type of data you have, either \code{"circular"} or \code{"linear"}. Defaults to \code{"circular"}. \cr
-#' 	\code{cornerstoneConditionName} \tab The name of the condition that will be used as the cornerstone condition. Defaults to the condition that sorts first.\cr
+#' 	\code{cornerstoneConditionName} \tab The name of the condition that will be used as the cornerstone condition. Defaults to the condition with the most observations in the data set.\cr
 #' 	\code{maxCategories} \tab The maximum number of categories that each participant is allowed to have. Defaults to 16.\cr
-#' 	\code{parametersWithConditionEffects} \tab Names of the parameters that you want to allow to vary by task condition. The default varies by model variant. \cr
+#' 	\code{conditionEffects} \tab Replaces parametersWithConditionEffects. A list mapping from the name of a parameter to a character vector with the names of the factors that parameter will be allowed to vary by. To use all factors (or if you have only 1 factor), use the special value \code{"all"}. To prevent the parameter from varying by task condition, use the special value \code{"none"}. The default varies by model variant. Parameters that you do not include will be set to \code{"none"}. See the example. \cr
+#' 	\code{factors} \tab A \code{data.frame} with a column named "cond" which contains the unique conditions in the data set. The other columns are factors and factor levels corresponding to the conditions. If you have only 1 factor, you do not need to set this, but you may want to as the column names are used to identify the factors. See the example. \cr
 #' 	\code{minSD} \tab The minimum standard deviation of the Von Mises or normal distributions. This affects the contSD, catSD, and catSelectivity parameters. Defaults to 1. \cr
 #' 	\code{calculateParticipantLikelihoods} \tab Whether (log) likelihoods should be calculated on each iteration for each participant. See \code{\link{calculateInappropriateFitStatistics}}. \cr
 #' 	\code{responseRange} \tab If using the "linear" dataType, the possible range of response values as a length 2 vector, where the first value in the vector is the lower limit. By default, this is inferred from the data.
@@ -219,6 +276,20 @@ checkConstantValueOverrides = function(config, cvo) {
 #' The condition effect parameters have fixed Cauchy priors with a location and scale. For example, for pMem, the location and scale priors are \code{pMem_cond.loc} and \code{pMem_cond.scale}. The locations all default to 0. The scales are different for different parameters.
 #' 
 #' @export
+#' 
+#' @examples 
+#' config = list(iterations = 1000, modelVariant = "betweenItem")
+#' 
+#' config$factors = data.frame(cond = c("a1", "a2", "a3", "b1", "b2", "b3"),
+#' letters = rep(c("a", "b"), each = 3),
+#' numbers = rep(c("1", "2", "3"), 2))
+#' 
+#' config$conditionEffects = list(pMem = c("letters", "numbers"),
+#' pContBetween = "all", #shortcut to listing them all
+#' contSD = "letters",
+#' pCatGuess = "numbers")
+#' #all not stated will be set to "none".
+#' 
 runParameterEstimation = function(config, data, mhTuningOverrides=list(), 
 																	priorOverrides=list(), startingValueOverrides=list(), 
 																	constantValueOverrides=list()) 
@@ -232,7 +303,7 @@ runParameterEstimation = function(config, data, mhTuningOverrides=list(),
 	constantValueOverrides = checkConstantValueOverrides(config, constantValueOverrides)
 
 	
-	
+	equalityConstraints = getConstrainedConditionEffects(config)
 	
 	#Check the data
 	requiredColumns = c("pnum", "cond", "study", "response")
@@ -246,16 +317,18 @@ runParameterEstimation = function(config, data, mhTuningOverrides=list(),
 	}
 
 
-	
 	results = CCM_CPP_runParameterEstimation(generalConfig = config, 
 												data = data, 
 												mhTuningOverrides = mhTuningOverrides, 
 												priorOverrides = priorOverrides,
 												startingValueOverrides = startingValueOverrides,
-												constantValueOverrides = constantValueOverrides) 
+												constantValueOverrides = constantValueOverrides,
+												equalityConstraints = equalityConstraints) 
 	
 	results$config = config
 	results$data = data
+	
+	results$equalityConstraints = equalityConstraints
 
 	#Convert catMu from radians to degrees
 	if (results$config$dataType == "circular" && results$config$maxCategories > 0) {
@@ -280,11 +353,6 @@ runParameterEstimation = function(config, data, mhTuningOverrides=list(),
 		results$posteriors[[n]] = results$posteriors[[n]][-1] #strip off the start value (mainly so that the number of iterations is correct)
 	}
 	
-	#results$pnums = sort(unique(results$data$pnum)) #TODO: Get this in a better way
-	
-	#Put in the conditions
-	results$conditions = list(levels=results$conditionNames, type="Condition")
-	results$conditionNames = NULL
 	
 	results
 	
@@ -349,11 +417,13 @@ mergeResults = function(..., doIntegrityChecks=TRUE, rList=NULL) {
 				}
 			}
 
+			
 			for (n in names(res$priors)) {
 				if (res$priors[[n]] != rval$priors[[n]]) {
 					stop(paste("Mismatched priors for parameter ", n, ".", sep=""))
 				}
 			}
+			
 			
 			if (length(res$constantValueOverrides) > 0 && length(rval$constantValueOverrides) > 0) {
 				if (any(sort(names(res$constantValueOverrides)) != sort(names(rval$constantValueOverrides)))) {
@@ -368,13 +438,29 @@ mergeResults = function(..., doIntegrityChecks=TRUE, rList=NULL) {
 				stop("The number of constant value overrides do not match.")
 			}
 			
+			
+			if (length(res$equalityConstraints) > 0 && length(rval$equalityConstraints) > 0) {
+				if (any(sort(names(res$equalityConstraints)) != sort(names(rval$equalityConstraints)))) {
+					stop("Names of equality constraints do not match.")
+				}
+				for (n in names(res$equalityConstraints)) {
+					if (res$equalityConstraints[[n]] != rval$equalityConstraints[[n]]) {
+						stop(paste("Mismatched equality constraints for parameter ", n, ".", sep=""))
+					}
+				}
+			} else if (length(res$equalityConstraints) != length(rval$equalityConstraints)) {
+				stop("The number of equality constraints do not match.")
+			}
+			
+			
 			for (n in names(res$config)) {
-				if (!(n %in% c("iterations", "iterationsPerStatusUpdate"))) {
-					if (!all(res$config[[n]] == rval$config[[n]])) {
+				if (!(n %in% c("iterations", "iterationsPerStatusUpdate", "conditionEffects"))) {
+					if (any(res$config[[n]] != rval$config[[n]])) {
 						stop(paste("Mismatched config for setting ", n, ".", sep=""))
 					}
 				}
 			}
+			
 			
 			if (any(res$data != rval$data)) {
 				stop("Mismatched data.")
@@ -396,9 +482,6 @@ mergeResults = function(..., doIntegrityChecks=TRUE, rList=NULL) {
 		rval$config$iterations = rval$config$iterations + res$config$iterations
 		
 	}
-	
-	# Remake post
-	#rval$post = convertRawPosteriorsToMatrices(rval$posteriors, rval$pnums, rval$config$maxCategories)
 	
 	rval
 }
@@ -673,9 +756,9 @@ removeBurnIn = function(results, burnIn) {
 #' 
 #' If \code{doConditionEffects} is TRUE, the condition effects are all set to 0, which
 #' means that the participants will have the same parameter values in all conditions.
-#' Note that this overrides the \code{parametersWithConditionEffects} setting in the
+#' Note that this overrides the \code{conditionEffects} setting in the
 #' configuration for \code{\link{runParameterEstimation}}. If you allow condition
-#' effect with \code{parametersWithConditionEffects} but set \code{doConditionEffects == TRUE}
+#' effects with \code{conditionEffects} but set \code{doConditionEffects == TRUE}
 #' you will get no condition effects. The reverse is not true.
 #' 
 #' If you call this function several times to get multiple lists of fixed parameter
@@ -813,5 +896,20 @@ setConstantCategoryParameters = function(data, catParam, maxCategories, activate
 	rval
 }
 
-
+upgradeResultsList = function(results, from, to) {
+	
+	if (from == "0.6.1" && to == "0.7.0") {
+		results$config$conditionEffects = list()
+		for (pp in results$config$parametersWithConditionEffects) {
+			results$config$conditionEffects[[pp]] = "all"
+		}
+		results$config$parametersWithConditionEffects = NULL
+		
+		results$conditions = NULL
+		
+		results$config = verifyConfigurationList(results$config, results$data)
+	}
+	
+	results
+}
 

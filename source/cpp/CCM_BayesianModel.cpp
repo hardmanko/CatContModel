@@ -74,6 +74,21 @@ namespace CatCont {
 		return ll + prior;
 	}
 
+	double Bayesian::multiConditionParameter_ll(double thisParam, const ParameterList& param, vector<unsigned int> condIndices, string baseName) const {
+
+		//const vector<unsigned int>& sharedCond = config.equalCon.getEqualConditionIndices(baseName, condIndex);
+
+		double llSum = 0;
+		for (unsigned int cond : condIndices) {
+			llSum += singleCond_ll(param, cond);
+		}
+
+		//There is only 1 parameter, so only 1 prior.
+		double prior = cauchyLL(thisParam, priors.at(baseName + "_cond.loc"), priors.at(baseName + "_cond.scale"));
+
+		return llSum + prior;
+	}
+
 	double Bayesian::normalPriorParameter_ll(double thisParam, const ParameterList& param, unsigned int pIndex, string paramName) const {
 		double ll = singleParticipant_ll(param, pIndex);
 		double prior = normalLL(thisParam, param.at(paramName + ".mu"), param.at(paramName + ".var"));
@@ -94,7 +109,7 @@ namespace CatCont {
 					if (config.dataType == DataType::Circular) {
 						like = vmLut.dVonMises(mus[k], mus[kp], this->_catMuPriorData.kappa);
 					} else {
-						like = Linear::dnorm(mus[k], mus[kp], _catMuPriorData.sd); //NOT truncated
+						like = Linear::normalPDF(mus[k], mus[kp], _catMuPriorData.sd); //NOT truncated
 					}
 
 					double ratio = 1 - like / _catMuPriorData.maxLikelihood;
@@ -273,6 +288,9 @@ namespace CatCont {
 
 		using namespace std::placeholders;
 
+		this->_setMhTuning();
+		this->_setPriors();
+
 		gibbs.clear();
 
 		/////////////////////////////////////////////
@@ -392,21 +410,27 @@ namespace CatCont {
 
 
 		/////////////////////////////////////////////
-		//condition parameters
+		// condition parameters
+
 		vector<string> conditionEffectsToCreate = config.getParamWithAndWithoutConditionEffects();
+		EqualityConstraints eq;
+		eq.setup(overrides.equalityConstraints, data.conditionNames, vector<string>(0));
 		
 		for (unsigned int condIndex = 0; condIndex < data.conditionNames.size(); condIndex++) {
 
 			string cstr = "[" + data.conditionNames[condIndex] + "]";
 
-			for (const string& s : conditionEffectsToCreate) {
+			for (const string& parName : conditionEffectsToCreate) {
 
-				if (condIndex == config.cornerstoneConditionIndex) { 
+				string name = parName + "_cond" + cstr;
+				string group = parName + "_cond";				
 
+				if (condIndex == config.cornerstoneConditionIndex) {
+					//Do the 0 param
 					DependentParameter par;
 
-					par.name = s + "_cond" + cstr;
-					par.group = s + "_cond";
+					par.name = name;
+					par.group = group;
 
 					par.sourceParameter = par.name; //Make itself its source: That will just result in it keeping the same value each time it updates.
 
@@ -414,19 +438,39 @@ namespace CatCont {
 
 				} else {
 
-					MH_Parameter par;
-					par.name = s + "_cond" + cstr;
-					par.group = s + "_cond";
+					string source = eq.getSourceParameter(name);
 
-					par.deviateFunction = bind(normalDeviate, _1, mhTuningSd.at(par.group));
-					par.llFunction = std::bind(&Bayesian::genericConditionParameter_ll, this, _1, _2, condIndex, s);
+					if (source == "FREE_PARAMETER") {
+						//set up free parameter with multiConditionParameter_ll
 
-					gibbs.addParameter(par, 0);
+						vector<unsigned int> conditionIndices = eq.getEqualConditionIndices(parName, condIndex);
+
+						MH_Parameter par;
+						par.name = name;
+						par.group = group;
+
+						par.deviateFunction = bind(normalDeviate, _1, mhTuningSd.at(par.group));
+						par.llFunction = std::bind(&Bayesian::multiConditionParameter_ll, this, _1, _2, conditionIndices, parName);
+
+						gibbs.addParameter(par, 0);
+
+					} else {
+
+						//Not a free parameter: Set up dependent parameter with a source.
+						DependentParameter dp;
+						dp.name = name;
+						dp.group = group;
+
+						dp.sourceParameter = source;
+
+						gibbs.addParameter(dp, 0);
+					}
 
 				}
-			}
+			} // parName
 
-		}
+		} //condIndex
+
 		// end condition parameters
 		/////////////////////////////////////////////
 
@@ -462,6 +506,8 @@ namespace CatCont {
 		vector<string> condParamToZero = config.getParamWithoutConditionEffects();
 
 		for (unsigned int i = 0; i < condParamToZero.size(); i++) {
+			//TODO: This is not currently needed, because of how the condition effects make equality constraints
+			//The equality constraints make parameters without condition effects all be equal to the cornerstone, which is 0.
 			gibbs.setParameterGroupToConstantValue(condParamToZero[i] + "_cond", 0);
 
 			if (usingDecorrelatingSteps) {
@@ -567,8 +613,11 @@ namespace CatCont {
 
 		this->_doStartingValueOverrides();
 
+		//this->_doParameterEqualityConstraints();
+
 		this->_doConstantParameterOverrides();
 	}
+
 
 
 
@@ -742,37 +791,7 @@ namespace CatCont {
 
 	}
 
-	//This function must be called after createParameters().
-	void Bayesian::setParameterStartingValues(map<string, double> vals) {
-
-		vector<GibbsParameter*> parameters = gibbs.getParameters();
-		for (unsigned int i = 0; i < parameters.size(); i++) {
-			GibbsParameter* par = parameters[i];
-
-			if (vals.find(par->name) != vals.end()) {
-				//Found
-				vector<double>& samples = par->getSamples();
-				samples.clear();
-				samples.push_back( vals.at(par->name) );
-			} else {
-				std::stringstream ss;
-				ss << "Note: No starting value found for \"" << par->name << "\".";
-				logMessage("setParameterStartingValues", ss.str());
-			}
-		}
-
-		//Also check which values are provided but for which there is no parameter.
-		for (map<string, double>::iterator it = vals.begin(); it != vals.end(); it++) {
-			if (!gibbs.hasParameter(it->first)) {
-				std::stringstream ss;
-				ss << "Note: Starting value provided for \"" << it->first << "\", but there is no parameter by that name.";
-				logMessage("setParameterStartingValues", ss.str());
-			}
-		}
-
-	}
-
-	void Bayesian::setPriors(void) {
+	void Bayesian::_setPriors(void) {
 
 		priors.clear();
 
@@ -831,14 +850,14 @@ namespace CatCont {
 		} else if (config.dataType == DataType::Linear) {
 
 			_catMuPriorData.kappa = std::numeric_limits<double>::infinity(); //This isn't used anywhere
-			_catMuPriorData.maxLikelihood = Linear::dnorm(0, 0, _catMuPriorData.sd); //NOT truncated.
+			_catMuPriorData.maxLikelihood = Linear::normalPDF(0, 0, _catMuPriorData.sd); //NOT truncated.
 
 		}
 	}
 
 
 
-	void Bayesian::setMhTuning(void) {
+	void Bayesian::_setMhTuning(void) {
 		mhTuningSd.clear();
 
 		//participant parameters
@@ -897,213 +916,6 @@ namespace CatCont {
 	}
 
 
-	map<string, map<string, double>> calculateWAIC(const vector<ParticipantData>& allData,
-		const Bayesian::Configuration& modelConfig,
-		const vector< ParameterList >& posteriorIterations)
-	{
-
-		double LPPD = 0;
-		double P_1 = 0;
-		double P_2 = 0;
-
-		vector<string> pnums(allData.size());
-		vector<double> LPPD_part(allData.size(), 0);
-		vector<double> P_1_part = LPPD_part;
-		vector<double> P_2_part = LPPD_part;
-		vector<double> WAIC_1_part = LPPD_part;
-		vector<double> WAIC_2_part = LPPD_part;
-
-
-		for (unsigned int pIndex = 0; pIndex < allData.size(); pIndex++) {
-
-			const ParticipantData& pData = allData[pIndex];
-			pnums[pIndex] = pData.pnum;
-
-			for (unsigned int condIndex = 0; condIndex < pData.condData.size(); condIndex++) {
-
-				const ConditionData& condData = pData.condData[condIndex];
-				
-				
-				vector< double > currentLikelihoodSum(condData.study.size(), 0); //Initialize to 0
-				vector< double > currentLogLikelihoodSum = currentLikelihoodSum; //Also initialize to 0
-
-				//First index is the observation, second is the iteration.
-				vector< vector< double > > currentLogLikelihoods;
-
-				currentLogLikelihoods.resize(condData.study.size());
-				for (unsigned int i = 0; i < currentLogLikelihoods.size(); i++) {
-					currentLogLikelihoods[i].resize(posteriorIterations.size());
-				}
-
-
-				for (unsigned int iteration = 0; iteration < posteriorIterations.size(); iteration++) {
-
-					const ParameterList& param = posteriorIterations[iteration];
-
-					ParticipantParameters partParam = Bayesian::getParticipantParameters(param, pData.pnum, modelConfig.maxCategories);
-					ConditionParameters condParam = Bayesian::getConditionParameters(param, condData.condition);
-
-					CombinedParameters combinedParam = Bayesian::combineParameters(partParam, condParam, modelConfig.ranges, modelConfig.dataType);
-
-
-					//For each iteration, get the likelihoods for all observation for this participant/condition pair
-					vector<double> likelihoods;
-					if (modelConfig.dataType == DataType::Circular) {
-						likelihoods = Circular::betweenAndWithinLikelihood(combinedParam, condData, modelConfig.modelVariant);
-					} else if (modelConfig.dataType == DataType::Linear) {
-						likelihoods = Linear::betweenAndWithinLikelihood(combinedParam, condData, modelConfig.linearConfiguration);
-					}
-
-					//Store the likelihoods
-					for (unsigned int obs = 0; obs < condData.study.size(); obs++) {
-
-						currentLikelihoodSum[obs] += likelihoods[obs];
-
-						double ll = log(likelihoods[obs]);
-
-						currentLogLikelihoodSum[obs] += ll;
-
-						currentLogLikelihoods[obs][iteration] = ll;
-					}
-
-				}
-
-				//Process the likelihoods
-				for (unsigned int obs = 0; obs < condData.study.size(); obs++) {
-
-
-					//Convert from sum to mean
-					double logOfMeanL = log(currentLikelihoodSum[obs] / posteriorIterations.size());
-					double meanOfLogL = currentLogLikelihoodSum[obs] / posteriorIterations.size();
-
-
-					//Add on to LPPD
-					LPPD += logOfMeanL;
-					LPPD_part[pIndex] += logOfMeanL;
-
-					//Add on to P_1
-					double a = logOfMeanL;
-					double b = meanOfLogL;
-
-					P_1 += 2 * (a - b);
-					P_1_part[pIndex] += 2 * (a - b);
-
-					//Add on to P_2: sample variance of LL
-					double varOfLLAccum = 0;
-
-					for (unsigned int iteration = 0; iteration < posteriorIterations.size(); iteration++) {
-						double dOfLL = currentLogLikelihoods[obs][iteration] - meanOfLogL;
-						varOfLLAccum += dOfLL * dOfLL;
-					}
-
-					double varOfLL = varOfLLAccum / (posteriorIterations.size() - 1);
-					P_2 += varOfLL;
-					P_2_part[pIndex] += varOfLL;
-
-
-				} //obs
-
-
-			} //condIndex
-
-			WAIC_1_part[pIndex] = -2 * (LPPD_part[pIndex] - P_1_part[pIndex]);
-			WAIC_2_part[pIndex] = -2 * (LPPD_part[pIndex] - P_2_part[pIndex]);
-
-		} //pIndex
-
-		double WAIC_1 = -2 * (LPPD - P_1);
-		double WAIC_2 = -2 * (LPPD - P_2);
-
-		//These insertions do nothing because the sort order is changed when put into the map. They could just be push_back.
-		pnums.insert(pnums.begin(), "Total");
-		WAIC_1_part.insert(WAIC_1_part.begin(), WAIC_1);
-		WAIC_2_part.insert(WAIC_2_part.begin(), WAIC_2);
-
-		LPPD_part.insert(LPPD_part.begin(), LPPD);
-		P_1_part.insert(P_1_part.begin(), P_1);
-		P_2_part.insert(P_2_part.begin(), P_2);
-
-		map<string, map<string, double> > rval;
-
-		for (unsigned int i = 0; i < pnums.size(); i++) {
-			map<string, double> temp;
-			temp["WAIC_1"] = WAIC_1_part[i];
-			temp["WAIC_2"] = WAIC_2_part[i];
-			temp["P_1"] = P_1_part[i];
-			temp["P_2"] = P_2_part[i];
-			temp["LPPD"] = LPPD_part[i];
-			rval[pnums[i]] = temp;
-		}
-
-		return rval;
-	}
-
-
-	//The decorrelating stuff should work in theory, but it doesn't seem to work well in practice, at least
-	//not all of the time. I don't recommend using it.
-	ParameterList Bayesian::_getDecorrelatingValues(const ParameterList& param, string paramSetName, double deviate) const {
-		ParameterList rval;
-
-		for (unsigned int i = 0; i < data.participants.size(); i++) {
-			string istr = paramSetName + "[" + data.participants.at(i).pnum + "]";
-			rval[istr] = param.at(istr) + deviate;
-		}
-
-		for (unsigned int j = 0; j < data.conditionNames.size(); j++) {
-			if (j != config.cornerstoneConditionIndex) {
-				string istr = paramSetName + "_cond[" + data.conditionNames[j] + "]";
-				rval[istr] = param.at(istr) - deviate;
-			}
-		}
-
-		return rval;
-	}
-
-	ParameterList Bayesian::decorrelatingCurrent(const ParameterList& param, string paramSetName) const {
-		return _getDecorrelatingValues(param, paramSetName, 0);
-	}
-
-	ParameterList Bayesian::decorrelatingCandidate(const ParameterList& param, string paramSetName, double mhSd) const {
-		double deviate = normalDeviate(0, mhSd);
-
-		return _getDecorrelatingValues(param, paramSetName, deviate);
-	}
-
-	double Bayesian::decorrelating_ll(const ParameterList& theseParam, const ParameterList& allParam, string paramSetName) const {
-
-		vector<ConditionParameters> condPar(data.conditionNames.size());
-
-		double prior = 0;
-
-		for (unsigned int condIndex = 0; condIndex < data.conditionNames.size(); condIndex++) {
-
-			condPar[condIndex] = _getConditionParameters(allParam, condIndex);
-
-			if (condIndex != config.cornerstoneConditionIndex) {
-				prior += cauchyLL(theseParam.at(paramSetName + "_cond[" + data.conditionNames[condIndex] + "]"),
-					priors.at(paramSetName + "_cond.loc"), priors.at(paramSetName + "_cond.scale"));
-			}
-		}
-
-		double llSum = 0;
-		for (unsigned int pIndex = 0; pIndex < data.participants.size(); pIndex++) {
-
-
-			ParticipantParameters partPar = _getParticipantParameters(allParam, pIndex);
-
-			for (unsigned int condIndex = 0; condIndex < data.conditionNames.size(); condIndex++) {
-				CombinedParameters combinedParameters = _combineParameters(partPar, condPar[condIndex]);
-
-				const ConditionData& cd = data.participants.at(pIndex).condData.at(condIndex);
-				llSum += _llFunction(combinedParameters, cd);
-			}
-
-			prior += normalLL(theseParam.at(paramSetName + "[" + data.participants.at(pIndex).pnum + "]"),
-				allParam.at(paramSetName + ".mu"), allParam.at(paramSetName + ".var"));
-		}
-
-		return llSum + prior;
-	}
 
 
 } // namespace CatCont

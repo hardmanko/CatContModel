@@ -7,7 +7,7 @@ library(Rcpp)
 library(devtools)
 library(roxygen2)
 
-CatContPackageVersion = "0.6.1"
+CatContPackageVersion = "0.7.0"
 addingDataSets = FALSE
 
 baseDir = "~/../Programming/R/CatContModel/"
@@ -21,7 +21,7 @@ packageLocation = paste( packagePath, packageName, sep="")
 
 
 modelFilesDir = paste(baseDir, "source/cpp/", sep="")
-modelFiles = c("Compilation.h", "CCM_BayesianModel.h", "CCM_BayesianModel.cpp", "RInterface.cpp", "CCM_Util.h", "CCM_Util.cpp", "CCM_Linear.h", "CCM_Linear.cpp", "CCM_Circular.h", "CCM_Circular.cpp", "vonMisesLut/VonMisesLut.h", "vonMisesLut/VonMisesLut.cpp")
+modelFiles = c("Compilation.h", "CCM_BayesianModel.h", "CCM_BayesianModel.cpp", "CCM_BayesianModel_Misc.cpp","RInterface.cpp", "CCM_Util.h", "CCM_Util.cpp", "CCM_Linear.h", "CCM_Linear.cpp", "CCM_Circular.h", "CCM_Circular.cpp", "VonMisesLut/VonMisesLut.h", "VonMisesLut/VonMisesLut.cpp")
 modelFiles = paste(modelFilesDir, modelFiles, sep="")
 
 gsBase = paste(modelFilesDir, "GibbsSampler/", sep="")
@@ -104,8 +104,7 @@ file.copy(from = paste(baseDir, "LICENSE.md", sep=""), to = paste(fullPackagePat
 
 #At this point, there is a proper R package structure in packageLocation
 #You may not be able to do the four steps below in the same R session:
-#I have had issues with building the binary package after installing from source.
-#YMMV.
+#I have had issues with building the binary package after installing from source. YMMV.
 
 
 #Install the package from source.
@@ -116,7 +115,7 @@ install.packages(pkgs=paste(packagePath, packageName, sep=""), repos=NULL, type=
 devtools::check(packageLocation)
 
 
-#Make sure that you remember to increment the version number before you
+#Note to self: Make sure that you remember to increment the version number before you
 #run either of the following commands!!!
 
 #Build source archive of package

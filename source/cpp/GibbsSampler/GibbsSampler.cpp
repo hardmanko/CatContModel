@@ -407,21 +407,33 @@ void GibbsSampler::run(unsigned int samplesToCollect, bool clearExistingSamples)
 			//CX_Millis elapsedTime = Clock.now() - lapStartTime;
 			auto currentTime = std::chrono::high_resolution_clock::now();
 			long long lapDurationMs = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lapStartTime).count();
-			double msPerIteration = lapDurationMs / iterationsPerStatusUpdate;
+			long long msPerIteration = (double)lapDurationMs / iterationsPerStatusUpdate;
 
 			long long totalDurationSec = std::chrono::duration_cast<std::chrono::seconds>(currentTime - runStartTime).count();
 			double proportionComplete = ((double)i + 1) / samplesToCollect;
 			double proportionRemaining = 1 - proportionComplete;
 			double secondsRemaining = proportionRemaining / proportionComplete * totalDurationSec;
+			long long minRemaining = secondsRemaining / 60.0;
 
+#if COMPILING_WITH_RCPP
+			GS_COUT << "\r"; // Does not print new line, just overwrites old line.
+#endif
 			GS_COUT << 100.0f * (float)i / samplesToCollect << "% complete. " <<
 				msPerIteration << " ms per iteration. " <<
-				secondsRemaining / 60 << " minutes remaining." << std::endl;
+				minRemaining << " min remaining.";
+#if COMPILING_WITH_RCPP
+			GS_COUT << "            "; // Extra spaces cover for different length lines.
+#else
+			GS_COUT << std::endl;
+#endif
 
-			//lapStartTime = Clock.now();
 			lapStartTime = std::chrono::high_resolution_clock::now();
 		}
 	}
+
+#if COMPILING_WITH_RCPP
+	GS_COUT << "\r100% complete.                                                      " << std::endl;
+#endif
 }
 
 

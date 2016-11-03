@@ -4,7 +4,7 @@
 #ifdef COMPILING_WITH_RCPP
 
 namespace CatCont {
-
+/*
 void Bayesian::_doMhOverrides(void) {
 	Rcpp::Rcout << "MH overrides: " << rcppConfig.mhTuningOverrides.size() << endl;
 	if (rcppConfig.mhTuningOverrides.size() == 0) {
@@ -111,7 +111,7 @@ void Bayesian::_doStartingValueOverrides(void) {
 
 	this->setParameterStartingValues(startingValues);
 }
-
+*/
 
 vector<ParticipantData> getParticipantData(Rcpp::DataFrame df, CatCont::DataType dataType, bool verbose) {
 
@@ -127,66 +127,7 @@ vector<ParticipantData> getParticipantData(Rcpp::DataFrame df, CatCont::DataType
 	Rcpp::NumericVector respColRaw = df["response"];
 	vector<double> respCol(respColRaw.begin(), respColRaw.end());
 
-
-	Rcpp::CharacterVector uniquePnums_raw = Rcpp::unique(pnumsColRaw).sort();
-	vector<string> uniquePnums(uniquePnums_raw.begin(), uniquePnums_raw.end());
-
-	Rcpp::CharacterVector uniqueConditions_raw = Rcpp::unique(condsColRaw).sort();
-	vector<string> uniqueConditions(uniqueConditions_raw.begin(), uniqueConditions_raw.end());
-
-	vector<ParticipantData> data;
-
-	for (unsigned int p = 0; p < uniquePnums.size(); p++) {
-
-		ParticipantData thisPart;
-		thisPart.pnum = uniquePnums[p];
-
-		//Find which rows of the data correspond to the given pnum
-		vector<unsigned int> pnumRows;
-		for (unsigned int row = 0; row < pnumsCol.size(); row++) {
-			if (pnumsCol[row] == uniquePnums[p]) {
-				pnumRows.push_back(row);
-			}
-		}
-
-		for (unsigned int c = 0; c < uniqueConditions.size(); c++) {
-
-			//Copy from the secondary data frame to primitive data types in a ConditionData struct
-			ConditionData condData;
-
-			condData.condition = uniqueConditions[c];
-
-			for (unsigned int i = 0; i < pnumRows.size(); i++) {
-
-				unsigned int thisRow = pnumRows[i];
-
-				//If the condition on the current row is equal to the cth condition, store the data
-				if (condsCol[thisRow] == uniqueConditions[c]) {
-					double study = studyCol[thisRow];
-					double response = respCol[thisRow];
-
-					if (dataType == DataType::Circular) {
-						study = Circular::degreesToRadians(study); //TODO: This should probably be done by the model...
-						response = Circular::degreesToRadians(response);
-					}
-					condData.study.push_back(study);
-					condData.response.push_back(response);
-				}
-			}
-
-			thisPart.condData.push_back(condData);
-
-			if (verbose) {
-				Rcpp::Rcout << "Participant " << uniquePnums[p] << ", condition " << uniqueConditions[c] << ": " <<
-					_convertToString(condData.study.size()) << " trials found." << endl;
-			}
-		}
-
-		data.push_back(thisPart);
-
-	}
-
-	return data;
+	return copyParticipantData(pnumsCol, condsCol, studyCol, respCol, dataType, verbose);
 
 }
 
@@ -211,11 +152,32 @@ CatCont::Linear::LinearConfiguration getLinearConfigurationFromList(Rcpp::List c
 	return lc;
 }
 
+template <typename T>
+map<string, T> convertListToMap(Rcpp::List list) {
+	map<string, T> rval;
+
+	if (list.size() == 0) {
+		return rval;
+	}
+
+	Rcpp::CharacterVector rawNames = list.names();
+	std::vector<string> names(rawNames.begin(), rawNames.end());
+	for (unsigned int i = 0; i < names.size(); i++) {
+		rval[names[i]] = Rcpp::as<T>(list[names[i]]);
+	}
+
+	return rval;
+}
+
+
+
 CatCont::Bayesian::Configuration readConfigurationFromList(Rcpp::List configList) {
 
 	CatCont::Bayesian::Configuration config;
 
 	config.iterations = configList["iterations"];
+	config.iterationsPerStatusUpdate = configList["iterationsPerStatusUpdate"];
+
 	config.maxCategories = configList["maxCategories"];
 
 	string ccName = configList["cornerstoneConditionName"];
@@ -246,10 +208,37 @@ CatCont::Bayesian::Configuration readConfigurationFromList(Rcpp::List configList
 	config.ranges.maxPrecision = CatCont::Circular::sdDeg_to_precRad(config.ranges.minSd);
 
 
+	Rcpp::List conditionEffects = configList["conditionEffects"];
+	Rcpp::CharacterVector rawNames = conditionEffects.names();
+	for (int i = 0; i < rawNames.size(); i++) {
+		string name = Rcpp::as<string>(rawNames[i]);
+		Rcpp::CharacterVector ce = conditionEffects[name];
+
+		vector<string> cev(ce.size());
+
+		for (int j = 0; j < ce.size(); j++) {
+			cev[j] = Rcpp::as<string>(ce[j]);
+		}
+
+		config.conditionEffects[name] = cev;
+	}
+
+	for (auto it = config.conditionEffects.begin(); it != config.conditionEffects.end(); it++) {
+		const vector<string>& ce = it->second;
+
+		bool isNone = ce.size() == 0 || (ce.size() == 1 && ce[0] == "none");
+
+		if (!isNone) {
+			config.paramWithConditionEffects.push_back(it->first);
+		}
+	}
+
+	/*
 	Rcpp::CharacterVector paramWithConditionEffects = configList["parametersWithConditionEffects"];
 	for (unsigned int i = 0; i < (unsigned int)paramWithConditionEffects.size(); i++) {
 		config.paramWithConditionEffects.push_back((string)paramWithConditionEffects[i]);
 	}
+	*/
 
 	return config;
 }
@@ -270,6 +259,79 @@ void conditionalConfigureVMLut(double maxValue, double stepSize) {
 		CatCont::vmLut.setup(maxValue, stepSize, &curriedBesselFunction);
 	}
 }
+
+
+
+// [[Rcpp::export]]
+Rcpp::List CCM_CPP_runParameterEstimation(Rcpp::List generalConfig,
+	Rcpp::DataFrame data,
+	Rcpp::List mhTuningOverrides,
+	Rcpp::List priorOverrides,
+	Rcpp::List startingValueOverrides,
+	Rcpp::List constantValueOverrides,
+	Rcpp::List equalityConstraints
+)
+{
+	CatCont::Bayesian bm;
+
+	bm.config = readConfigurationFromList(generalConfig);
+
+	bm.gibbs.iterationsPerStatusUpdate = bm.config.iterationsPerStatusUpdate;
+
+	if (bm.config.dataType == CatCont::DataType::Circular) {
+		conditionalConfigureVMLut(bm.config.ranges.maxPrecision, VON_MISES_STEP_SIZE);
+	}
+
+
+	Rcpp::Rcout << "Reading data." << endl;
+
+	bm.setData(CatCont::getParticipantData(data, bm.config.dataType, true));
+
+	//Copy these over
+	bm.overrides.mhTunings = convertListToMap<double>(mhTuningOverrides);
+	bm.overrides.priors = convertListToMap<double>(priorOverrides);
+	bm.overrides.startingValues = convertListToMap<double>(startingValueOverrides);
+	bm.overrides.constantValues = convertListToMap<double>(constantValueOverrides);
+
+	bm.overrides.equalityConstraints = convertListToMap<string>(equalityConstraints);
+
+
+	Rcpp::Rcout << "Doing parameter setup." << endl;
+
+	bm.createParameters(); //must happen after priors and mhTuning
+
+	Rcpp::Rcout << "Running Gibbs sampler." << endl;
+
+	bm.gibbs.run(bm.config.iterations, true);
+
+	Rcpp::Rcout << "Collecting output." << endl;
+
+	//Get output from the sampler
+	Rcpp::List posteriors = bm.gibbs.getPosteriors();
+	Rcpp::DataFrame acceptanceRates = bm.gibbs.getAcceptanceRates();
+
+	Rcpp::List mhTuning = Rcpp::wrap(bm.mhTuningSd);
+	Rcpp::List priors = Rcpp::wrap(bm.priors);
+
+	//Get participant numbers
+	std::vector<std::string> allPnums(bm.data.participants.size());
+	for (unsigned int i = 0; i < allPnums.size(); i++) {
+		allPnums[i] = bm.data.participants[i].pnum;
+	}
+
+	Rcpp::List rval = Rcpp::List::create(Rcpp::Named("posteriors") = posteriors,
+		Rcpp::Named("mhAcceptance") = acceptanceRates,
+		Rcpp::Named("mhTuning") = mhTuning,
+		Rcpp::Named("priors") = priors,
+		Rcpp::Named("constantValueOverrides") = constantValueOverrides,
+		Rcpp::Named("pnums") = Rcpp::wrap(allPnums));
+
+	Rcpp::Rcout << "Done!" << endl;
+
+	return rval;
+}
+
+
 
 // [[Rcpp::export]]
 Rcpp::DataFrame CCM_CPP_calculateWAIC(Rcpp::List resultsObject) {
@@ -339,75 +401,6 @@ Rcpp::DataFrame CCM_CPP_calculateWAIC(Rcpp::List resultsObject) {
 	//return Rcpp::wrap(waicData);
 }
 
-
-
-
-// [[Rcpp::export]]
-Rcpp::List CCM_CPP_runParameterEstimation(Rcpp::List generalConfig,
-	Rcpp::DataFrame data,
-	Rcpp::List mhTuningOverrides,
-	Rcpp::List priorOverrides,
-	Rcpp::List startingValueOverrides,
-	Rcpp::List constantValueOverrides
-)
-{
-	CatCont::Bayesian bm;
-
-	bm.config = readConfigurationFromList(generalConfig);
-
-	bm.gibbs.iterationsPerStatusUpdate = generalConfig["iterationsPerStatusUpdate"];
-
-	if (bm.config.dataType == CatCont::DataType::Circular) {
-		conditionalConfigureVMLut(bm.config.ranges.maxPrecision, VON_MISES_STEP_SIZE);
-	}
-
-
-	Rcpp::Rcout << "Reading data." << endl;
-
-	bm.setData(CatCont::getParticipantData(data, bm.config.dataType, true));
-
-	bm.rcppConfig.mhTuningOverrides = mhTuningOverrides;
-	bm.rcppConfig.priorOverrides = priorOverrides;
-	bm.rcppConfig.startingValueOverrides = startingValueOverrides;
-	bm.rcppConfig.constantValueOverrides = constantValueOverrides;
-
-
-	Rcpp::Rcout << "Doing parameter setup." << endl;
-
-	bm.setMhTuning();
-	bm.setPriors();
-	bm.createParameters(); //must happen after priors and mhTuning
-
-	Rcpp::Rcout << "Running Gibbs sampler." << endl;
-
-	bm.gibbs.run(bm.config.iterations, true);
-
-
-	Rcpp::Rcout << "Collecting output." << endl;
-
-	//Get output from the sampler
-	Rcpp::List posteriors = bm.gibbs.getPosteriors();
-	Rcpp::DataFrame acceptanceRates = bm.gibbs.getAcceptanceRates();
-
-	Rcpp::List mhTuning = Rcpp::wrap(bm.mhTuningSd);
-	Rcpp::List priors = Rcpp::wrap(bm.priors);
-
-	//Get participant numbers
-	std::vector<std::string> allPnums(bm.data.participants.size());
-	for (unsigned int i = 0; i < allPnums.size(); i++) {
-		allPnums[i] = bm.data.participants[i].pnum;
-	}
-
-	Rcpp::List rval = Rcpp::List::create(Rcpp::Named("posteriors") = posteriors,
-		Rcpp::Named("mhAcceptance") = acceptanceRates,
-		Rcpp::Named("mhTuning") = mhTuning,
-		Rcpp::Named("priors") = priors,
-		Rcpp::Named("constantValueOverrides") = constantValueOverrides,
-		Rcpp::Named("pnums") = Rcpp::wrap(allPnums),
-		Rcpp::Named("conditionNames") = bm.data.conditionNames);
-
-	return rval;
-}
 
 
 

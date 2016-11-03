@@ -1,6 +1,10 @@
 
-# Install dependencies. 
+# Install dependencies from CRAN. 
 install.packages(c("Rcpp", "polspline", "CircStats", "msm"))
+
+# Install the LineChart package from github.
+install.packages("devtools") # You Don't need to run this if you have devtools installed
+devtools::install_github("hardmanko/LineChart-package")
 
 # Install this package.
 #

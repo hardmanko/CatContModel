@@ -1,22 +1,5 @@
 
 
-histWithMean = function(x, xlab=NULL, xlim=NULL, breaks=10) {
-	
-	graphics::par(xpd=FALSE)
-	
-	if (is.null(xlim)) {
-		d = max(x) - min(x)
-		xlim = range(x) + 0.2 * c(-d, d)
-	}
-	
-	graphics::hist(x, breaks=breaks, main="", xlab=xlab, xlim=xlim, 
-								 ylab="Number of participants", col=grDevices::rgb(0.85, 0.85, 0.85))
-	graphics::box()
-	graphics::axis(4, labels=FALSE)
-	graphics::abline(v=mean(x), lwd=2, lty=2)
-}
-
-
 getSSCellMatrix = function(nrow, ncol) {
 	screenCells = matrix(0, nrow=nrow * ncol, ncol=4)
 	for (i in 1:nrow) {
@@ -47,18 +30,169 @@ mergeCells = function(cells, i1, i2) {
 	cells[ -i2, ]
 }
 
-plotPosteriorLineChart = function(results, param, ylab=param) {
+#' @export
+plotHistWithMean = function(x, xlab=NULL, xlim=NULL, breaks=10) {
+	
+	graphics::par(xpd=FALSE)
+	
+	if (is.null(xlim)) {
+		d = max(x) - min(x)
+		xlim = range(x) + 0.2 * c(-d, d)
+	}
+	
+	graphics::hist(x, breaks=breaks, main="", xlab=xlab, xlim=xlim, 
+								 ylab="Number of participants", col=grDevices::rgb(0.85, 0.85, 0.85))
+	graphics::box()
+	graphics::axis(4, labels=FALSE)
+	graphics::abline(v=mean(x), lwd=2, lty=2)
+}
+
+plotFactorialPosteriorLineChart = function(results, param, factorOrder = NULL, ylab = param, legendPosition = "CHOOSE_BEST", plotSettings = NULL) {
+	
+	require(LineChart)
+	
+	factors = results$config$factors
 	
 	ci = posteriorMeansAndCredibleIntervals(results, param, credLevel = 0.95)
+	ci$keep = TRUE
+	for (i in 1:nrow(ci)) {
+		thisFullName = paste(param, "_cond[", ci$cond[i], "]", sep="")
+		source = getRootSourceConditionParameter(results, param, ci$cond[i])
+		ci$keep[i] = (thisFullName == source)
+	}
+	
+	if (is.null(factorOrder)) {
+		factorOrder = getFactorsForConditionEffect(results$config, param)
+	}
+	
+	#add factors to ci
+	for (i in 1:nrow(factors)) {
+		row = which(ci$cond == factors$cond[i])
+		for (f in factorOrder) {
+			ci[ row, f ] = factors[ i, f ]
+		}
+	}
+	
+	ci = ci[ ci$keep, ]
+	
+	form = stats::as.formula( paste0("mean ~ ", paste0(factorOrder, collapse = " * ")) )
+
+	plotDf = LineChart::createPlottingDf(form, ci, settings=plotSettings)
+	
+	ci$group = "0"
+	if (length(factorOrder) >= 2) {
+		for (i in 1:nrow(ci)) {
+			ci$group[i] = paste0(ci[ i, factorOrder[2:length(factorOrder)] ], collapse=":")
+		}
+	}
+	
+	for (i in 1:nrow(plotDf)) {
+		
+		ciRow = which(plotDf[i,"xLabels"] == ci[ , factorOrder[1] ] & plotDf[i,"group"] == ci$group)
+		
+		plotDf$errBarLower[i] = ci$lower[ciRow] - ci$mean[ciRow]
+		plotDf$errBar[i] = ci$upper[ciRow] - ci$mean[ciRow]
+	}
+	LineChart::lineChartDf(plotDf, xlab = factorOrder[1], ylab = ylab)
+	
+	if (length(factorOrder) >= 2 && !is.null(legendPosition)) {
+		LineChart::legendFromPlottingDf(legendPosition, plotDf)
+	}
+	
+	invisible(plotDf)
+}
+
+#' @export
+plotTwoFactorPosteriorLineChart = function(results, param, factorOrder = NULL, ylab = param, legendPosition = "CHOOSE_BEST", plotSettings = NULL) {
+	require(LineChart)
+	
+	
+	factors = results$config$factors
+	
+	ci = posteriorMeansAndCredibleIntervals(results, param, credLevel = 0.95)
+	
+	if (is.null(factorOrder)) {
+		factorOrder = getFactorsForConditionEffect(results$config, param)
+	}
+	if (length(factorOrder) > 2) {
+		factorOrder = factorOrder[1:2]
+		warning("More than two factors provided. Only the first two will be used.")
+	}
+	
+	#add factors to ci
+	for (i in 1:nrow(factors)) {
+		row = which(ci$cond == factors$cond[i])
+		for (f in factorOrder) {
+			ci[ row, f ] = factors[ i, f ]
+		}
+	}
+	
+	ci[, "F1"] = factors[ , factorOrder[1] ]
+	ci[, "F2"] = factors[ , factorOrder[2] ]
+	
+	groupLevels = unique(factors[ , factorOrder[2]])
+	if (is.null(plotSettings)) {
+		plotSettings = LineChart::buildGroupSettings(groupLevels, suppressWarnings=TRUE)
+	}
+	
+	plotDf = LineChart::createPlottingDf(mean ~ F1 * F2, ci, settings=plotSettings)
+	for (i in 1:nrow(plotDf)) {
+		ciRow = which(plotDf[i,"xLabels"] == ci$F1 & plotDf[i,"group"] == ci$F2)
+		plotDf$errBarLower[i] = ci$lower[ciRow] - ci$mean[ciRow]
+		plotDf$errBar[i] = ci$upper[ciRow] - ci$mean[ciRow]
+	}
+	LineChart::lineChartDf(plotDf, xlab = factorOrder[1], ylab = ylab)
+	if (!is.null(legendPosition)) {
+		LineChart::legendFromPlottingDf(legendPosition, plotDf)
+	}
+	
+	invisible(plotDf)
+}
+
+#' 
+#' @export
+plotPosteriorLineChart = function(results, param, xlab=NULL, ylab=param) {
+	
+	usedFactor = getFactorsForConditionEffect(results$config, param)
+	if (length(usedFactor) > 1) {
+		stop("The number of used factors is too high to use plotPosteriorLineChart. See plotFactorialPosteriorLineChart()")
+	} else if (length(usedFactor) < 1) {
+		#if no factors used
+		stop("The number of used factors is too low to use plotPosteriorLineChart.")
+	}
+	
+	if (is.null(xlab)) {
+		xlab = usedFactor
+	}
+	
+	
+	usedLevels = unique(results$config$factors[ , usedFactor ])
+	usedConds = rep(NA, length(usedLevels))
+	usedCondLabels = rep(NA, length(usedLevels))
+	for (i in 1:length(usedLevels)) {
+		whichRows = which(results$config$factors[ , usedFactor ] == usedLevels[i])
+		possibleCondsForThisLevel = results$config$factors[ whichRows, "cond" ]
+		usedConds[i] = possibleCondsForThisLevel[1]
+		
+		if (length(results$config$factorNames) == 1) {
+			usedCondLabels[i] = paste(possibleCondsForThisLevel, collapse=",")
+		} else {
+			usedCondLabels[i] = usedLevels[i]
+		}
+	}
+	
+	ci = posteriorMeansAndCredibleIntervals(results, param, credLevel = 0.95)
+	
+	ci = ci[ ci$cond %in% usedConds, ]
 	
 	maxH = max(ci$upper)
 	minH = min(ci$lower)
 	
 	xPos = 1:nrow(ci)
 	
-	graphics::plot(xPos, ci$mean, pch=16, ylim=c(min(ci$lower), max(ci$upper)), axes=FALSE, ylab=ylab, xlab=results$conditions$type )
+	graphics::plot(xPos, ci$mean, pch=16, ylim=c(min(ci$lower), max(ci$upper)), axes=FALSE, xlab=xlab, ylab=ylab )
 	graphics::box()
-	graphics::axis(1, at=xPos, labels = ci$cond)
+	graphics::axis(1, at=xPos, labels = usedCondLabels)
 	graphics::axis(2, las=1)
 	graphics::axis(4, labels=FALSE)
 	
@@ -76,6 +210,7 @@ plotPosteriorLineChart = function(results, param, ylab=param) {
 	
 }
 
+#' @export
 plotCatMu = function(results, catMuPrec) {
 	
 	post = convertPosteriorsToMatrices(results, param=c("catMu", "catActive"))
@@ -229,12 +364,10 @@ plotParameterSummary = function(results, paramSymbols=NULL, catMuPrec=2) {
 		
 		pc = parameterConfiguration[[param]]
 
+		parameterFactors = getFactorsForConditionEffect(results$config, param)
 		
-		if (param %in% results$config$parametersWithConditionEffects) {
-
-			plotPosteriorLineChart(results, param, pc$label)
-			
-		} else {
+		if (length(parameterFactors) == 0) {
+			#no condition effects
 			
 			if (param == "catMu") {
 				
@@ -243,16 +376,25 @@ plotParameterSummary = function(results, paramSymbols=NULL, catMuPrec=2) {
 			} else if (param == "catActive") {
 				
 				meanCatActive = apply(post$catActive, 1, mean) * results$config$maxCategories
-				histWithMean(meanCatActive, xlab="Number of Categories", breaks=10)
+				plotHistWithMean(meanCatActive, xlab="Number of Categories", breaks=10)
 				
 			} else {
 				#do histogram
 				trans = getParameterTransformation(param, results)
 				meanForParts = apply( trans(post[[param]]), 2, mean)
-				histWithMean(meanForParts, xlab=pc$label, breaks=pc$breaks, xlim=pc$range)
+				plotHistWithMean(meanForParts, xlab=pc$label, breaks=pc$breaks, xlim=pc$range)
 			}
 			
+		} else if (length(parameterFactors) == 1) {
+			
+			plotPosteriorLineChart(results, param, xlab=parameterFactors, ylab=pc$label)
+			
+		} else if (length(parameterFactors) >= 2) {
+			
+			plotFactorialPosteriorLineChart(results, param, factorOrder = parameterFactors, ylab=pc$label)
+			
 		}
+
 		
 		graphics::mtext(paste(LETTERS[paramInd], ".", sep=""), side=3, line=0.2, adj=0, cex=1.2 * graphics::par()$cex)
 	}

@@ -8,39 +8,32 @@
 namespace CatCont {
 	namespace Linear {
 
-		/*
-		double dtnorm_denominator(double mu, double sd, double lower, double upper) {
-			double a;
-			double b;
-
-			if (lower == -std::numeric_limits<double>::infinity()) {
-				a = 0;
-			} else {
-				a = R::pnorm(lower, mu, sd, R_TRUE, R_FALSE); //q, mu, sd, lower tail=T, log.p=F
-			}
-
-			if (upper == std::numeric_limits<double>::infinity()) {
-				b = 1;
-			} else {
-				b = R::pnorm(upper, mu, sd, R_TRUE, R_FALSE);
-			}
-
-			return b - a;
+		double normalPDF(double x, double mu, double sd) {
+#ifdef COMPILING_WITH_RCPP
+			return R::dnorm(x, mu, sd, R_FALSE); // log = false
+#else
+			return dnorm(x, mu, sd, Rboolean::FALSE); // log = false
+#endif
 		}
-		*/
 
-		//This does NOT test for infinity (which pnorm probably does anyway)
+		double normalCDF(double x, double mu, double sd) {
+#ifdef COMPILING_WITH_RCPP
+			return R::pnorm(x, mu, sd, R_TRUE, R_FALSE); // lowerTail = TRUE, log = FALSE
+#else
+			return pnorm(x, mu, sd, Rboolean::TRUE, Rboolean::FALSE); // lowerTail = TRUE, log = FALSE
+#endif
+		}
+
+
+		//This does NOT test for infinity (which pnorm does anyway)
 		double dtnorm_denominator(double mu, double sd, double lower, double upper) {
 
-			double a = R::pnorm(lower, mu, sd, R_TRUE, R_FALSE); //q, mu, sd, lower tail=T, log.p=F
-			double b = R::pnorm(upper, mu, sd, R_TRUE, R_FALSE);
+			double a = normalCDF(lower, mu, sd); //q, mu, sd, lower tail=T, log.p=F
+			double b = normalCDF(upper, mu, sd);
 
 			return b - a;
 		}
 
-		double dnorm(double x, double mu, double sd) {
-			return R::dnorm(x, mu, sd, R_FALSE);
-		}
 
 		//Does not enforce lower < upper, but why would that ever happen?
 		double dtnorm(double x, double mu, double sd, double lower, double upper, bool log_) {
@@ -52,7 +45,7 @@ namespace CatCont {
 
 			double denominator = dtnorm_denominator(mu, sd, lower, upper);
 
-			double d = dnorm(x, mu, sd) / denominator;
+			double d = normalPDF(x, mu, sd) / denominator;
 			if (log_) {
 				d = std::log(d);
 			}
@@ -68,7 +61,7 @@ namespace CatCont {
 
 			double denominator = dtnorm_denominator(mu, sd, lower, upper);
 
-			return R::dnorm(x, mu, sd, R_FALSE) / denominator;
+			return normalPDF(x, mu, sd) / denominator;
 		}
 
 		//This does NOT check that x is in the interval. It assumes that the data range is wider than the
@@ -77,7 +70,7 @@ namespace CatCont {
 
 			double denominator = dtnorm_denominator(mu, sd, lower, upper);
 
-			return R::dnorm(x, mu, sd, R_FALSE) / denominator;
+			return normalPDF(x, mu, sd) / denominator;
 		}
 
 
@@ -93,7 +86,7 @@ namespace CatCont {
 					dens[i] = 0;
 				}
 				
-				double d = dnorm(x[i], mu, sd) / denominator;
+				double d = normalPDF(x[i], mu, sd) / denominator;
 				if (log_) {
 					d = std::log(d);
 				}
@@ -109,7 +102,7 @@ namespace CatCont {
 			double probInInterval = dtnorm_denominator(mu, sd, lower, upper);
 			double excessProb = 1 - probInInterval;
 
-			double normalDens = R::dnorm(x, mu, sd, R_FALSE);
+			double normalDens = normalPDF(x, mu, sd);
 			double excessUnifDens = 0;
 			double linearCenter = (upper + lower) / 2;
 
@@ -139,14 +132,14 @@ namespace CatCont {
 
 			double probOutsideInterval = 1 - probInInterval;
 
-			double normalDens = R::dnorm(x, mu, sd, R_FALSE);
+			double normalDens = normalPDF(x, mu, sd);
 			double linearCenter = (upper + lower) / 2;
 			double edgeNormalDens;
 
 			if (mu > linearCenter) {
-				edgeNormalDens = R::dnorm(x, upper, edgeSD, R_FALSE);
+				edgeNormalDens = normalPDF(x, upper, edgeSD);
 			} else {
-				edgeNormalDens = R::dnorm(x, lower, edgeSD, R_FALSE);
+				edgeNormalDens = normalPDF(x, lower, edgeSD);
 			}
 
 			//You know that half of the edge normal's mass is outside of the interval, so multiply by 2 to scale it up to have a mass of 1.
@@ -168,7 +161,7 @@ namespace CatCont {
 				return 0;
 			}
 
-			double dens = R::dnorm(x, mu, sd, R_FALSE);
+			double dens = normalPDF(x, mu, sd);
 
 			return dens / pWithinInterval;
 		}
@@ -180,7 +173,7 @@ namespace CatCont {
 			//0.5 is an important point. if x == upper, then if p < 0.5, the density is higher when mu > x than when mu == x.
 			//If p == 0 (i.e. a standard truncated normal), then dens increases as mu goes beyond x. This is stupid.
 
-			double dens = R::dnorm(x, mu, sd, R_FALSE);
+			double dens = normalPDF(x, mu, sd);
 
 			return dens / pWithinInterval;
 		}
@@ -196,7 +189,7 @@ namespace CatCont {
 			double densSum = 0;
 			for (unsigned int i = 0; i < n; i++) {
 				//There is an argument that this distribution is not truncated: Category assignment is perceptual, independent of the study/response space.
-				double d = R::dnorm(study, par.cat.mu[i], par.cat.selectivity, R_FALSE);
+				double d = normalPDF(study, par.cat.mu[i], par.cat.selectivity);
 				densSum += d;
 				OUT_weights[i] = d;
 			}
