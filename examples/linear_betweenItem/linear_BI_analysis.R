@@ -7,7 +7,7 @@ data = read.delim("linear_BI_data.txt")
 
 
 # Set up a basic configuration
-config = list(iterations=500, modelVariant="betweenItem", dataType = "linear", maxCategories = 7)
+config = list(iterations = 500, modelVariant = "betweenItem", dataType = "linear", maxCategories = 7)
 
 
 # MH tuning steps
@@ -77,6 +77,8 @@ posteriorMeansAndCredibleIntervals(results)
 
 posteriorPredictivePlot(results, results$pnums, alpha=0.1)
 
+testMainEffectsAndInteractions(results)
+
 
 # Examine the success of the parameter estimation
 
@@ -89,7 +91,7 @@ compareTrueAndRecovered(results, trueParam)
 
 
 # Fit the ZL model to this data that was generated from the betweenItem model.
-# We want to see that the ZL models fits the data poorly, which is done with WAIC.
+# We want to see that the ZL models fits the data poorly.
 
 zlConfig = list(iterations=3000, modelVariant="ZL", dataType = "linear", iterationsPerStatusUpdate = 200)
 
@@ -110,9 +112,10 @@ plotParameterSummary(zlResults)
 posteriorMeansAndCredibleIntervals(zlResults)
 
 # You can compare the fit of the ZL and betweenItem models with WAIC
-# The data were generated under the betweenItem model, so you would expect it to win, which it does.
-waic = calculateWAIC(results)
-zlWaic = calculateWAIC(zlResults)
+# The data were generated under the betweenItem model, so you would expect it to win.
+# Lower WAIC wins.
+waic = calculateWAIC(results, subsamples = 10, subsampleProportion = NULL)
+zlWaic = calculateWAIC(zlResults, subsamples = 10, subsampleProportion = NULL)
 
-
-
+waic
+zlWaic

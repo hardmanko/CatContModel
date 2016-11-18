@@ -99,7 +99,7 @@ verifyConfigurationList = function(config, data) {
 	
 	if (is.null(config$cornerstoneConditionName)) {
 		#choose cornerstone condition based on the amount of data in the condition
-		dataCounts = aggregate(study ~ cond, data, length)
+		dataCounts = stats::aggregate(study ~ cond, data, length)
 		config$cornerstoneConditionName = dataCounts$cond[which.max(dataCounts$study)]
 		cat(paste("Note: config$cornerstoneConditionName not set. Set to ", config$cornerstoneConditionName, ".\n", sep=""))
 	}
@@ -583,9 +583,11 @@ convertPosteriorsToMatrices = function(results, param=NULL) {
 	post = list()
 	for (mp in matrixParams) {
 		post[[mp]] = matrix(0, nrow=results$config$iterations, ncol=length(results$pnums))
+		colnames(post[[mp]]) = results$pnums
 	}
 	for (ap in arrayParams) {
 		post[[ap]] = array(0, dim=c(length(results$pnums), results$config$maxCategories, results$config$iterations))
+		dimnames(post[[ap]]) = list(results$pnums)
 	}
 	
 	for (pInd in 1:length(results$pnums)) {
@@ -908,6 +910,8 @@ upgradeResultsList = function(results, from, to) {
 		results$conditions = NULL
 		
 		results$config = verifyConfigurationList(results$config, results$data)
+	} else {
+		stop("Unsupported upgrade path")
 	}
 	
 	results

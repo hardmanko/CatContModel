@@ -217,8 +217,8 @@ getSubsampleIterationsToRemove = function(totalIterations, subsamples, subsample
 #' @param results The results from the \code{\link{runParameterEstimation}} function.
 #' @param param A vector of basic parameter names for which to perform condition tests (e.g. "pMem"). If NULL (the default), tests are performed for all parameters with condition effects.
 #' @param subsamples Number of subsamples of the posterior chains to take. If greater than 1, subsampleProportion should be set to a value between 0 and 1 (exclusive).
-#' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should only be less than 1 if subsamples is greater than 1 or you want to only calculate Bayes factors based on part of the posterior samples for some reason. If \code{NULL}, \code{subsampleProportion} will be set to \code{1 / subsamples} and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
-#' @param summarize Should the results be summarized by 
+#' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should probably only be less than 1 if \code{subsamples} is greater than 1. If \code{NULL}, \code{subsampleProportion} will be set to \code{1 / subsamples} and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
+#' @param summarize Boolean. Should the results be summarized with \code{\link{summarizeSubsampleResults}}?
 #' 
 #' @return A data frame containing test results. It has the following columns:
 #' \tabular{ll}{
@@ -346,7 +346,7 @@ testConditionEffects = function(results, param = NULL, subsamples = 1, subsample
 #' 
 #' @param results The results from the \code{\link{runParameterEstimation}} function.
 #' @param subsamples Number of subsamples of the posterior chains to take. If greater than 1, subsampleProportion should be set to a value between 0 and 1 (exclusive).
-#' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should only be less than 1 if subsamples is greater than 1 or you want to only calculate WAIC based on part of the posterior samples for some reason. If \code{NULL}, \code{subsampleProportion} will be set to \code{1 / subsamples} and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
+#' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should probably only be less than 1 if \code{subsamples} is greater than 1. If \code{NULL}, \code{subsampleProportion} will be set to \code{1 / subsamples} and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
 #' @param onlyTotal If \code{TRUE}, exclude participant-level WAIC values (which aren't really valid because of the fact that participants are not independent). I recommend you leave this at TRUE.
 #' 
 #' @return A data.frame containing WAIC values, estimates of the effective number of free parameters, and LPPD.
@@ -380,7 +380,7 @@ calculateWAIC = function(results, subsamples=1, subsampleProportion=1, onlyTotal
 	
 	allWAIC = NULL
 	
-	pb = txtProgressBar(0, 1, 0)
+	pb = utils::txtProgressBar(0, 1, 0, style=3)
 	for (sub in 1:length(subsampleIterationsToRemove)) {
 		if (length(subsampleIterationsToRemove[[sub]]) > 0) {
 			noBurnIn = removeBurnIn(results, subsampleIterationsToRemove[[sub]])
@@ -397,7 +397,7 @@ calculateWAIC = function(results, subsamples=1, subsampleProportion=1, onlyTotal
 		
 		allWAIC = rbind(allWAIC, waic)
 
-		setTxtProgressBar(pb, sub / length(subsampleIterationsToRemove))
+		utils::setTxtProgressBar(pb, sub / length(subsampleIterationsToRemove))
 	}
 	close(pb)
 

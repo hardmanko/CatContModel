@@ -1,9 +1,5 @@
 
 
-
-
-
-
 guessFactorNames = function(factors) {
 	n = names(factors)
 	n[ n != "cond" ]
@@ -79,7 +75,7 @@ testFunction_savageDickey = function(prior, posterior) {
 # This doesn't work when the prior is diffuse because
 # the entire posterior can be below the 1st percentile of the
 # prior. Thus, the posterior is nearer to 0 than the prior, but
-# the posterior is far from 0.
+# the posterior is still far from 0.
 testFunction_interval = function(prior, posterior, p = 0.01) {
 	
 	qprior = stats::quantile(prior, p)
@@ -122,6 +118,8 @@ sampleFromConditionEffectPriors = function(results, factors, param, priorSamples
 	}
 	
 	#second pass: Copy equality constrained parameters
+	#you can't use different samples for equality constrained parameters
+	#because then they would onlt be equal in distribution, not value.
 	for (i in 1:nrow(factors)) {
 		
 		target = paste(param, "_cond[", factors$cond[i], "]", sep="")
@@ -143,7 +141,8 @@ sampleFromConditionEffectPriors = function(results, factors, param, priorSamples
 	
 }
 
-
+#Note that this function, along with getEffectWeightsMatrix, in conceptually equivalent to the
+#stuff in the DesignMatrix.R file
 #only works for fully-crossed designs
 #fNames is a character vector of factor names
 #lNames is a character vector of the same length as fNames of names of levels in the factors
@@ -210,28 +209,11 @@ getFactorByLevelWeights = function(factors, fNames, lNames) {
 	getWeights_internal(fcopy=factors, fname=fNames, lname=lNames)
 }
 
-#' Posterior Distributions of Main Effect and Interaction Parameters
-#' 
-#' @param results A results object.
-#' @param param The name of a parameter with condition effect.
-#' @param fNames A character vector giving the names of factors to use. The interaction of the factors will be the effect that is used. If there is only one factor, the main effect will be used.
-#' 
-#' @return A matrix with row being iterations and columns being effect parameters. The columns are named with the following scheme: "F1.L1:F2.L2" where "Fn" is the name of a factor and "Ln" is the level of that factor.
-#' 
-#' @export
-getEffectParameterPosteriors = function(results, param, fNames) {
-	
-	factors = results$config$factors
-	
-	postDs = matrix(NA, nrow=results$config$iterations, ncol=nrow(factors))
-	for (i in 1:nrow(factors)) {
-		postDs[,i] = results$posteriors[[ paste(param, "_cond[", factors$cond[i], "]", sep="") ]]
-	}
-	
-	getEffectParameters_general(cellMeans = postDs, factors = factors, fNames = fNames)
-}
-
 getEffectWeightsMatrix = function(factors, fNames, uniqueFL) {
+	
+	#if (is.null(uniqueFL)) {
+	#	uniqueFL = unique(subset(factors, select = fNames))
+	#}
 	
 	colNames = rep("", nrow(uniqueFL))
 	weights = NULL
@@ -253,18 +235,33 @@ getEffectWeightsMatrix = function(factors, fNames, uniqueFL) {
 	
 }
 
+
+#' Posterior Distributions of Main Effect and Interaction Parameters
+#' 
+#' @param results The results from the \code{\link{runParameterEstimation}} function.
+#' @param param The name of a parameter with condition effect.
+#' @param fNames A character vector giving the names of factors to use. The interaction of the factors will be the effect that is used. If there is only one factor, the main effect will be used.
+#' 
+#' @return A matrix with row being iterations and columns being effect parameters. The columns are named with the following scheme: "F1.L1:F2.L2" where "Fn" is the name of a factor and "Ln" is the level of that factor.
+#' 
+#' @export
+getEffectParameterPosteriors = function(results, param, fNames) {
+	
+	factors = results$config$factors
+	
+	postDs = matrix(NA, nrow=results$config$iterations, ncol=nrow(factors))
+	for (i in 1:nrow(factors)) {
+		postDs[,i] = results$posteriors[[ paste(param, "_cond[", factors$cond[i], "]", sep="") ]]
+	}
+	
+	getEffectParameters_general(cellMeans = postDs, factors = factors, fNames = fNames)
+}
+
 getEffectParameters_general = function(cellMeans, factors, fNames, uniqueFL = NULL, stripRedundant = FALSE) {
 	
 	if (is.null(uniqueFL)) {
 		uniqueFL = unique(subset(factors, select = fNames))
 	}
-	
-	#uniqueFL = unique(factors[ , fNames ])
-	#if (length(fNames) == 1) {
-	#	temp = list()
-	#	temp[[fNames]] = uniqueFL
-	#	uniqueFL = as.data.frame(temp, stringsAsFactors=FALSE)
-	#}
 	
 	weights = getEffectWeightsMatrix(factors, fNames, uniqueFL)
 
@@ -280,13 +277,13 @@ getEffectParameters_general = function(cellMeans, factors, fNames, uniqueFL = NU
 			keep = keep & (uniqueFL[,f] %in% keepLevels)
 		}
 		
-		#keepUFL = unique(subset(uniqueFL, subset = keep, select = fNames))
-		keepUFL = unique(uniqueFL[ keep, fNames ])
-		if (length(fNames) == 1) {
-			temp = list()
-			temp[[fNames]] = keepUFL
-			keepUFL = as.data.frame(temp, stringsAsFactors=FALSE)
-		}
+		keepUFL = unique(subset(uniqueFL, subset = keep, select = fNames))
+		#keepUFL = unique(uniqueFL[ keep, fNames ])
+		#if (length(fNames) == 1) {
+		#	temp = list()
+		#	temp[[fNames]] = keepUFL
+		#	keepUFL = as.data.frame(temp, stringsAsFactors=FALSE)
+		#}
 
 		keepColNames = rep("", nrow(keepUFL))
 		for (i in 1:nrow(keepUFL)) {
@@ -442,21 +439,23 @@ testMEI_single = function(results, param, priorSamples = 1e5, doPairwise = FALSE
 #' 
 #' This only supports one-factor designs or fully-crossed multi-factor designs. If your design is not fully crossed, you can use \code{\link{testConditionEffects}} to examine pairwise comparisons.
 #' 
-#' You must provide a \code{data.frame} containing the mapping from conditions to factor levels. This should be provided as in \code{results$config$factors}. See \code{\link{runParameterEstimation}} for more information. If you are using a one-factor design, this will have been created for you and you don't need to do anything.
+#' You must provide a \code{data.frame} containing the mapping from conditions to factor levels. This should be provided in \code{results$config$factors}. See \code{\link{runParameterEstimation}} for more information about creating this. If you are using a one-factor design, this will have been created for you and you don't need to do anything. If using multiple factors, this \code{results$config$factors} should already exist.
 #' 
 #' This function uses kernel density estimation to estimate the densities of some relevant quantities. This procedure is somewhat noisy. As such, I recommend that you perform the procedure many times, the number of which can be configured with the \code{subsamples} argument. Then, aggregate results from the many repetitions of the procedure can be analyzed, which is done by default but can be changed by setting \code{summarize} to \code{FALSE}.
 #' 
-#' @param results A results object.
+#' I recommend using many \code{subsamples}. You can leave \code{subsampleProportion} at 1 or use a somewhat lower value. I would recommend against using a value of \code{subsampleProportion} that would result in fewer than 1,000 iterations being used per subsample.
+#' 
+#' @param results The results from the \code{\link{runParameterEstimation}} function.
 #' @param param Optional. Character vector of names of parameters to perform tests for. If NULL (default), is set to all parameters with condition effects.
 #' @param summarize If TRUE (default), the results across subsamples will be summarized. If FALSE, the results from each of the subsamples will be returned. Those results can be later summarized with \code{\link{summarizeSubsampleResults}}.
-#' @param subsamples
-#' @param subsampleProportion
+#' @param subsamples Number of subsamples of the posterior chains to take. If greater than 1, subsampleProportion should be set to a value between 0 and 1 (exclusive).
+#' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should probably only be less than 1 if \code{subsamples} is greater than 1. If \code{NULL}, \code{subsampleProportion} will be set to \code{1 / subsamples} and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
 #' @param doPairwise Do pairwise tests of differences between levels of main effects (these are often called "post-hoc" tests).
-#' @param devianceFunction A function used for calculating the deviation of the effect parameters.
+#' @param devianceFunction You should not provide a value for this unless you know what you are doing. A function used for calculating the deviation of the effect parameters. It takes a vector of effect parameters (which have a sums-to-zero constraint) and calculates some measure of how dispersed they are. One example of such a function is the built-in R function \code{var}.
 #' 
 #' @export
-testMainEffectsAndInteractions = function(results, param=NULL, summarize=TRUE,
-																					subsamples = 50, subsampleProportion = 1, 
+testMainEffectsAndInteractions = function(results, param=NULL, 
+																					subsamples = 50, subsampleProportion = 1, summarize=TRUE,
 																					doPairwise = FALSE, devianceFunction = NULL) 
 {
 	
@@ -470,7 +469,7 @@ testMainEffectsAndInteractions = function(results, param=NULL, summarize=TRUE,
 	
 	subsampleIterationsToRemove = getSubsampleIterationsToRemove(results$config$iterations, subsamples, subsampleProportion)
 	
-	allBFs = NULL
+	BFs = NULL
 
 	pb = utils::txtProgressBar(0, 1, 0, style=3)
 	currentStep = 1
@@ -486,8 +485,9 @@ testMainEffectsAndInteractions = function(results, param=NULL, summarize=TRUE,
 		
 		#Very important: The kernel density estimation procedure has a problem.
 		#For the way in which it is used, the density depends on the number of
-		#samples. More samples results in less density. Thus, the prior and posterior
-		#sample counts must match.
+		#samples. More samples results in less density at the tested point (in a tail) 
+		#of the kinds of distributions used.
+		#Thus, the prior and posterior sample counts must match.
 		priorSamples = resultSubsample$config$iterations
 
 		
@@ -495,7 +495,7 @@ testMainEffectsAndInteractions = function(results, param=NULL, summarize=TRUE,
 			
 			result = testMEI_single(results=resultSubsample, param=param[pInd], 
 															priorSamples=priorSamples, doPairwise=doPairwise, testFunction = "Savage-Dickey")
-			allBFs = rbind(allBFs, result)
+			BFs = rbind(BFs, result)
 			
 			utils::setTxtProgressBar(pb, value = currentStep / lastStep)
 			currentStep = currentStep + 1
@@ -506,14 +506,14 @@ testMainEffectsAndInteractions = function(results, param=NULL, summarize=TRUE,
 	close(pb)
 	
 	if (summarize) {
-		rval = summarizeSubsampleResults(allBFs, aggregateBy = c("param", "factor", "levels"))
+		rval = summarizeSubsampleResults(BFs, aggregateBy = c("param", "factor", "levels"))
 	
 		rval$notOmnibus = rval$levels != "Omnibus"
 		rval = rval[ order(rval$notOmnibus, rval$param, rval$factor, rval$levels), ]
 		
 		rval$notOmnibus = NULL
 	} else {
-		rval = allBFs
+		rval = BFs
 		attr(rval, "aggregateColumns") = c("param", "factor", "levels")
 	}
 	
@@ -523,14 +523,14 @@ testMainEffectsAndInteractions = function(results, param=NULL, summarize=TRUE,
 
 #' Summarize Results from Multiple Subsamples
 #' 
-#' This function should be used with the values returned by \code{\link{testMainEffectsAndInteractions}} and \code{\link{testConditionEffects}} when the \code{summarize} argument is \code{FALSE}.
+#' This function should be used with the values returned by \code{\link{testMainEffectsAndInteractions}} and \code{\link{testConditionEffects}} when the \code{summarize} argument is \code{FALSE}. It summarizes Bayes factors across many repeated estimates of those Bayes factors.
 #' 
-#' @param allBFs A data.frame containing the individual Bayes factors. It should have a format like the result of \code{\link{testMainEffectsAndInteractions}} or \code{\link{testConditionEffects}}. 
+#' @param BFs A data.frame containing the individual Bayes factors. It should have a format like the result of \code{\link{testMainEffectsAndInteractions}} or \code{\link{testConditionEffects}}. 
 #' @param proportioniles Percentiles devided by 100 to calculate.
-#' @param geometricZs A numberic vector of Z-values. BF quantiles will be calculated based on the geometric mean and standard deviation based on these Z-values.
-#' @param consistencyCutoff A numeric vector of cutoffs. The proportion of Bayes factors above each cutoff is calculated. Defaults to 1. If you want a more stringent criterion in which consistent results have to be not just in the right direction, but also reasonably large, you could set it to 10, for example.
+#' @param geometricZs A numeric vector of Z-values. Geometric BF quantiles will be calculated based on the geometric mean and standard deviation for each of these provided Z-values.
+#' @param consistencyCutoff A numeric vector of cutoffs. The proportion of Bayes factors above each cutoff is calculated. Defaults to \code{c(1, 3, 10)}.
 #' @param logBF Summarize log Bayes factors? If \code{FALSE}, no logs will be taken. If \code{TRUE}, log base 10 BFs will be used. If a numeric value, that value will be used as the base for the logarithm.
-#' @param aggregateBy Columns of allBFs to aggregate by. Typically not required as it is read from an attribute of allBfs called aggregateColumns.
+#' @param aggregateBy Columns of \code{BFs} to aggregate by. Typically not required as it is read from an attribute of \code{BFs} called \code{aggregateColumns}.
 #' 
 #' @return A data frame containing summarized test results. It has the following columns:
 #' \tabular{ll}{
@@ -540,13 +540,16 @@ testMainEffectsAndInteractions = function(results, param=NULL, summarize=TRUE,
 #' 	\code{sd} \tab Standard deviation of the Bayes factors. \cr
 #' 	\code{geo.mean} \tab The geometric mean Bayes factor. Bayes factors estimated with the approach used in this package tend to vary exponentially, which makes the geometric mean a possibly better measure than the arithmetic mean. Note that the geometric mean and the median tend to be in closer agreement than the arithmetic mean and the median. \cr
 #' 	\code{geo.sd} \tab Geometric standard deviation of the Bayes factors. Multiply the geo.mean by the geo.sd to go up one standard deviation. In general, \code{geo.mean * geo.sd^z} will give you the geometric value corresponding to the given z score. \cr
+#' 	\code{geo.mean + n SD} \tab The geometric mean "plus" \code{n} standard deviations, where the \code{n} values are given by the \code{geometricZs} argument. \cr
+#' 	\code{p(BF > n)} \tab The proportion of Bayes factors greater than \code{n}. \cr
 #' 	\code{Min, Median, Max} \tab The minimum, median, and maximum of the Bayes factors. \cr
 #' 	\code{n\%} \tab Other percentiles, as given in the \code{proportioniles} argument.
 #' }
 #' 
 #' @export
-summarizeSubsampleResults = function(allBFs, proportioniles = c(0, 0.025, 0.5, 0.975, 1), 
-															geometricZs = NULL, consistencyCutoff = 1, logBF = FALSE, aggregateBy = NULL) {
+summarizeSubsampleResults = function(BFs, proportioniles = c(0, 0.025, 0.5, 0.975, 1), 
+															geometricZs = NULL, consistencyCutoff = c(1, 3, 10), logBF = FALSE, 
+															aggregateBy = NULL) {
 	
 
 	if (logBF == TRUE) {
@@ -557,13 +560,13 @@ summarizeSubsampleResults = function(allBFs, proportioniles = c(0, 0.025, 0.5, 0
 	}
 	
 	if (is.null(aggregateBy)) {
-		aggregateBy = attr(allBFs, "aggregateColumns")
+		aggregateBy = attr(BFs, "aggregateColumns")
 		if (is.null(aggregateBy)) {
 			stop("No columns to aggregate by.")
 		}
 	}
 	
-	uniqueBF = unique(allBFs[ , aggregateBy ])
+	uniqueBF = unique(BFs[ , aggregateBy ])
 	
 	rval = NULL
 	for (i in 1:nrow(uniqueBF)) {
@@ -571,17 +574,17 @@ summarizeSubsampleResults = function(allBFs, proportioniles = c(0, 0.025, 0.5, 0
 		for (bf in c("bf01", "bf10")) {
 			
 			theseAgg = list()
-			useRows = rep(TRUE, nrow(allBFs))
+			useRows = rep(TRUE, nrow(BFs))
 			for (agg in aggregateBy) {
 				theseAgg[[agg]] = uniqueBF[ i, agg ]
 				
-				useRows = useRows & (allBFs[ , agg ] == uniqueBF[ i, agg ])
+				useRows = useRows & (BFs[ , agg ] == uniqueBF[ i, agg ])
 			}
 
 			dfl = theseAgg
 			dfl[["bfType"]] = substr(bf, 3, 4)
 			
-			x = allBFs[ useRows, bf ]
+			x = BFs[ useRows, bf ]
 			if (logBF != FALSE) {
 				x = log(x, base=logBF)
 			}
@@ -607,7 +610,7 @@ summarizeSubsampleResults = function(allBFs, proportioniles = c(0, 0.025, 0.5, 0
 				}
 				
 				for (j in 1:length(consistencyCutoff)) {
-					name = paste0("p > ", consistencyCutoff[j])
+					name = paste0("p(BF > ", consistencyCutoff[j], ")")
 					dfl[[name]] = mean(x > consistencyCutoff[j])
 				}
 				
@@ -656,7 +659,7 @@ summarizeSubsampleResults = function(allBFs, proportioniles = c(0, 0.025, 0.5, 0
 	rval
 }
 
-
+#TODO: Do something with this or delete it
 prettyPrintBFResults = function(bfRes, aggregateBy, aggregateByLevels, bfType = "10", 
 																quantiles = c(0, 0.025, 0.5, 0.975, 1), geometricZs = c(-2, 2)) 
 {
@@ -740,11 +743,13 @@ prettyPrintBFResults = function(bfRes, aggregateBy, aggregateByLevels, bfType = 
 
 #all(x > 0)
 geoMean = function(x) {
+	if (any(x <= 0)) {
+		stop("geoMean: All x must be > 0.")
+	}
 	#prod(x)^(1 / length(x)) 
 	#which translates to
 	exp( 1/length(x) * sum(log(x)) )
 }
-
 
 geoSD = function(x) {
 	m = geoMean(x)
@@ -761,4 +766,90 @@ geoQ = function(z, mu, sigma) {
 }
 
 
+#' Marginal Priors on Main Effect and Interaction Parameters
+#' 
+#' Given the structure of the model, it is possible to specify the priors on condition effects.
+#' The priors on the resulting main effect and interaction (MEI) effect parameters, however, are 
+#' not directly specified, but can be calculated, which is what this function does.
+#' 
+#' The priors on condition effects are Cauchy distributions. The individual MEI effect parameters
+#' are calculated by taking a linear combination (weighted sum) of the condition effect parameters.
+#' 
+#' In particular, let Y = sum(X * W), where Y is the resulting Cauchy distribution, X is the vector
+#' of Cauchy distributions to be combined, and W are weights. A linear combination of Cauchy 
+#' distributions is a Cauchy distribution with properties discussed below.
+#' 
+#' Let L and S be vectors of Locations and Scales of the Cauchy distributions in X. 
+#' Then the location and scale parameters of Y are 
+#' 
+#' \code{L_Y = sum(L * W)}
+#' \code{S_Y = sum(S * abs(W))}
+#' 
+#' I can't find a citation for this anywhere, but have confirmed it in simulations.
+#' 
+#' The results of these calculations depend on a lot of information, which is most easily 
+#' provided in the results of parameter estimation. To examine the effects of changing the
+#' priors, you can test "new" priors with the \code{priorLoc} and \code{priorScale} arguments.
+#' Note that the typical proscription on nonzero prior locations holds here as well.
+#' 
+#' 
+#' @param results The results from the \code{\link{runParameterEstimation}} function.
+#' @param param The name of the parameter for which to calculate MEI effect parameter priors.
+#' @param priorLoc A new prior location to try.
+#' @param priorScale A new prior scale to try.
+#' 
+#' @return A \code{data.frame} with four columns: 1) the factor being used, 2) the MEI parameter, 3) the prior location, and 4) the prior scale.
+#' 
+#' @export
+getEffectParameterPriors = function(results, param, priorLoc = NULL, priorScale = NULL) {
+	
+	factors = results$config$factors
+	
+	factorsToTest = getFactorsForConditionEffect(results$config, param)
+	if (length(factorsToTest) == 0) {
+		return(NULL)
+	}
+	
+	priors = NULL
+	
+	for (layer in 1:length(factorsToTest)) {
+		comb = utils::combn(factorsToTest, layer)
+		
+		for (i in 1:ncol(comb)) {
+			fNames = comb[,i]
+			overallEffect = paste0(fNames, collapse = ":")
+			
+			uniqueFL = unique(subset(factors, select = fNames))
+			
+			locations = rep(NA, nrow(factors))
+			scales = locations
+			for (i in 1:nrow(factors)) {
+				r = getConditionParameterPrior(results, param, factors$cond[i])
+				locations[i] = r$location
+				scales[i] = r$scale
+				if (factors$cond[i] != results$config$cornerstoneConditionName) {
+					if (!is.null(priorLoc)) {
+						locations[i] = priorLoc
+					}
+					if (!is.null(priorScale)) {
+						scales[i] = priorScale
+					}
+				}
+			}
+			
+			
+			m = getEffectWeightsMatrix(factors, fNames, uniqueFL)
+			
+			for (i in 1:ncol(m)) {
+				res = cauchyRvLinearCombination(locations, scales, m[,i])
+				
+				temp = data.frame(factor = overallEffect, effect = colnames(m)[i], location = res$location, scale = res$scale)
+				priors = rbind(priors, temp)
+			}
+		}
+		
+	}
+	
+	priors
+}
 

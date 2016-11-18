@@ -75,7 +75,7 @@ file.remove( paste( fullPackagePath, "Read-and-delete-me", sep="") )
 devtools::use_package("CircStats", pkg=packageLocation)
 devtools::use_package("polspline", pkg=packageLocation)
 devtools::use_package("msm", pkg=packageLocation)
-#devtools::use_package("LineChart", type = "Suggests", pkg=packageLocation)
+devtools::use_package("LineChart", type = "Suggests", pkg=packageLocation)
 
 
 

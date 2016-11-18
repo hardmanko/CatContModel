@@ -219,7 +219,8 @@ circMean = function(angles, weights=1, degrees=TRUE) {
 #' 
 #' The cicular absolute distance is the smallest angular distance between two values. It is at most 180 degrees.
 #' 
-#' @param x, y Vectors of values in degrees or radians
+#' @param x Vector of values in degrees or radians.
+#' @param y Vector of values in degrees or radians.
 #' @param degrees If TRUE, x and y are treated as though they are in degrees. If FALSE, x and y are treated as being in radians.
 #' 
 #' @export
@@ -245,7 +246,7 @@ circAbsDist = function(x, y, degrees=TRUE) {
 #' Returns a function that will take parameter values in the latent space and convert them to the manifest space, or vice versa if \code{inverse} is TRUE. For probability parameters, the transformation is the inverse logit transformation. For standard deviation parameters, the transformation forces the parameter to be greater than some value, given by \code{results$config$minSD}.
 #' 
 #' @param param Name of a parameter, e.g. \code{pMem}.
-#' @param results A results object.
+#' @param results The results from the \code{\link{runParameterEstimation}} function.
 #' @param inverse If TRUE, the inverse transformation is returned, if possible. Some transformations do not have an inverse.
 #' 
 #' @return A function of one argument that transforms the argument.

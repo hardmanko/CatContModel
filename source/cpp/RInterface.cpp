@@ -253,7 +253,7 @@ void conditionalConfigureVMLut(double maxValue, double stepSize) {
 	bool stepSizeCorrect = abs(CatCont::vmLut.stepSize - stepSize) < 0.00001;
 
 	if (rangeCorrect && stepSizeCorrect) {
-		Rcpp::Rcout << "Von Mises look up table already set up." << endl;
+		//Rcpp::Rcout << "Von Mises look up table already set up." << endl;
 	} else {
 		Rcpp::Rcout << "Setting up Von Mises look up table." << endl;
 		CatCont::vmLut.setup(maxValue, stepSize, &curriedBesselFunction);

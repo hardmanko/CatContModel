@@ -17,6 +17,8 @@ All of the models use Bayesian parameter estimation and model comparison methods
 
 There are two basic steps to using this package: 1) Running the parameter estimation and 2) analyzing the posterior distributions of the parameters. These steps each have many substeps, which are described in detail below.
 
+I do not hold you responsible for having read and comprehended the Appendix of Hardman, Vergauwe, and Ricker (2016). However, there is a great deal of information there that I do not repeat here, so it would likely be of benefit for you to read it if there is anything presented here that you do not understand.
+
 
 # Parameter Estimation
 
@@ -247,7 +249,7 @@ results$colorGeneratingFunction = function(x) {
 }
 ```
 
-Obviously, you should use a color generating function that is the same as what you used to generate your stimuli rather than this generic one.
+Obviously, you should use a color generating function that is the same as what you used to generate your stimuli rather than this example one.
 
 
 ## Parameter Summary Plot
@@ -266,7 +268,7 @@ The posterior means and credible intervals for parameters with condition effects
 posteriorMeansAndCredibleIntervals(results)
 ```
 
-## Posterior Predictive Distribution
+## Posterior Predictive Distribution {#posteriorPredictive}
 
 You can examine data generated from the fitted model by sampling from the posterior predictive distribution. In the following plots, a single participant's real data is plotted alongside data generated from the model. The sampled data are returned invisibly in a data frame.
 
@@ -285,12 +287,15 @@ posteriorPredictivePlot(results, pnums=1:length(results$pnums), alpha=0.1) #not 
 ## Condition Effects
 
 If you have more than one condition in your data, one important question is whether the primary parameters of the model change as a function of conditions. You can examine results of hypothesis tests about whether conditions differ with the following function:
-
-```{r warning=FALSE, message=FALSE, error=FALSE}
+```{r include=FALSE, warning=FALSE, message=FALSE, error=FALSE}
 condEff = testConditionEffects(results)
+```
+```{r eval=FALSE}
+condEff = testConditionEffects(results)
+```
+```{r warning=FALSE, message=FALSE, error=FALSE}
 condEff
 ```
-
 The null hypothesis in each test is that the listed conditions do not differ from one another. The `bf01` and `bf10` columns give the Bayes factor in favor of the null and alternative hypotheses, respectively.
 
 
@@ -313,7 +318,7 @@ The test of categorical responding uses a more general function that can test hy
 testMeanParameterValue(results, param = "pMem", cond = 1, H0_value = 0.5)
 ```
 
-## Model Fit Statistics
+## Model Fit Statistics (WAIC) {#WAIC}
 
 Models are often compared to one another with model fit statistics like AIC and BIC. For the kinds of Bayesian hierarchical models fit with this package, an appropriate fit statistic is WAIC. WAIC is conceptually similar to AIC, but cannot be directly compared with AIC values (although they do often end up being fairly similar in magnitude). You can caluate WAIC for a fitted model as follows.
 
@@ -329,11 +334,11 @@ waic
 
 This can be used to compare model variants (e.g. the between-item and within-item variants). It can also be used to examine the effects of changing constraints (i.e. constant parameter values or priors) within a model variant.
 
+# Advanced Use
 
+## Working With Parameters
 
-# Working With Parameters
-
-## Parameter Names {#parameterNames}
+### Parameter Names {#parameterNames}
 
 The parameters are named as follows:
 
@@ -375,7 +380,7 @@ Population level (hierarchical) parameters have `.mu` or `.var` appended to them
 The condition effects names have `_cond[c]` appended to them, where `c` is replaced with the name of a condition. For example, the `pMem` condition effect for the condition named "ss0" would be `pMem_cond[ss0]`.
 
 
-## Parameter Chains
+### Parameter Chains
 
 The raw parameter chains are stored in `results$posteriors`, which is a named list:
 
@@ -398,10 +403,9 @@ names(post)
 post$contSD[1:3,]
 ```
 
+### Parameter Transformations
 
-## Parameter Transformations
-
-If working with parameters directly, it is extremely important that you remember that most of the parameters exist in a latent space. For example, the probability parameters exist on the interval `(-Inf, Inf)` and are transformed to probabilities in the interval $[0,1]$ with the logit transformation. 
+If working with parameters directly, it is extremely important that you remember that most of the parameters must be transformed to the proper space. For example, the probability parameters exist on the interval `(-Inf, Inf)` and are transformed to probabilities in the interval $[0,1]$ with the logit transformation. 
 
 Critically, you must apply condition effects to participant level parameters before transforming parameters.
 This means that, for example, to find out what a given participant's probability of having the tested item in memory is in a given condition of the experiment, you must do the following:
@@ -431,7 +435,7 @@ The aforementioned process is performed by the helper function `getParameterPost
 pMem_manifest = getParameterPosterior(results, param="pMem", pnum=4, cond=3)
 ```
 
-### Helper Function for Parameters for an Iteration
+#### Helper Function for Parameters for an Iteration
 
 Sometimes you might want all of the transformed parameters for one iteration, in which case you may want use the `getTransformedParameters` function, which provides the transformed parameters for a given participant, condition, and iteration.
 
@@ -440,57 +444,62 @@ param = getTransformedParameters(results, pnum=2, cond=1, iteration=7)
 param
 ```
 
-Note that inactive categories have already been removed from `param` which is why it does not include the `catActive` parameters (but see the `removeInactiveCategories` argument).
+Note that inactive categories have already been removed from `param` which is why it does not include the `catActive` parameters (but see the `removeInactiveCategories` argument to control this behavior).
 
+## Priors {#priors}
 
+See the Priors section of the appendix of Hardman, Vergauwe, and Ricker (2016) for a conceptual overview of the priors used by the model. All parameters have default priors that are basically fine to use.
 
-# Setting Parameters to Constant Values
+You can change the priors on various parameters in the model with the `priorOverrides` argument of `runParameterEstimation`. It should be a list mapping from the name of the prior parameter to the value of that parameter. The only real complexity here is the naming of the parameters, which I will get to.
 
-It is possible to set any parameters of the models to constant values. This prevents those parameters from being estimated, but there are reasons for doing this. For example, you may not have enough data to estimate the locations of categories. You might also have very strong beliefs about where the categories are, such as if you have orientation data and believe that participant categories are at the canonical compass points. You might also want to make a reduced model in which some parameters are set to constant values. For example, you might want to disallow categorical guessing, so you set `pCatGuess` to 0.
+All of the parameters have default priors. The values for the default priors can be found by running a parameter estimation without specifying any prior overrides and then examining the `results$priors` list. This also allows you to examine the names of all of the priors.
 
-The way you set parameters to constant values is to provide a list containing constant values for parameters and give it as the `constantValueOverrides` argument to `runParameterEstimation`.
+### Hierarchical Priors
+
+All participant-level parameters have a hierarchical prior such that the mean and variance of those parameters is estimated. The priors for the participant-level parameters that you can control are thus the priors on the mean and variance of the participant-level parameters. The naming of these parameters is as follows:
+
++ `P.mu.mu` - The prior mean of the participant mean.
++ `P.mu.var` - The prior variance of the participant mean.
++ `P.var.a` - The prior shape ($\alpha$) of the participant variance.
++ `P.var.b` - The prior rate ($\beta$) of the participant variance.
+
+Where "P" is the name of the participant-level parameter (e.g. "pMem"). These priors default to fairly uninformative values. Changing them will probably not have much of an effect unless you use highly-informative values.
+
+### Condition Effects
+
+The condition effect parameters account for differences in participant-level parameters between task conditions. The priors on the condition effect parameters are Cauchy distributions with location 0 and some scale value. In particular, the default scales are 2 for the probability parameters (e.g. `pMem`, `pContBetween`) and 5 for the standard deviation parameters (e.g. `contSD`, `catSelectivity`). Note that the scale of the parameters should be thought of with respect to the untransformed space (see the Condition Effects section of the Appendix of Hardman, Vergauwe, and Ricker, 2016, for information about the transformation).
+
+The naming of these priors is formatted like `P_cond.loc` and `P_cond.scale`, where `.loc` is the location and `.scale` is the scale. NB: The software allows you to set the prior location of condition parameters to a non-zero value, but I would strongly recommend against doing this. Leave the prior location at 0.
+
+For a given parameter (e.g. `pMem`), you would change the prior scale depending on your prior beliefs about the magnitude of the differences between conditions for that parameter. For example, if you expect there to be very small differences in `pMem` between conditions of your experiment, you would set `pMem_cond.scale` to a small value, like `0.5`.
+
+Note that the cornerstone parameterization of the condition effects means that the condition effect for the cornerstone condition is set to 0. This can be thought of as setting the prior scale to 0 for that condition effect. This cannot be modified.
+
+### Example
+
+In this example, two prior overrides are set:
+
++ The prior mean on the mean `contSD` is set to 10.
++ The prior scale on the condition effects on `pMem` is set to 0.2.
+
+Any priors not given in `priorOverrides` are set to default values.
 
 ```{r eval=FALSE}
-constantParam = list()
-constantParam[["pMem[3]"]] = 1.5 #Set pMem for participant with pnum 3 to 1.5 (in the latent space, so pMem = 0.82)
-constantParam[["contSD_cond[A]"]] = -1 #Set the contSD condition effect for condition A to -1
-runParameterEstimation(config, data, constantValueOverrides = constantParam)
+priorOverrides = list()
+priorOverrides[["contSD.mu.mu"]] = 10
+priorOverrides[["pMem_cond.scale"]] = 0.2
+
+results = runParameterEstimation(config, data, priorOverrides = priorOverrides)
 ```
 
-Note that the `constantValueOverrides` must specify parameters for each participant individually. Also note that values must be provided in the latent space.
 
-Typically, you will set all parameter values for all participants to the same value, so there is a helper function called `setConstantParameterValue` for that purpose. In addition, setting the category parameters (`catMu` and `catActive`) to constant values is complex, so `setConstantCategoryParameters` helps with that.
-
-A simple usage of each of the helper funcions is shown below. See the documentation of those functions for more information on usage. You should 
-
-```{r eval=FALSE}
-#Set pMem to 0.8 for all participants
-pMemConstant = setConstantParameterValue(data, param="pMem", value=0.8)
-
-#For pnums 1 and 2, set the locations of the first 4 categories to the compass points.
-catParam = data.frame(pnum = rep(c(1,2), each=4),
-											catMu = rep(c(0, 90, 180, 270), 2),
-											catActive = 1 )
-
-categoryConstant = setConstantCategoryParameters(data, catParam, maxCategories = results$config$maxCategories)
-
-
-constantParam = c(pMemConstant, categoryConstant)
-
-runParameterEstimation(config, data, constantValueOverrides = constantParam)
-```
-
-Setting parameters to constant values is a totally general and flexible system, which also means that it is possible for you to do stupid things with it, like set a variance to 0, so be careful.
-
-
-
-# Controlling the Number of Categories
+## Controlling the Number of Categories
 
 One of the issues with this model is that it is eager to use a lot of categories. However, it is reasonable to think 1) that people do not have a huge number of categories and 2) that those categories are not extremely close to one another. As discussed in the Category Center and Active Parameters subsection in the Appendix of Hardman, Vergauwe, and Ricker (2016), with a uniform prior on the `catMu` and `catActive` parameters, the maximum number of parameters was always used for all participants, which is unreasonable.
 
 There are two ways to control the number of categories used by participants: Setting the maximum number of categories and setting a prior on category locations.
 
-## Maximum Number of Categories
+### Maximum Number of Categories
 
 The simpler way to limit the number of parameters is to set the `maxCategories` setting in the configuration of the parameter estimation. Participants will not be able to have more categories than this number.
 
@@ -501,13 +510,13 @@ results = runParameterEstimation(config, data)
 ```
 
 There are a few guidelines to follow here.
-1. If you set `maxCategories` to a very large value (like 100), it will make the parameter estimation take a really long time. This is because every category has parameters that are estimated regardless of whether the category is active or not. Specifically, even inactive categories, the `catActive` parameter is consistently checking whether the category should become active and the `catMu` parameter is wandering around.
+1. If you set `maxCategories` to a very large value (like 100), it will make the parameter estimation take a really long time. This is because every category has parameters that are estimated regardless of whether the category is active or not. Specifically, even for inactive categories, the `catActive` parameter is consistently checking whether the category should become active and the `catMu` parameter is wandering around.
 2. If you set `maxCategories` to the exact number of categories that you want to be the maximum, the effective maximum will be slightly lower than `maxCategories` because even categories in good locations will occasionally be deactivated.
 Thus, you should set `maxCategories` to a value slightly larger (maybe 20%) than the value you want as the effective maximum.
 
-## Prior on Category Locations
+### Prior on Category Locations
 
-The more complex way is to set a prior which penalizes categories which are too close to one another. This is the $\sigma_{0\mu}$ prior from the article and is called `catMuPriorSD` in the package. You can set its value by providing a list with it as a prior override, as shown in the code snippet below.
+The more complex way to control the number of categories is to set a prior which penalizes categories which are too close to one another. This prior discussed in the Category Center and Active Parameters section of the Appendix of Hardman, Vergauwe, and Ricker (2016). The parameter that control this is called $\sigma_{0\mu}$ in the article and `catMuPriorSD` in the package. You can set its value by providing a list with it as a prior override, as shown in the code snippet below.
 
 ```{r eval=FALSE}
 priors = list(catMuPriorSD = 12)
@@ -527,6 +536,128 @@ This function can be thought of as the prior density for a new category that is 
 Note that this prior is on both `catMu` and `catActive`. The effect it has on `catActive` is to make it more likely that an active category that has moved too near another category will be deactivated, if active, along with making it less likely that an inactive category would become active when it is near an active category. The effect it has on `catMu` is that it makes it less likely that an active category would move nearer to another active category. It has no effect on inactive `catMu`s (in general, inactive `catMu` parameters move around with a random walk, looking for a good place to become active).
 
 
+## Setting Parameters to Constant Values
+
+It is possible to set any parameters of the models to constant values. This prevents those parameters from being estimated, but there are reasons for doing this. For example, you may not have enough data to estimate the locations of categories. You might also have very strong beliefs about where the categories are, such as if you have orientation data and believe that participant categories are at the canonical compass points. You might also want to make a reduced model in which some parameters are set to constant values. For example, you might want to disallow categorical guessing, so you set `pCatGuess` to 0.
+
+The way you set parameters to constant values is to provide a list containing constant values for parameters and give it as the `constantValueOverrides` argument to `runParameterEstimation`.
+
+```{r eval=FALSE}
+constantParam = list()
+
+#Set pMem for participant with pnum 3 to 1.5 (in the latent space, so pMem = 0.82)
+constantParam[["pMem[3]"]] = 1.5 
+
+#Set the contSD condition effect for condition A to -1
+constantParam[["contSD_cond[A]"]] = -1
+
+#Provide the contant value overrides to the parameter estimation
+runParameterEstimation(config, data, constantValueOverrides = constantParam)
+```
+
+Note that the `constantValueOverrides` must specify parameters for each participant individually. Also note that values must be provided in the latent (untransformed) space.
+
+Typically, you will set all parameter values for all participants to the same value, so there is a helper function called `setConstantParameterValue` for that purpose. In addition, setting the category parameters (`catMu` and `catActive`) to constant values is complex, so `setConstantCategoryParameters` helps with that.
+
+A simple usage of each of the helper funcions is shown below. See the documentation of those functions for more information on usage.
+
+```{r eval=FALSE}
+#Set pMem to 0.8 for all participants
+pMemConstant = setConstantParameterValue(data, param="pMem", value=0.8)
+
+#For pnums 1 and 2, set the locations of the first 4 categories to the compass points.
+catParam = data.frame(pnum = rep(c(1,2), each=4),
+	catMu = rep(c(0, 90, 180, 270), 2),
+	catActive = 1 )
+
+categoryConstant = setConstantCategoryParameters(data, catParam, 
+	maxCategories = config$maxCategories)
+
+
+constantParam = c(pMemConstant, categoryConstant)
+
+runParameterEstimation(config, data, constantValueOverrides = constantParam)
+```
+
+Setting parameters to constant values is a totally general and flexible system, which also means that it is possible for you to do stupid things with it, like set a variance to 0, so be careful.
+
+See also the [Constraining Parameter Estimation](constrainingParameterEstimation) section for information on adding or removing effects of task condition on parameters.
+
+# Factorial Designs
+
+This package has some support for contraining parameter estimation and performing hypothesis tests for factorial designs. For now, only fully-crossed factors are fully supported.
+
+I will work with the example of a design with two fully-crossed factors, inventively named "letters" and "numbers". The letters factor has the levels "a" and "b" and the numbers factor has the levels "1", "2", and "3".
+
+With factorial designs, before running parameter estimation, you will need to add additional information to the `config` list: A `data.frame` called `factors` and (optionally) a `list` called `conditionEffects`. The `factors` data frame specifies the factor levels for the experimental conditions.
+
+```{r eval=FALSE}
+#config being the configuration list given to runParameterEstimation()
+
+config$factors = data.frame(letters = c('a',  'a',  'a',  'b',  'b',  'b'),
+	numbers = c('1',  '2',  '3',  '1',  '2',  '3'),
+	cond =    c('a1', 'a2', 'a3', 'b1', 'b2', 'b3'),
+	stringsAsFactors = FALSE) #I like everything to be strings, not factors.
+
+config$factors[3,]
+```
+
+As can be seen in this example, condition "a3" is associated with level "a" of the letters factor and level "3" of the numbers factor. This information is needed by the package so it can know what conditions in the data go with what factor levels. If you have only one factor, you do not need to provide the factors data frame, but you may. It is not necessary to include the factors in the data set: You still only need the `cond` column in the data.
+
+Now that the model has this information about factors, you can start doing two things: constraining parameter estimation and performing hypothesis tests. Note that the discussion of factors naturally lends itself to factorial designs, the following subsections also apply to one-factor designs.
+
+## Constraining Parameter Estimation {#constrainingParameterEstimation}
+
+You can control which parameters of the models vary as a function of which factors. By default, the "primary" parameters of the models vary as a function of all factors. For example, for the Between-Item model variant, `pMem`, `contSD`, and `pContBetween` vary by task condition. The less critical parameters `catSD`, `catSelectivity`, and `pCatGuess` do not vary by condition, altough it is conceptually possible for them to do so and the model allows that. You can selectively control this behavior by creating a member of the `config` list given to the parameter estimation function, an example of which follows:
+
+```{r eval=FALSE}
+#config being the configuration list given to runParameterEstimation()
+
+config$conditionEffects = list(
+	pMem = "numbers",                 # only use effect of numbers, not letters
+	pContBetween = "letters",         # only use effect of letters, not numbers
+	contSD = "all",                   # use all effects (letters and numbers)
+	catSD = c("numbers", "letters"),  # Same as "all" in this case
+	catSelectivity = "none"           # use no effects
+)
+```
+
+This continues from the above example, where the two factors are called `numbers` and `letters`. As you can see, `conditionEffects` is a list that maps from the name of a parameter to a character vector (often with only 1 element) that gives the name(s) of the factor(s) to use. In addition, the special value `"all"` means to use all factors and the special value `"none"` means to use no factors. Note that this means that you can't have factors that are named `"all"` or `"none"` in the `config$factors` data frame. By default, all parameters that you do not explicity specify, like `pCatGuess` in this example, are set to `"none"`. Thus, it is not neccessary to state `catSelectivity = "none"`, but it is allowed.
+
+To be clear about how this works, I will explain how the above code snippet affects the values of parameters. For `contSD` and `catSD`, for which both factors are used, each cell of the design (each condition) will have its own condition effect. Thus, `contSD` and `catSD` are allowed to freely vary. In contrast, `catSelectivity` and, implicitly, `pCatGuess` will not be allowed to vary with task condition at all, so each condition will have the same value for those parameters (with each participant having their own parameter value, of course). The last two parameters, `pMem` and `pContBetween`, each have an effect of one factor. What happens in that case is that the parameter will have the same value across all levels of the unused factor. In the case of `pMem`, that has an effect of the `numbers` factor, `pMem` will be different in each level of the `numbers` factor, but will be unaffected by the level of the `letters` factor. For a given condition, the value of `pMem` will only depend on which level of the `numbers` factor that condition is in, but the value will not depend on the level of the `letters` factor that condition is in.
+
+Changing which parameters vary by task condition allow a researcher to decide which parameters they are most interested in and allow those to vary by task condition, but restrict the other parameters to be the same across task conditions. This idea naturally leads to comparing models which differ in terms of which parameters are affected by which factors. You can do nested or non-nested model comparisons between models fitted with different configurations using the WAIC statistic, which is discussed in the [Model Fit Statistics](WAIC) section. For example, you could fit two models, one with `pMem` either varying with a factor or constant across all levels of the factor. Then you would calculate WAIC for both models to compare the different beliefs about how `pMem` varies. 
+
+Note that although this example is for factorial designs, you can use the same procedure with one factor designs. In that case, it is most simple if you just use `"all"` or `"none"` to specify which factors to use because there is only one factor.
+
+## Hypothesis Tests of Main Effects and Interactions {#mei}
+
+It is possible to perform hypothesis tests related to main effects and, if you have more than one factor, interactions between factors. You can do these tests for any parameter for which condition effects were estimated (see the [Constraining Parameter Estimation] (constrainingParameterEstimation) section). 
+
+Note, however, that these tests require fully-crossed designs (i.e. no combination of factor levels is without data).
+
+The critical function is `testMainEffectsAndInteractions` which does most of everything you need to do. It has several arguments that you can read about in the documentation for that function. Usage with default arguments is straightforward.
+
+```{r include=FALSE}
+mei = testMainEffectsAndInteractions(results)
+```
+```{r eval=FALSE}
+mei = testMainEffectsAndInteractions(results)
+```
+```{r}
+mei[ mei$bfType == "10", ] #Only look at the Bayes factors in favor of there being an effect
+```
+
+The result is a data frame with many columns, the meaning of most of which are explained in the documentation for `summarizeSubsampleResults`. The first two columns give the parameter for which the test was performed (`param`) and the factor of the design for which the test was performed (`factor`). Interactions between factors are indicated by putting a colon (":") between two or more factors. For example, the interaction between letters and numbers would be indicated with `letters:numbers`. The `levels` column indicates which levels of the effect were used for the test. If `Omnibus`, that means that all levels were used and it is an omnibus test. All of the values in the `levels` column will be `Omnibus` unless you specify that pairwise comparisons should be done, which you can do by setting the `doPairwise` argument of `testMainEffectsAndInteractions` to `TRUE`.
+
+See the `factorial_betweenItem` example for more examples of using this function and playing with its output.
+
+Note that these hypothesis tests are sensitive to the choice of prior for the condition effect parameters. You can set the priors for a condition effect parameter as dicussed in the [Priors](priors) section. Note, however, that you cannot directly set priors on main effects or interactions, only on the condition effects. The exact relationship is complex, but using tigher priors on condition effects has the effect of making the priors on main effects and interactions more tight as well. 
+
+Note that this section does not only apply to factorial designs as you may be interested in testing the main effect in a single-factor design.
+
+Some caveats about these hypothesis tests: I am fairly confident that everything I am doing is mathematically and statistically principled. However, it has not been peer reviewed. In addition, although the procedures may be principled, there is a good deal of approximation involved, which could hurt the accuracy of the results. Bayes factors substantially far from 1 should be taken with a grain of salt as the approximations are likely more error-prone the more extreme the Bayes factors are.
+
 # Notes
 
 ## Citing this Package and Models
@@ -536,53 +667,10 @@ For referencing ideas in the models, please cite the Hardman, Vergauwe, and Rick
 If you use this package, please cite it:
 
 Hardman, K.O. (2016). CatContModel: Categorical and Continuous 
-Working Memory Models for Delayed Estimation Tasks (Version 0.6.1) [Computer software]. Retrieved from
-https://github.com/hardmanko/CatContModel/releases/tag/v0.6.1
+Working Memory Models for Delayed Estimation Tasks (Version 0.7.0) [Computer software]. Retrieved from
+https://github.com/hardmanko/CatContModel/releases/tag/v0.7.0
 
 Make sure to update the version number in both the name and the URL.
-
-## Linear Data {#linearData}
-
-To use this package with linear data (i.e. data the do not wrap around/are not circular), you will need to modify the main parameter estimation configuration in a few ways. 
-Imagine that you have linear data and that the possible range of responses goes from -100 to 100 (in whatever units). You would create a configuration list as follows:
-
-```{r eval=FALSE}
-config = list(iterations=500, modelVariant="betweenItem", dataType = "linear", responseRange = c(-100, 100))
-
-results = runParameterEstimation(config, data)
-```
-
-Note that two new, important values are provided: `dataType` and `responseRange`. `dataType` is either "linear" or "circular" (defaults to "circular"). `responseRange` is a length 2 vector of numeric values giving the range of possible responses.
-
-Note that you do not need to provide `responseRange`. If you do not provide it, `responseRange` will be set to the range of the observed data. This is done across all participants, not per participant. If different participants were given tasks that differed in terms of the possible range of responses, you won't be able to use this package without modification. In many cases, the observed range of the data and the possible range of responses are very similar, but if you have data in which the observed and possible ranges differ substantially, you should provide the possible range.
-
-You do not need to provide the possible range of the studied values. The possible range of studied values is irrelevant because studied values are treated as having known true values, which means that they have no distributional form.
-
-Once the model is configured to work with linear data, all of the analyses proceed as usual. All of the parameters have the same basic meaning regardless of whether circular or linear data are used. Some plotting functions might behave a little differently, but they should work.
-
-The choice of `modelVariant` (e.g. betweenItem) is independent of the `dataType`: All model variants work will either data type.
-
-Note that the default priors assume that the data are circular in degrees, which is sort of like saying that they have a range of 360 degrees. If your linear data have a much smaller range, like 30 units, or a much larger range, like 5000 units, you should consider whether you need to adjust the hierarchical priors on `contSD`, `catSD`, and `catSelectivity`. In particular, I would mostly consider adjusting the prior mean and variance on the means of those three parameters. Likewise, you should probably change the condition effect prior scales for those parameters. Finally, you should probably adjust the Metropolis-Hastings tuning values for those three parameters. See the code example below:
-
-```{r eval=FALSE}
-# Imagine that the data are on the interval [0, 20]. The continuous imprecision
-# standard deviations will likely be small-ish. 
-# Use continuous SD with mean 5 and variance 225.
-# Set condition effect scale to 2 to reflect that you are expecting small-ish effects.
-priorOverrides = list(contSD.mu = 5, contSD.var = 225, contSD_cond.scale = 2)
-
-# If the contSD values are small, they don't need to jump as far in the MH steps.
-# Use small-ish MH tuning values.
-mhTuningOverrides = list(contSD = 1, contSD_cond = 0.5)
-
-# You should probably also do this for catSD and catSelectivity, too 
-# (except that there are usually no condition effects for catSD and catSelectivity).
-
-# Use the prior and MH tuning overrides.
-results = runParameterEstimation(config, data, priorOverrides = priorOverrides, mhTuningOverrides = mhTuningOverrides)
-```
-
-Currently, the `catMu` parameters are not allowed outside of the range of the data. This may change at some point once I make a hard decision about how to allow it to happen. Details: There is a calculation in the likelihood function in which the density of an observed response given a `catMu` parameter is calculated. The density function is a truncated normal. If the `catMu` parameter is far outside of the possible range of responses, the proportion of the normal distribution within the response range (which is the truncation scale factor) is approximately 0. To calculate the truncated density, a normal density is divided by the truncation scale factor. Division by 0 is bad, so I have to choose how to prevent division by 0. There are no good solutions (at least that I know of), only less bad solutions. The current less bad solution is to prevent the `catMu` parameters from being outside of the response range.
 
 
 ## Models
@@ -613,45 +701,67 @@ One possible solution to this is to use constant parameter values overrides to f
 
 ### ZL (Zhang & Luck)
 
-There is nothing particularly interesting about my implementation of the ZL model, but it is still a hierarchical Bayesian model with main effects of experimental condition. It may be useful on its own or as a model to compare the other models to.
+There is nothing particularly interesting about my implementation of the ZL model, but it is still a hierarchical Bayesian model with effects of experimental condition. It may be useful on its own or as a model to compare the other models to.
 
 
 ## Stimuli
 
-These models were developed with colors in mind, but there is nothing about the models that restricts them to color stimuli. The models can be used with any stimuli that exist on a circular space, although this does not mean that the models will necessarily be appropriate for those data.
+These models were developed with colors in mind, but there is nothing about the models that restricts them to color stimuli. The models can be used with any stimuli that exist on a circular or linear space, although this does not mean that the models will necessarily be appropriate for those data.
 
-## Factorial Designs
+Always attempt at least some diagnostics to verify that the model is working well. One of the best diagnostics is to see whether the data produced by the fitted model looks like the real data. See the [Posterior Predictive Distribution](posteriorPredictive) section for information on how to do this.
 
-This package has some support for contraining parameter estimation and performing hypothesis tests for factorial designs. For now, only two fully-crossed factors are fully supported. I think that non-fully-crossed factors may be ok, but I haven't gone through the logic of it yet. Designs with three or more factors are only partially supported, so I would recommend only using two factors.
+### Linear Data {#linearData}
 
-I will work with the example of a design with two fully-crossed factors, inventively named "letters" and "numbers". The letters factor has the levels "a" and "b" and the numbers factor has the levels "1", "2", and "3". 
-
-With factorial designs, before running parameter estimation, you will need to add additional information to the `config` list: A `data.frame` called `factors` and (optionally) a `list` called `conditionEffects`. The `factors` data frame specifies the factor levels for the experimental conditions.
+To use this package with linear data (i.e. data the do not wrap around/are not circular), you will need to modify the main parameter estimation configuration in a few ways. 
+Imagine that you have linear data and that the possible range of responses goes from -100 to 100 (in whatever units). You would create a configuration list as follows:
 
 ```{r eval=FALSE}
-#config being the configuration list given to runParameterEstimation()
+config = list(iterations=500, modelVariant="betweenItem", dataType = "linear", responseRange = c(-100, 100))
 
-config$factors = data.frame(letters = c('a',  'a',  'a',  'b',  'b',  'b'),
-														numbers = c('1',  '2',  '3',  '1',  '2',  '3'),
-														cond =    c('a1', 'a2', 'a3', 'b1', 'b2', 'b3'),
-														stringsAsFactors = FALSE)
-
-config$factors[3,]
-
+results = runParameterEstimation(config, data)
 ```
 
-As can be seen in this example, condition "a3" is associated with level "a" of the letters factor and level "3" of the numbers factor. This information is needed by the package so it can know what conditions go with what factor levels. If you have only one factor, you do not need to provide the factors data frame. It is not necessary to include the factors in the data set: You still only need the `cond` column in the data.
+Note that two new, important values are provided: `dataType` and `responseRange`. `dataType` is either "linear" or "circular" (defaults to "circular"). `responseRange` is a length 2 vector of numeric values giving the range of possible responses.
+
+Note that you do not need to provide `responseRange`. If you do not provide it, `responseRange` will be set to the range of the observed data. This is done across all participants, not per participant. If different participants were given tasks that differed in terms of the possible range of responses, you won't be able to use this package without modification. In many cases, the observed range of the data and the possible range of responses are very similar, but if you have data in which the observed and possible ranges differ substantially, you should provide the possible range.
+
+You do not need to provide the possible range of the studied values. The possible range of studied values is irrelevant because studied values are treated as having known true values, which means that they have no distributional form.
+
+Once the model is configured to work with linear data, all of the analyses proceed as usual. All of the parameters have the same basic meaning regardless of whether circular or linear data are used. Some plotting functions might behave a little differently, but they should work.
+
+The choice of `modelVariant` (e.g. betweenItem) is independent of the `dataType`: All model variants work will either data type.
+
+Note that the default priors assume that the data are circular in degrees, which is sort of like saying that they have a range of 360 degrees. If your linear data have a much smaller range, like 30 units, or a much larger range, like 5000 units, you should consider whether you need to adjust the hierarchical priors on `contSD`, `catSD`, and `catSelectivity`. In particular, I would mostly consider adjusting the prior mean and variance on the means of those three parameters. Likewise, you should probably change the condition effect prior scales for those parameters. Finally, you should probably adjust the Metropolis-Hastings tuning values for those three parameters. See the code example below:
+
+```{r eval=FALSE}
+# Imagine that the data are on the interval [0, 20]. The continuous imprecision
+# standard deviations will likely be small-ish. 
+# Use continuous SD with mean 5 and variance 225 (15^2).
+# Set condition effect scale to 2 to reflect that you are expecting small-ish effects.
+priorOverrides = list(contSD.mu = 5, contSD.var = 225, contSD_cond.scale = 2)
+
+# If the contSD values are small, they don't need to jump as far in the MH steps.
+# Use small-ish MH tuning values.
+mhTuningOverrides = list(contSD = 1, contSD_cond = 0.5)
+
+# You should probably also do this for catSD and catSelectivity, too 
+# (except that there are usually no condition effects for catSD and catSelectivity).
+
+# Use the prior and MH tuning overrides.
+results = runParameterEstimation(config, data, 
+	priorOverrides = priorOverrides, 
+	mhTuningOverrides = mhTuningOverrides)
+```
+
+Currently, the `catMu` parameters are not allowed outside of the range of the data. This may change at some point once I make a hard decision about how to allow it to happen. Details: There is a calculation in the likelihood function in which the density of an observed response given a `catMu` parameter is calculated. The density function is a truncated normal. If the `catMu` parameter is far outside of the possible range of responses, the proportion of the normal distribution within the response range (which is the truncation scale factor) is approximately 0. To calculate the truncated density, a normal density is divided by the truncation scale factor. Division by 0 is bad, so I have to choose how to prevent division by 0. There are no good solutions (at least that I know of), only less bad solutions. The current less bad solution is to prevent the `catMu` parameters from being outside of the response range.
 
 
 
 
+## catSelectivity
 
+`catSelectivity` is really hard to estimate. Don't expect to be able to do anything fancy with it, like giving it a condition effect as discussed in the (Constraining Parameter Estimation)[constrainingParameterEstimation] section.
 
-## Parameters
-
-### catSelectivity
-
-`catSelectivity` is really hard to estimate. Don't expect to be able to do anything fancy with it, like giving it a condition effect.
 
 
 # References

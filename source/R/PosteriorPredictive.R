@@ -75,7 +75,7 @@ scatterplotWithColorBars = function(data, colorGeneratingFunction = NULL, alpha=
 #' 
 #' This function samples from the posterior predictive distribution for a participant in all conditions and plots the sampled data alongside the participant's actual data.
 #' 
-#' @param results A results object. The \code{colorGeneratingFunction} element will be used if available.
+#' @param results The results from the \code{\link{runParameterEstimation}} function. The \code{colorGeneratingFunction} element will be used if available.
 #' @param pnums The participant number(s) of the participant for whom you want to predict data.
 #' @param conditions If not NULL, a vector of the conditions of the experiment to plot. If NULL (the default), all conditions are plotted.
 #' @param rowLabels A vector of labels of length equal to the number of conditions. The labels are put on each row of plots. If \code{NULL}, rowLabels are made from the \code{conditions} list in \code{results}.
@@ -186,6 +186,8 @@ posteriorPredictivePlot = function(results, pnums, conditions=NULL, rowLabels=NU
 		graphics::mtext(paste("Model - ", labelEnd, sep=""), side=3, line=1.5, cex=graphics::par()$cex * 1.3, adj=0)
 		
 	}
+	
+	graphics::par(mfrow=c(1,1))
 	
 	invisible(allSampled)
 }

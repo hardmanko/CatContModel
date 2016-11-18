@@ -78,7 +78,8 @@ plotParameterSummary(results)
 
 testConditionEffects(results)
 
-mei = testMainEffectsAndInteractions(results, subsamples=10, subsampleProportion = NULL)
+mei = testMainEffectsAndInteractions(results)
+mei[ mei$bfType == "10", ]
 
 posteriorMeansAndCredibleIntervals(results)
 

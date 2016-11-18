@@ -88,27 +88,17 @@ dev.off()
 testConditionEffects(results)
 
 # Test main effects and interactions
-devfun = var
+mei = testMainEffectsAndInteractions(results)
 
-mei = testMainEffectsAndInteractions(results, summarize = FALSE, devianceFunction = devfun, subsamples = 100, subsampleProportion = 1)
+# Examine bayes factors in favor of the effect.
+mei[ mei$bfType == "10", ]
 
-meiSum = summarizeBFResults(mei)
-
-# Examine everything at once, but this is kind of overwhelming.
-meiSum
-
-# Examine omnibus tests and bayes factors in favor of the effect.
-meiSum[ meiSum$levels == "Omnibus" & meiSum$bfType == "10", ]
-
-# Select omnibus tests with reasonably strong BFs (either for or against an effect).
-meiSum[ meiSum$levels == "Omnibus" & meiSum$bf > 3, ]
-
-# pMem has a main effect of numbers. Compare levels of the factor.
-meiSum[ meiSum$param == "pMem" & meiSum$factor == "numbers", ]
+# Select tests with reasonably strong BFs (either for or against an effect).
+meiSum[ meiSum$bf > 3, ]
 
 
 
-#There are many condition, so only plot two of them
+#There are many conditions, so only plot two of them
 posteriorPredictivePlot(results, results$pnums, conditions=c("a1", "b3"), alpha=0.1)
 
 
@@ -123,7 +113,7 @@ trueParam = read.delim("factorial_BI_parameters.txt")
 
 trueParam$cond = results$config$factors$cond[ trueParam$cond ]
 
-compareTrueAndRecovered(results, trueParam)
-
-
+comp = compareTrueAndRecovered(results, trueParam)
+comp[ , c("cor", "slope", "dif", "percentDif") ] = round(comp[ , c("cor", "slope", "dif", "percentDif") ], 2)
+comp
 
