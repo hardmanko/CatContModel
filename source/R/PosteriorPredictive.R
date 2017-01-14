@@ -76,7 +76,7 @@ scatterplotWithColorBars = function(data, colorGeneratingFunction = NULL, alpha=
 #' This function samples from the posterior predictive distribution for a participant in all conditions and plots the sampled data alongside the participant's actual data.
 #' 
 #' @param results The results from the \code{\link{runParameterEstimation}} function. The \code{colorGeneratingFunction} element will be used if available.
-#' @param pnums The participant number(s) of the participant for whom you want to predict data.
+#' @param pnums The participant number(s) of the participant for whom you want to predict data. By default, all participants are used.
 #' @param conditions If not NULL, a vector of the conditions of the experiment to plot. If NULL (the default), all conditions are plotted.
 #' @param rowLabels A vector of labels of length equal to the number of conditions. The labels are put on each row of plots. If \code{NULL}, rowLabels are made from the \code{conditions} list in \code{results}.
 #' @param xlim A 2-length vector of the xlim for plotting.
@@ -90,7 +90,11 @@ scatterplotWithColorBars = function(data, colorGeneratingFunction = NULL, alpha=
 #'
 #' @export
 #'
-posteriorPredictivePlot = function(results, pnums, conditions=NULL, rowLabels=NULL, xlim=NULL, ylim=NULL, xat=NULL, yat=NULL, alpha=0.5, plotPnum=FALSE) {
+posteriorPredictivePlot = function(results, pnums = NULL, conditions=NULL, rowLabels=NULL, xlim=NULL, ylim=NULL, xat=NULL, yat=NULL, alpha=0.5, plotPnum=FALSE) {
+	
+	if (is.null(pnums)) {
+		pnums = results$pnums
+	}
 	
 	plotPnum = plotPnum && (length(pnums) == 1) #don't plot pnum if there is more than 1
 
