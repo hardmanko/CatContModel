@@ -517,28 +517,30 @@ examineMHAcceptance = function(results) {
 			cmn = paste("catMu[", pnum, ",", cat - 1, "]", sep="")
 			can = paste("catActive[", pnum, ",", cat - 1, "]", sep="")
 			
-			if (cmn %in% names(results$posteriors)) {
-			
-				totalPossibleAcceptances = results$config$iterations
-				
-				nActive = sum(results$posteriors[[ can ]])
-				nInactive = totalPossibleAcceptances - nActive
-				
-				totalAcceptances = results$mhAcceptance[ results$mhAcceptance$name == cmn, ]$acceptanceRate * totalPossibleAcceptances
-				activeAcceptances = totalAcceptances - nInactive
-				activeAcceptanceRate = activeAcceptances / nActive
-				if (is.nan(activeAcceptanceRate) || activeAcceptanceRate < 0) {
-					activeAcceptanceRate = 0
-				}
-				
-				temp = data.frame(name=paste(cmn, "(Active)"), group="catMu (Active only)", acceptanceRate = activeAcceptanceRate)
-				
-				tempMhAccept = rbind(tempMhAccept, temp)
+			if (cmn %in% names(results$constantValueOverrides) || !(cmn %in% names(results$posteriors))) {
+				next #skip constant catMu and, if somehow the catMu is not in the posteriors, skip it as well
 			}
-
+			
+			totalPossibleAcceptances = results$config$iterations
+			
+			nActive = sum(results$posteriors[[ can ]])
+			nInactive = totalPossibleAcceptances - nActive
+			
+			totalAcceptances = results$mhAcceptance[ results$mhAcceptance$name == cmn, ]$acceptanceRate * totalPossibleAcceptances
+			activeAcceptances = totalAcceptances - nInactive
+			activeAcceptanceRate = activeAcceptances / nActive
+			if (is.nan(activeAcceptanceRate) || is.na(activeAcceptanceRate) || activeAcceptanceRate < 0) {
+				activeAcceptanceRate = 0
+			}
+			
+			temp = data.frame(name=paste(cmn, "(Active)"), group="catMu (Active only)", acceptanceRate = activeAcceptanceRate)
+			
+			tempMhAccept = rbind(tempMhAccept, temp)
+			
+			
 		}
 	}
-
+	
 	
 	summ = stats::aggregate(acceptanceRate ~ group, tempMhAccept, summarizeAcceptance)
 	summ = do.call(data.frame, summ)
