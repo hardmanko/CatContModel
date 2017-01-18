@@ -70,6 +70,8 @@ This package is released under the MIT license. See LICENSE.md for more informat
 
 # Versions
 
+0.7.1 - Bugfixes in examineMHAcceptance and posteriorPredictivePlot.
+
 0.7.0 - Support for factorial designs. Tests of main effects and interactions. See the "factorial_betweenItem" example.
 
 0.6.1 - Minor bugfix in a plotting function. Additional documentation for the linear dataType.
