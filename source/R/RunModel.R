@@ -142,7 +142,7 @@ verifyConfigurationList = function(config, data) {
 		
 		cat(paste("Note: config$conditionEffects not set. It was set to use all factors for ", paste(pceToUse, collapse = ", "), ".\n", sep=""))
 		
-	} else {
+	} else { #!is.null(config$conditionEffects)
 		
 		for (n in names(config$conditionEffects)) {
 			if (!(n %in% parametersWithPossibleConditionEffects)) {
@@ -301,6 +301,27 @@ runParameterEstimation = function(config, data, mhTuningOverrides=list(),
 	startingValueOverrides = checkStartingValueOverrides(config, startingValueOverrides)
 	
 	constantValueOverrides = checkConstantValueOverrides(config, constantValueOverrides)
+	
+	# Double check that config$conditionEffects is reasonable given the constantValueOverrides
+	# TODO: This should probably go into a function
+	for (param in names(config$conditionEffects)) {
+		
+		if (config$conditionEffects[[param]] != "none") {
+			thisCPN = paste(param, "_cond[", config$factors$cond, "]", sep="")
+			
+			inCVO = thisCPN %in% names(constantValueOverrides)
+			
+			if (all(inCVO)) {
+				cat( paste0("Note: Parameter ", param, " has constant value overrides on all condition effect parameters. It has been noted to have no condition parameters.") )
+				
+				config$conditionEffects[[param]] = "none"
+				
+			} else if (any(inCVO)) {
+				warning( paste0("Parameter ", param, " has constant value overrides on some condition effect parameters. It will have condition effects estimated, but some tests may not work correctly. After parameter estimation is complete, consider setting results$config$conditionEffects$", param, " to \"none\".") )
+			}
+		}
+
+	}
 
 	
 	equalityConstraints = getConstrainedConditionEffects(config)
