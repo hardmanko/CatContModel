@@ -458,9 +458,9 @@ calculateWAIC = function(results, subsamples=1, subsampleProportion=1, onlyTotal
 #' penalty term. For each iteration of the Gibbs sampler, the likelihoods of the model are
 #' calculated for each participant. Thus, for each iteration, it is possible to calculate
 #' AIC and BIC, which allows for an estimate of the uncertainty in the fit statistics.
-#' Thus, for each fit statistic, both mean and standard deviation are reported.
+#' For each fit statistic, both mean and standard deviation are reported.
 #' 
-#' @param results The results from the \code{\link{runParameterEstimation}} function.
+#' @param results The results from the \code{\link{runParameterEstimation}} function. Note that you must set \code{config$calculateParticipantLikelihoods} to \code{TRUE} in order to use this function.
 #' @param onlyTotal If TRUE, exclude participant-level values (which aren't valid because of the fact that participants are not independent).
 #' 
 #' @return A data.frame containing several fit statistics.

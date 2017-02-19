@@ -105,7 +105,7 @@ sampleFromConditionEffectPriors = function(results, factors, param, priorSamples
 		target = paste(param, "_cond[", factors$cond[i], "]", sep="")
 		rootSource = getRootSourceConditionParameter(results, param, factors$cond[i])
 		
-		#If this is its own source (i.e. it is a free parameter
+		#If this is its own source (i.e. it is an unconstrained parameter), sample from it if it is free
 		if (target == rootSource) {
 			prior = getConditionParameterPrior(results, param, factors$cond[i])
 			if (prior$scale == 0) {
@@ -141,7 +141,7 @@ sampleFromConditionEffectPriors = function(results, factors, param, priorSamples
 	
 }
 
-#Note that this function, along with getEffectWeightsMatrix, in conceptually equivalent to the
+#Note (to self) that this function, along with getEffectWeightsMatrix, in conceptually equivalent to the
 #stuff in the DesignMatrix.R file
 #only works for fully-crossed designs
 #fNames is a character vector of factor names
@@ -278,12 +278,6 @@ getEffectParameters_general = function(cellMeans, factors, fNames, uniqueFL = NU
 		}
 		
 		keepUFL = unique(subset(uniqueFL, subset = keep, select = fNames))
-		#keepUFL = unique(uniqueFL[ keep, fNames ])
-		#if (length(fNames) == 1) {
-		#	temp = list()
-		#	temp[[fNames]] = keepUFL
-		#	keepUFL = as.data.frame(temp, stringsAsFactors=FALSE)
-		#}
 
 		keepColNames = rep("", nrow(keepUFL))
 		for (i in 1:nrow(keepUFL)) {
@@ -345,7 +339,7 @@ testEffect_specialized = function(results, factors, param, fNames, uniqueFL = NU
 	
 }
 
-testMEI_single = function(results, param, priorSamples = 1e5, doPairwise = FALSE, devianceFunction = NULL, testFunction = "Savage-Dickey") {
+testMEI_single = function(results, param, priorSamples = NULL, doPairwise = FALSE, devianceFunction = NULL, testFunction = "Savage-Dickey") {
 	
 	if (is.character(testFunction)) {
 		if (testFunction == "Savage-Dickey") {
@@ -439,7 +433,7 @@ testMEI_single = function(results, param, priorSamples = 1e5, doPairwise = FALSE
 #' 
 #' This only supports one-factor designs or fully-crossed multi-factor designs. If your design is not fully crossed, you can use \code{\link{testConditionEffects}} to examine pairwise comparisons.
 #' 
-#' You must provide a \code{data.frame} containing the mapping from conditions to factor levels. This should be provided in \code{results$config$factors}. See \code{\link{runParameterEstimation}} for more information about creating this. If you are using a one-factor design, this will have been created for you and you don't need to do anything. If using multiple factors, this \code{results$config$factors} should already exist.
+#' You must provide a \code{data.frame} containing the mapping from conditions to factor levels. This should be provided in \code{results$config$factors}. See \code{\link{runParameterEstimation}} for more information about creating this. If you are using a one-factor design, this will have been created for you and you don't need to do anything. If using multiple factors, you should have given \code{config$factors} to \code{runParameterEstimation}.
 #' 
 #' This function uses kernel density estimation to estimate the densities of some relevant quantities. This procedure is somewhat noisy. As such, I recommend that you perform the procedure many times, the number of which can be configured with the \code{subsamples} argument. Then, aggregate results from the many repetitions of the procedure can be analyzed, which is done by default but can be changed by setting \code{summarize} to \code{FALSE}.
 #' 
@@ -785,7 +779,7 @@ geoQ = function(z, mu, sigma) {
 #' \code{L_Y = sum(L * W)}
 #' \code{S_Y = sum(S * abs(W))}
 #' 
-#' I can't find a citation for this anywhere, but have confirmed it in simulations.
+#' I haven't found a citation for this anywhere, but have confirmed it to several significant digits in simulations.
 #' 
 #' The results of these calculations depend on a lot of information, which is most easily 
 #' provided in the results of parameter estimation. To examine the effects of changing the
@@ -793,7 +787,7 @@ geoQ = function(z, mu, sigma) {
 #' Note that the typical proscription on nonzero prior locations holds here as well.
 #' 
 #' 
-#' @param results The results from the \code{\link{runParameterEstimation}} function.
+#' @param results The results from the \code{\link{runParameterEstimation}} function. Note that you can run 1 iteration and still have all the information you need.
 #' @param param The name of the parameter for which to calculate MEI effect parameter priors.
 #' @param priorLoc A new prior location to try.
 #' @param priorScale A new prior scale to try.

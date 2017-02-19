@@ -166,7 +166,7 @@ verifyConfigurationList = function(config, data) {
 	if (is.null(config$factors)) {
 		#If no factors provided, assume one-factor design
 		config$factors = data.frame(cond=unique(data$cond))
-		config$factors$Factor1 = config$factors$cond
+		config$factors$Factor = config$factors$cond
 		cat("Note: config$factors not provided. A one-factor design is assumed.\n")
 	} else {
 		dataConds = unique(data$cond)

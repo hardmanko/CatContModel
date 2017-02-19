@@ -4,8 +4,8 @@
 #' The credible intervals for catActive should be interpreted in the context of them only taking on integer values.
 #' 
 #' @param results The results from the \code{\link{runParameterEstimation}} function.
-#' @param params A vector of parameter names. If NULL, the default, all valid parameters are used.
-#' @param doCatActive If TRUE (the default), the posterior mean and credible intervals of the catActive parameters will be calculated.
+#' @param params A vector of parameter names. If \code{NULL}, all valid parameters are used.
+#' @param doCatActive If \code{TRUE}, the posterior mean and credible intervals of the \code{catActive} parameters will be calculated.
 #' @param credLevel The credibility level of the credible intervals. Defaults to 0.95.
 #' @param fun A user provided function that will be passed a vector of a single participant by condition posterior distribution and that should return a single value.
 #' 
