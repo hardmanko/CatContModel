@@ -1,7 +1,7 @@
 
 library(CatContModel)
 
-setwd("~/../Programming/R/CatContModel/examples/betweenAndWithin/")
+setwd("~/../Programming/R/CatContModel/examples/betweenAndWithin_constrained/")
 
 data = read.delim("betweenAndWithin_data.txt")
 
@@ -20,7 +20,7 @@ config = list(iterations=500, maxCategories=15, modelVariant="betweenAndWithin")
 config$conditionEffects = list(pMem = "all", 
 															 pBetween = "all", 
 															 pContBetween = "all", 
-															 pContWithin = "none", 
+															 pContWithin = "none",  # <<< no effects
 															 contSD = "all")
 
 
@@ -59,13 +59,13 @@ plot(results$posteriors[["pBetween_cond[2]"]], type='l')
 
 
 
-noBurn = removeBurnIn(results, 500)
+results = removeBurnIn(results, 500)
 
-plotParameterSummary(noBurn)
+plotParameterSummary(results)
 
-posteriorMeansAndCredibleIntervals(noBurn)
+posteriorMeansAndCredibleIntervals(results)
 
-testConditionEffects(noBurn, param=c("pMem", "pContBetween", "pBetween", "contSD"))
+testConditionEffects(results)
 
 
 

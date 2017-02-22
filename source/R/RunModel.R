@@ -28,16 +28,19 @@ getDefaultParametersWithConditionEffects = function(modelVariant) {
 #' @export
 verifyConfigurationList = function(config, data) {
 	
+	usedConfigKeys = names(config)
+	
 	allAllowedConfigKeys = c("iterations", "modelVariant", "iterationsPerStatusUpdate", 
 													 "cornerstoneConditionName", "maxCategories", "minSD", 
 													 "calculateParticipantLikelihoods", "conditionEffects",
-													 "dataType", "responseRange", "catMuRange", "factors", "factorNames")
-	disallowedConfigKeys = names(config)[ !(names(config) %in% allAllowedConfigKeys) ]
+													 "dataType", "responseRange", "catMuRange", "factors")
+	
+	disallowedConfigKeys = usedConfigKeys[ !(usedConfigKeys %in% allAllowedConfigKeys) ]
+	
 	if (length(disallowedConfigKeys) > 0) {
 		msg = paste("The following configuration settings were used, but are not allowed (check their spelling): ", paste(disallowedConfigKeys, collapse=", "), sep="")
 		stop(msg)
 	}
-
 	
 	if (is.null(config$iterations)) {
 		stop("config$iterations not set.")
@@ -185,10 +188,6 @@ verifyConfigurationList = function(config, data) {
 		config$factors[ , n ] = as.character(config$factors[ , n ])
 	}
 	
-	if (is.null(config$factorNames)) {
-		config$factorNames = guessFactorNames(config$factors)
-	}
-	
 	config
 }
 
@@ -312,12 +311,12 @@ runParameterEstimation = function(config, data, mhTuningOverrides=list(),
 			inCVO = thisCPN %in% names(constantValueOverrides)
 			
 			if (all(inCVO)) {
-				cat( paste0("Note: Parameter ", param, " has constant value overrides on all condition effect parameters. It has been noted to have no condition parameters.") )
+				cat( paste0("Note: Parameter ", param, " has constant value overrides on all condition effect parameters. It has been noted to have no condition parameters.\n") )
 				
 				config$conditionEffects[[param]] = "none"
 				
 			} else if (any(inCVO)) {
-				warning( paste0("Parameter ", param, " has constant value overrides on some condition effect parameters. It will have condition effects estimated, but some tests may not work correctly. After parameter estimation is complete, consider setting results$config$conditionEffects$", param, " to \"none\".") )
+				warning( paste0("Parameter ", param, " has constant value overrides on some condition effect parameters. It will have condition effects estimated, but some follow-up tests may not work correctly. After parameter estimation is complete, consider setting results$config$conditionEffects$", param, " to \"none\".") )
 			}
 		}
 
@@ -921,6 +920,8 @@ setConstantCategoryParameters = function(data, catParam, maxCategories, activate
 	rval
 }
 
+
+#This function sucks. Don't use it.
 upgradeResultsList = function(results, from, to) {
 	
 	if (from == "0.6.1" && to == "0.7.0") {

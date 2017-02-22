@@ -88,12 +88,11 @@ participantPosteriorSummary = function(results, params=NULL, doCatActive=TRUE, c
 #' Population/Condition Posterior Means and Credible Intervals
 #' 
 #' Calculates posterior means and credible intervals for the population means in each condition for the
-#' given parameters. For each condition, condition effects are added to population means, the result is transformed
-#' to the manifest space, and the mean and credible interval for the manifest value is calculated.
-#' 
-#' Note that this is different from adding condition effects to participant-level parameters, tranforming the result,
-#' calculating on each iteration the mean of the transformed participant parameters, and calculating the posterior 
-#' mean and credible interval of the iteration means. 
+#' given parameters. For each condition, condition effects are added to population means, the result is 
+#' transformed to the manifest space, and the mean and credible interval for the manifest value is calculated.
+#' Note that this is different from adding condition effects to participant-level parameters, tranforming 
+#' the result, calculating on each iteration the mean of the transformed participant parameters, and 
+#' calculating the posterior mean and credible interval of the iteration means. 
 #' Using iteration means rather than population means will generally result in less than the true
 #' amount of variability, which is why population means are used. Note, however, that this is a little strange,
 #' because in the model, condition effects are not added to population means, but participant means.

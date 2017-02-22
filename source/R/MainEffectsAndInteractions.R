@@ -1,101 +1,10 @@
 
 
-guessFactorNames = function(factors) {
-	n = names(factors)
-	n[ n != "cond" ]
-}
 
 
-#appropriate only when v sums to 0
-devianceFunction_vectorLength = function(v) {
-	sqrt(sum(v^2))
-}
-
-
-#only appropriate if x has length 2
-devianceFunction_absDif = function(x) {
-	abs(x[1] - x[2])
-}
-
-#always appropriate
-devianceFunction_absSum = function(x) {
-	sum(abs(x))
-}
-
-devianceFunction_sd = function(x) {
-	stats::sd(x)
-}
-
-devianceFunction_var = function(x) {
-	#var(x)
-	#or
-	mean(x^2) # as long as sum(x) == 0
-}
-
-
-testFunction_savageDickey = function(prior, posterior) {
+sampleFromConditionEffectPriors = function(results, param, priorSamples) {
 	
-	priorMax = min( 100 * max(posterior), max(prior) * 1.1 )
-	pKept = mean(prior < priorMax)
-	prior = prior[ prior < priorMax ]
-	
-	
-	priorLS = polspline::logspline(prior, lbound = 0, ubound = priorMax)
-	priorDens = polspline::dlogspline(0, priorLS)
-	
-	#account for the fact that there is some density in the upper area that isn't accounted for by the logspline
-	priorDens = priorDens * pKept
-	
-	
-	success = tryCatch({
-		postLS = polspline::logspline(posterior, lbound = 0)
-		TRUE
-	}, error = function(e) {
-		print(e)
-		return(FALSE)
-	})
-	
-	if (success) {
-		postDens = polspline::dlogspline(0, postLS)
-		bf10 = priorDens / postDens
-	} else {
-		bf10 = NA
-	}
-	
-	list(bf01 = 1 / bf10, bf10 = bf10, success = success)
-	
-}
-
-# The interval test works by finding the 1st percentile of
-# both the prior and posterior distributions. An interval from 0 to that
-# quantile defines the null hypothesis interval. 
-#Tests that the parameter is within an interval from 0 to
-#a quantile defined by p.
-#
-# This doesn't work when the prior is diffuse because
-# the entire posterior can be below the 1st percentile of the
-# prior. Thus, the posterior is nearer to 0 than the prior, but
-# the posterior is still far from 0.
-testFunction_interval = function(prior, posterior, p = 0.01) {
-	
-	qprior = stats::quantile(prior, p)
-	qpost = stats::quantile(posterior, p)
-	
-	larger = max(c(qprior, qpost))
-	
-	pbPrior = mean(prior < larger)
-	pbPost = mean(posterior < larger)
-	
-	bfBelow = ((1 - pbPrior) / pbPrior) * (pbPost / (1 - pbPost))
-	
-	bfAbove = 1 / bfBelow
-	
-	list(bf10 = bfAbove, bf01 = bfBelow, p = p, q = larger, success=TRUE)
-}
-
-
-
-sampleFromConditionEffectPriors = function(results, factors, param, priorSamples) {
+	factors = results$config$factors
 	
 	priorDs = matrix(NA, nrow=priorSamples, ncol=nrow(factors))
 	
@@ -141,111 +50,18 @@ sampleFromConditionEffectPriors = function(results, factors, param, priorSamples
 	
 }
 
-#Note (to self) that this function, along with getEffectWeightsMatrix, in conceptually equivalent to the
-#stuff in the DesignMatrix.R file
-#only works for fully-crossed designs
-#fNames is a character vector of factor names
-#lNames is a character vector of the same length as fNames of names of levels in the factors
-getFactorByLevelWeights = function(factors, fNames, lNames) {
-
-	#Do a little setup
-	combinations = list(GRAND_MEAN = character(0))
-	
-	combinationLayers = data.frame(combination="GRAND_MEAN", layer=0, stringsAsFactors=FALSE)
-	
-	#get all combinations at layers less than (or equal to) the current test
-	for (layer in 1:length(fNames)) {
-		r = utils::combn(fNames, layer)
-		r = t(r)
-		for (j in 1:nrow(r)) {
-			x = sort(r[j,])
-			y = paste(x, collapse=":")
-			combinations[[y]] = x
-			
-			temp = data.frame(combination=y, layer=length(x), stringsAsFactors=FALSE)
-			
-			combinationLayers = rbind(combinationLayers, temp)
-		}
-	}
-	
-	
-	getWeights_internal = function(fcopy, fname, lname) {
-		
-		fcopy$select = TRUE
-		fcopy$weights = 0
-		
-		if (length(fname) == 0) {
-			
-			#grand mean
-			fcopy$weights = 1 / nrow(fcopy)
-			
-		} else {
-			
-			for (i in 1:length(fname)) {
-				fcopy$select[ fcopy[, fname[i] ] != lname[i] ] = FALSE
-			}
-			
-			fcopy$weights[ fcopy$select ] = 1 / sum(fcopy$select)
-			
-			#get lower layer weights and subtract them
-			
-			lowerLayers = combinationLayers[ combinationLayers$layer < length(fname), ]
-			for (i in 1:nrow(lowerLayers)) {
-				
-				fnameNext = combinations[[ lowerLayers[i,"combination"] ]]
-				lnameNext = lname[fname %in% fnameNext] #handles fnameNext == character(0) appropriately.
-				
-				nextWeights = getWeights_internal(factors, fnameNext, lnameNext)
-				
-				fcopy$weights = fcopy$weights - nextWeights$weights
-			}
-			
-		}
-		
-		fcopy
-		
-	}
-	
-	getWeights_internal(fcopy=factors, fname=fNames, lname=lNames)
-}
-
-getEffectWeightsMatrix = function(factors, fNames, uniqueFL) {
-	
-	#if (is.null(uniqueFL)) {
-	#	uniqueFL = unique(subset(factors, select = fNames))
-	#}
-	
-	colNames = rep("", nrow(uniqueFL))
-	weights = NULL
-	
-	for (i in 1:nrow(uniqueFL)) {
-		
-		thisLevels = as.character(uniqueFL[i,]) #coerce to char vector
-		
-		w = getFactorByLevelWeights(factors, fNames, thisLevels)
-		
-		weights = cbind(weights, w$weights)
-		
-		colNames[i] = paste0(paste0(fNames, ".", thisLevels), collapse=":")
-	}
-	
-	colnames(weights) = colNames
-	
-	weights
-	
-}
-
-
 #' Posterior Distributions of Main Effect and Interaction Parameters
 #' 
 #' @param results The results from the \code{\link{runParameterEstimation}} function.
 #' @param param The name of a parameter with condition effect.
-#' @param fNames A character vector giving the names of factors to use. The interaction of the factors will be the effect that is used. If there is only one factor, the main effect will be used.
+#' @param testedFactors A character vector giving the names of factors for which a hypothesis test could be performed. If there is only one factor, the main effect will be used. If there is more than one factor, the interaction of the factors will be the effect that is used. 
+#' @param dmFactors Character vector. The factors to use to construct the design matrix. For a fully-crossed (balanced) design, this can always be equal to \code{testFactors} (the default). For non-fully-crossed designs, you may sometimes want to create a design matrix using some factors, but perform a hypothesis test with only some of those factors (\code{testedFactors} must be a subset of \code{dmFactors}).
+#' @param contrastType Character (or function). The contrast to use to create the design matrix. Can be any of the function names on the documentation page for \code{contr.sum}. For a non-fully-crossed (unbalanced) design, you should use either "contr.treatment" or "contr.SAS". For a balanced design, you can use anything, but psychologists are most used to "contr.sum", which uses sums-to-zero constraints.
 #' 
 #' @return A matrix with row being iterations and columns being effect parameters. The columns are named with the following scheme: "F1.L1:F2.L2" where "Fn" is the name of a factor and "Ln" is the level of that factor.
 #' 
 #' @export
-getEffectParameterPosteriors = function(results, param, fNames) {
+getEffectParameterPosteriors = function(results, param, testedFactors, dmFactors = testedFactors, contrastType = NULL) {
 	
 	factors = results$config$factors
 	
@@ -253,108 +69,82 @@ getEffectParameterPosteriors = function(results, param, fNames) {
 	for (i in 1:nrow(factors)) {
 		postDs[,i] = results$posteriors[[ paste(param, "_cond[", factors$cond[i], "]", sep="") ]]
 	}
+
+	gmeihtf = factors
+	gmeihtf$cond = NULL #NO EXTRA COLUMNS
 	
-	getEffectParameters_general(cellMeans = postDs, factors = factors, fNames = fNames)
+	getEffectParameters(cellMeans=postDs, factors=gmeihtf, testedFactors = testedFactors, dmFactors = dmFactors, contrastType = contrastType)
+
 }
 
-getEffectParameters_general = function(cellMeans, factors, fNames, uniqueFL = NULL, stripRedundant = FALSE) {
-	
-	if (is.null(uniqueFL)) {
-		uniqueFL = unique(subset(factors, select = fNames))
-	}
-	
-	weights = getEffectWeightsMatrix(factors, fNames, uniqueFL)
 
-	effects = cellMeans %*% weights
-	
-	if (stripRedundant) {
-		
-		keep = rep(TRUE, nrow(uniqueFL))
-		for (f in fNames) {
-			uniqueLevels = unique(uniqueFL[,f])
-			keepLevels = uniqueLevels[1:(length(uniqueLevels) - 1)]
-			
-			keep = keep & (uniqueFL[,f] %in% keepLevels)
-		}
-		
-		keepUFL = unique(subset(uniqueFL, subset = keep, select = fNames))
-
-		keepColNames = rep("", nrow(keepUFL))
-		for (i in 1:nrow(keepUFL)) {
-			fact = names(keepUFL)
-			levels = as.character(keepUFL[i,]) #coerce to char vector
-			keepColNames[i] = paste0(paste0(fact, ".", levels), collapse=":")
-		}
-		
-		effects = effects[, keepColNames]
-		
-	}
-	
-	effects
-}
-
-testEffect_general = function(priorDs, postDs, factors, fNames, uniqueFL = NULL, 
-											devianceFunction = NULL, testFunction = NULL) 
+testEffect_general = function(priorCMs, postCMs, factors, testedFactors, dmFactors = testedFactors,
+															uniqueFL = NULL, devianceFunction = NULL, testFunction = NULL, contrastType = NULL) 
 {
 
-	priorEffects = getEffectParameters_general(priorDs, factors, fNames, uniqueFL=uniqueFL, stripRedundant=FALSE)
-	postEffects = getEffectParameters_general(postDs, factors, fNames, uniqueFL=uniqueFL, stripRedundant=FALSE)
+	gmeihtf = factors
+	gmeihtf$cond = NULL
 	
-	if (is.null(devianceFunction)) {
-		nc = ncol(priorEffects)
-		if (nc == 2) {
-			devianceFunction = devianceFunction_absDif
-		} else if (nc >= 3 && nc <= 4) { #this is not based on much testing...
-			devianceFunction = devianceFunction_absSum
-		} else {
-			devianceFunction = stats::var #yeah, var
-		}
+	priorEffects = getEffectParameters(cellMeans=priorCMs, factors=gmeihtf, testedFactors = testedFactors, 
+																		 dmFactors = dmFactors, contrastType = contrastType)
+	postEffects = getEffectParameters(cellMeans=postCMs, factors=gmeihtf, testedFactors = testedFactors, 
+																		dmFactors = dmFactors, contrastType = contrastType)
+	
+	# Only use cells that are included in uniqueFL
+	if (!is.null(uniqueFL)) {
+		cns = makeCellName(uniqueFL)
+		
+		priorEffects = priorEffects[ , cns ]
+		postEffects = postEffects[ , cns ]
 	}
 	
-	if (is.null(testFunction)) {
-		testFunction = testFunction_savageDickey
-	}
-	
-	priorDistance = apply(priorEffects, 1, devianceFunction)
-	postDistance = apply(postEffects, 1, devianceFunction)
-	
-	testFunction(priorDistance, postDistance)
+	testHypothesis_effect(priorEffects = priorEffects, postEffects = postEffects, devianceFunction = devianceFunction, testFunction = testFunction)
+
 }
 
-
-testEffect_specialized = function(results, factors, param, fNames, uniqueFL = NULL, 
-																	priorSamples = 1e5, devianceFunction = NULL, testFunction = NULL) 
+#' Perform a Single Hypothesis Test of a Main Effect or Interaction
+#' 
+#' This function performs a single hypothesis test of a selected effect.
+#' This is a lower-level function than \code{\link{testMainEffectsAndInteractions}} and it gives you more control than that function.
+#' 
+#' See the details of \code{\link{testMainEffectsAndInteractions}} for some discussion of fully-crossed vs non-fully-crossed designs.
+#' 
+#' @param results The results from the \code{\link{runParameterEstimation}} function.
+#' @param param The name of the parameter for which to perform the test.
+#' @param testedFactors Character vector. The factors for which to perform the hypothesis test as a vector of factor names. A single factor name results in the test of the main effect of the factor. Multiple factor names result in the test of the interaction of all of those factors.
+#' @param dmFactors Character vector. The factors to use to construct the design matrix. For a fully-crossed (balanced) design, this can always be equal to \code{testFactors} (the default). For non-fully-crossed designs, you may sometimes want to create a design matrix using some factors, but perform a hypothesis test with only some of those factors (\code{testedFactors} must be a subset of \code{dmFactors}).
+#' @param usedFactorLevels A \code{data.frame} with columns for each of the factors. Each row specifies factor levels that should be included in the test. This allows you to do things like pairwise comparisons of specific factor levels.
+#' @param priorSamples Number of samples to take from the prior distribution of the effect parameters. You should not change this from the default unless you are using a custom testFunction, in which case you might want to use a different value.
+#' @param devianceFunction You should not provide a value for this unless you (think you) know what you are doing. A function used for calculating the deviation of the effect parameters. It takes a vector of effect parameters and calculates some measure of how dispersed they are. One example of such a function is the built-in R function \code{var}.
+#' @param testFunction Do not use this argument.
+#' @param contrastType Character (or function). The contrast to use to create the design matrix. Can be any of the function names on the documentation page for \code{contr.sum}. For a non-fully-crossed (unbalanced) design, you should use either "contr.treatment" or "contr.SAS". For a balanced design, you can use anything, but psychologists are most used to "contr.sum", which uses sums-to-zero constraints.
+#' 
+#' @return Depends on the choice of \code{testFunction}. 
+#' 
+#' @export
+testSingleEffect = function(results, param, testedFactors, dmFactors = testedFactors, 
+														usedFactorLevels = NULL, priorSamples = results$config$iterations, 
+														devianceFunction = NULL, testFunction = NULL, contrastType = NULL) 
 {
+	
+	factors = results$config$factors
 	
 	#get priors and posteriors
-	priorDs = sampleFromConditionEffectPriors(results, factors, param, priorSamples)
+	priorCMs = sampleFromConditionEffectPriors(results, param, priorSamples)
 	
-	postDs = matrix(NA, nrow=results$config$iterations, ncol=nrow(factors))
+	postCMs = matrix(NA, nrow=results$config$iterations, ncol=nrow(factors))
 	for (i in 1:nrow(factors)) {
-		postDs[,i] = results$posteriors[[ paste(param, "_cond[", factors$cond[i], "]", sep="") ]]
+		postCMs[,i] = results$posteriors[[ paste(param, "_cond[", factors$cond[i], "]", sep="") ]]
 	}
 	
-	testEffect_general(priorDs, postDs, factors=factors, fNames=fNames, uniqueFL=uniqueFL,
-										 devianceFunction=devianceFunction, testFunction=testFunction)
+	testEffect_general(priorCMs, postCMs, factors=factors, testedFactors=testedFactors, dmFactors=dmFactors,
+										 uniqueFL=usedFactorLevels,
+										 devianceFunction=devianceFunction, testFunction=testFunction , contrastType=contrastType)
 	
 }
 
-testMEI_single = function(results, param, priorSamples = NULL, doPairwise = FALSE, devianceFunction = NULL, testFunction = "Savage-Dickey") {
-	
-	if (is.character(testFunction)) {
-		if (testFunction == "Savage-Dickey") {
-			testFunction = testFunction_savageDickey
-		} else if (testFunction == "Interval") {
-			testFunction = function(prior, posterior) {
-				testFunction_interval(prior, posterior, p=0.01)
-			}
-		} else {
-			stop("Invalid test function name.")
-		}
-	}
-	if (!is.function(testFunction)) {
-		stop("testFunction is not a function.")
-	}
+# useFullDMForUnbalanced If TRUE and the design is unbalanced, the design matrix that is used for all tests will be the design matrix with all effects in it. This means that a main effect will not really be a marginal test, because interactions will be accounted for. This may or may not be what you want to do.
+testMEI_singleParameter = function(results, param, priorSamples = NULL, doPairwise = FALSE, devianceFunction = NULL, testFunction = NULL, useFullDMForUnbalanced = TRUE) {
 	
 	factorsToTest = getFactorsForConditionEffect(results$config, param)
 	if (length(factorsToTest) == 0) {
@@ -382,10 +172,9 @@ testMEI_single = function(results, param, priorSamples = NULL, doPairwise = FALS
 		
 		factorName = paste0(theseFactors, collapse=":")
 		
-		thisRes = testEffect_specialized(results, results$config$factors, param, 
-																		 fNames = theseFactors, priorSamples = priorSamples, 
-																		 devianceFunction = devianceFunction,
-																		 testFunction = testFunction)
+		thisRes = testSingleEffect(results, param, testedFactors = theseFactors, 
+															 priorSamples = priorSamples, 
+															 devianceFunction = devianceFunction, testFunction = testFunction)
 		
 		omnibus = data.frame(param=param, factor=factorName, levels="Omnibus", 
 												 bf10=thisRes$bf10, bf01=thisRes$bf01, success=thisRes$success)
@@ -405,11 +194,10 @@ testMEI_single = function(results, param, priorSamples = NULL, doPairwise = FALS
 				uniqueFL[[thisFactor]] = comb[j,]
 				uniqueFL = as.data.frame(uniqueFL, stringsAsFactors = FALSE)
 				
-				thisRes = testEffect_specialized(results, results$config$factors, param, 
-																				 fNames = thisFactor, uniqueFL = uniqueFL, 
-																				 priorSamples = priorSamples, 
-																				 devianceFunction = devianceFunction_absDif, 
-																				 testFunction = testFunction)
+				thisRes = testSingleEffect(results, param, testedFactors = thisFactor, 
+																	 usedFactorLevels = uniqueFL, priorSamples = priorSamples, 
+																	 devianceFunction = devianceFunction_absDif,
+																	 testFunction = testFunction)
 				
 				levelNames = paste0(comb[j,], collapse=", ")
 				
@@ -431,13 +219,17 @@ testMEI_single = function(results, param, priorSamples = NULL, doPairwise = FALS
 
 #' Test Main Effects and Interactions of Factors
 #' 
-#' This only supports one-factor designs or fully-crossed multi-factor designs. If your design is not fully crossed, you can use \code{\link{testConditionEffects}} to examine pairwise comparisons.
+#' Perform hypothesis tests of main effects and interactions for one-factor and multi-factor designs. If your design is fully crossed, your life is simple. If your design is not fully crossed, you may not be able to use this function for all of your tests (see Details).
 #' 
 #' You must provide a \code{data.frame} containing the mapping from conditions to factor levels. This should be provided in \code{results$config$factors}. See \code{\link{runParameterEstimation}} for more information about creating this. If you are using a one-factor design, this will have been created for you and you don't need to do anything. If using multiple factors, you should have given \code{config$factors} to \code{runParameterEstimation}.
 #' 
 #' This function uses kernel density estimation to estimate the densities of some relevant quantities. This procedure is somewhat noisy. As such, I recommend that you perform the procedure many times, the number of which can be configured with the \code{subsamples} argument. Then, aggregate results from the many repetitions of the procedure can be analyzed, which is done by default but can be changed by setting \code{summarize} to \code{FALSE}.
+#' I recommend using many \code{subsamples} to see how noisy the estimation is. You can leave \code{subsampleProportion} at 1 or use a somewhat lower value. I would recommend against using a value of \code{subsampleProportion} that would result in fewer than 1,000 iterations being used per subsample.
 #' 
-#' I recommend using many \code{subsamples}. You can leave \code{subsampleProportion} at 1 or use a somewhat lower value. I would recommend against using a value of \code{subsampleProportion} that would result in fewer than 1,000 iterations being used per subsample.
+#' For designs that are fully-crossed, sums-to-zero contrasts are used by default. Like any other kind of orthogonal contrast, sums-to-zero contrasts result in main effects and interactions that are independent of one another. Thus, for example, a main effect is the same regardless of whether you also included an interaction in the design or not. For designs that are not fully crossed, treatment contrasts are used by default. Treatment contrasts are non-orthogonal, which means that effects are not independent of one another. For example, a main effect changes depending on whether or not you include an interaction in the model. Thus, when working with non-fully-crossed designs, you must decide what effects you want to include in the model when you are testing an effect. 
+#' This function does marginal tests: It only estimates what it needs to to do the test. Thus, if testing a main effect, only that main effect is estimated. If testing a two-factor interaction, only the two related main effects and that interaction are estimated.
+#' You cannot do more this with this function, but see \code{\link{testSingleEffect}} for a function that gives you more control over the test that is performed. 
+#' In addition, for designs that are not fully croseed, you can still use \code{\link{testConditionEffects}} to examine pairwise comparisons.
 #' 
 #' @param results The results from the \code{\link{runParameterEstimation}} function.
 #' @param param Optional. Character vector of names of parameters to perform tests for. If NULL (default), is set to all parameters with condition effects.
@@ -445,7 +237,7 @@ testMEI_single = function(results, param, priorSamples = NULL, doPairwise = FALS
 #' @param subsamples Number of subsamples of the posterior chains to take. If greater than 1, subsampleProportion should be set to a value between 0 and 1 (exclusive).
 #' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should probably only be less than 1 if \code{subsamples} is greater than 1. If \code{NULL}, \code{subsampleProportion} will be set to \code{1 / subsamples} and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
 #' @param doPairwise Do pairwise tests of differences between levels of main effects (these are often called "post-hoc" tests).
-#' @param devianceFunction You should not provide a value for this unless you know what you are doing. A function used for calculating the deviation of the effect parameters. It takes a vector of effect parameters (which have a sums-to-zero constraint) and calculates some measure of how dispersed they are. One example of such a function is the built-in R function \code{var}.
+#' @param devianceFunction You should not provide a value for this unless you know what you are doing. A function used for calculating the deviation of the effect parameters. It takes a vector of effect parameters and calculates some measure of how dispersed they are. One example of such a function is the built-in R function \code{var}.
 #' 
 #' @export
 testMainEffectsAndInteractions = function(results, param=NULL, 
@@ -455,6 +247,12 @@ testMainEffectsAndInteractions = function(results, param=NULL,
 	
 	if (is.null(results$config$factors)) {
 		stop('You must provide "results$config$factors".')
+	}
+	
+	gmeihtf = results$config$factors
+	gmeihtf$cond = NULL
+	if (!isDesignFullyCrossed(gmeihtf)) {
+		warning("Design is not fully crossed, which means that main effects and interactions cannot be orthogonal. See the documentation of this function for more information.")
 	}
 	
 	if (is.null(param)) {
@@ -487,8 +285,8 @@ testMainEffectsAndInteractions = function(results, param=NULL,
 		
 		for (pInd in 1:length(param)) {
 			
-			result = testMEI_single(results=resultSubsample, param=param[pInd], 
-															priorSamples=priorSamples, doPairwise=doPairwise, testFunction = "Savage-Dickey")
+			result = testMEI_singleParameter(results=resultSubsample, param=param[pInd], 
+															priorSamples=priorSamples, doPairwise=doPairwise)
 			BFs = rbind(BFs, result)
 			
 			utils::setTxtProgressBar(pb, value = currentStep / lastStep)
@@ -653,87 +451,6 @@ summarizeSubsampleResults = function(BFs, proportioniles = c(0, 0.025, 0.5, 0.97
 	rval
 }
 
-#TODO: Do something with this or delete it
-prettyPrintBFResults = function(bfRes, aggregateBy, aggregateByLevels, bfType = "10", 
-																quantiles = c(0, 0.025, 0.5, 0.975, 1), geometricZs = c(-2, 2)) 
-{
-
-	
-	keep = rep(TRUE, nrow(bfRes))
-	for (i in 1:length(aggregateBy)) {
-		keep = keep & bfRes[ , aggregateBy[i] ] == aggregateByLevels[i]
-	}
-	bfRes = bfRes[ keep, ]
-	
-	bfs = bfRes[ , paste0("bf", bfType) ]
-	logbfs = log(bfs, base=10)
-
-	
-	qs = stats::quantile(bfs, quantiles)
-	logqs = stats::quantile(logbfs, quantiles)
-	
-	qs = as.matrix(qs)
-	logqs = as.matrix(logqs)
-	
-	qs = cbind(qs, logqs)
-	colnames(qs) = c("Linear", "Log")
-	
-	if (quantiles[1] == 0) {
-		rownames(qs) = c("Min", rownames(qs)[-1])
-	}
-	if (quantiles[length(quantiles)] == 1) {
-		rownames(qs) = c(rownames(qs)[-length(quantiles)], "Max")
-	}
-	if (any(quantiles == 0.5)) {
-		ind = which(quantiles == 0.5)
-		n = rownames(qs)
-		n[ind] = "Median"
-		rownames(qs) = n
-	}
-	
-
-	cat("Bayes factors in favor of the hypothesis that there ")
-	if (bfType == "01") {
-		cat("*is not* ")
-	} else {
-		cat("*is* ")
-	}
-	cat("an effect for ")
-	cat( paste(paste(aggregateBy, aggregateByLevels, sep=": "), collapse=", ") )
-	cat(".\n")
-	
-	cat("\nQuantiles:\n")
-	print(qs)
-	cat("\n")
-	
-	
-	ms = matrix(0, nrow=3, ncol=2)
-	rownames(ms) = c("Linear", "Log Linear", "Geometric")
-	colnames(ms) = c("Mean", "SD")
-	
-	ms["Linear", "Mean"] = mean(bfs)
-	ms["Linear", "SD"] = stats::sd(bfs)
-	
-	ms["Log Linear", "Mean"] = mean(logbfs)
-	ms["Log Linear", "SD"] = stats::sd(logbfs)
-	
-	ms["Geometric", "Mean"] = geoMean(bfs)
-	ms["Geometric", "SD"] = geoSD(bfs)
-
-	print(ms)
-	
-	pInFavor = mean(bfs > 1)
-	cat("\nProportion of BFs in favor of hypothesis: ")
-	cat(pInFavor)
-	cat(".\n")
-	
-	
-	title = paste0("Log BF for ", paste(paste(aggregateBy, aggregateByLevels, sep=": "), collapse=", "))
-	graphics::hist(logbfs, xlab="Log BF", main=title)
-	graphics::abline(v = 0, lty=2)
-}
-
-
 
 #all(x > 0)
 geoMean = function(x) {
@@ -789,57 +506,85 @@ geoQ = function(z, mu, sigma) {
 #' 
 #' @param results The results from the \code{\link{runParameterEstimation}} function. Note that you can run 1 iteration and still have all the information you need.
 #' @param param The name of the parameter for which to calculate MEI effect parameter priors.
-#' @param priorLoc A new prior location to try.
-#' @param priorScale A new prior scale to try.
+#' @param testedFactors Character vector. The factors for which to perform the hypothesis test as a vector of factor names. A single factor name results in the test of the main effect of the factor. Multiple factor names result in the test of the interaction of all of those factors.
+#' @param dmFactors Character vector. The factors to use to construct the design matrix. For a fully-crossed (balanced) design, this can always be equal to \code{testFactors} (the default). For non-fully-crossed designs, you may sometimes want to create a design matrix using some factors, but perform a hypothesis test with only some of those factors (\code{testedFactors} must be a subset of \code{dmFactors}).
+#' @param contrastType Character (or function). The contrast to use to create the design matrix. Can be any of the function names on the documentation page for \code{contr.sum}. For a non-fully-crossed (unbalanced) design, you should use either "contr.treatment" or "contr.SAS". For a balanced design, you can use anything, but psychologists are most used to "contr.sum", which uses sums-to-zero constraints.
+#' @param priorLoc A new prior location to try, overriding the value in results$priors.
+#' @param priorScale A new prior scale to try, overriding the value in results$priors.
 #' 
 #' @return A \code{data.frame} with four columns: 1) the factor being used, 2) the MEI parameter, 3) the prior location, and 4) the prior scale.
 #' 
 #' @export
-getEffectParameterPriors = function(results, param, priorLoc = NULL, priorScale = NULL) {
+calculateMarginalEffectParameterPriors = function(results, param, testedFactors = NULL, dmFactors = NULL, contrastType = NULL, priorLoc = NULL, priorScale = NULL) {
 	
 	factors = results$config$factors
 	
-	factorsToTest = getFactorsForConditionEffect(results$config, param)
-	if (length(factorsToTest) == 0) {
-		return(NULL)
+	testedFactorsSpecified = !is.null(testedFactors)
+	if (is.null(testedFactors)) {
+		testedFactors = getFactorsForConditionEffect(results$config, param)
+		if (length(testedFactors) == 0) {
+			return(NULL)
+		}
 	}
+	
+	calculateList = list()
+	if (testedFactorsSpecified) {
+		calculateList[[ paste0(fNames, collapse = ":") ]] = testedFactors
+	} else {
+		for (layer in 1:length(testedFactors)) {
+			comb = utils::combn(testedFactors, layer)
+			
+			for (i in 1:ncol(comb)) {
+				fNames = comb[,i]
+				overallEffect = paste0(fNames, collapse = ":")
+				
+				calculateList[[ overallEffect ]] = fNames
+			}
+		}
+	}
+	
 	
 	priors = NULL
 	
-	for (layer in 1:length(factorsToTest)) {
-		comb = utils::combn(factorsToTest, layer)
+	for (n in names(calculateList)) {
 		
-		for (i in 1:ncol(comb)) {
-			fNames = comb[,i]
-			overallEffect = paste0(fNames, collapse = ":")
-			
-			uniqueFL = unique(subset(factors, select = fNames))
-			
-			locations = rep(NA, nrow(factors))
-			scales = locations
-			for (i in 1:nrow(factors)) {
-				r = getConditionParameterPrior(results, param, factors$cond[i])
-				locations[i] = r$location
-				scales[i] = r$scale
-				if (factors$cond[i] != results$config$cornerstoneConditionName) {
-					if (!is.null(priorLoc)) {
-						locations[i] = priorLoc
-					}
-					if (!is.null(priorScale)) {
-						scales[i] = priorScale
-					}
+		fNames = calculateList[[n]]
+		
+		uniqueFL = unique(subset(factors, select = fNames))
+		
+		locations = rep(NA, nrow(factors))
+		scales = locations
+		for (i in 1:nrow(factors)) {
+			r = getConditionParameterPrior(results, param, factors$cond[i])
+			locations[i] = r$location
+			scales[i] = r$scale
+			if (factors$cond[i] != results$config$cornerstoneConditionName) {
+				if (!is.null(priorLoc)) {
+					locations[i] = priorLoc
+				}
+				if (!is.null(priorScale)) {
+					scales[i] = priorScale
 				}
 			}
+		}
+
+		gmeihtf = results$config$factors
+		gmeihtf$cond = NULL
+		
+		if (is.null(dmFactors)) {
+			thisDmFactors = fNames
+		} else {
+			thisDmFactors = dmFactors
+		}
+
+		m = getPartialFilledS(gmeihtf, testedFactors = fNames, dmFactors = thisDmFactors, contrastType = contrastType)
+		
+		for (j in 1:ncol(m)) {
+			res = cauchyRvLinearCombination(locations, scales, m[,j])
 			
-			
-			m = getEffectWeightsMatrix(factors, fNames, uniqueFL)
-			
-			for (i in 1:ncol(m)) {
-				res = cauchyRvLinearCombination(locations, scales, m[,i])
-				
-				temp = data.frame(factor = overallEffect, effect = colnames(m)[i], location = res$location, scale = res$scale)
-				priors = rbind(priors, temp)
-			}
+			temp = data.frame(factor = paste0(fNames, collapse = ":"), 
+												effect = colnames(m)[j], location = res$location, scale = res$scale)
+			priors = rbind(priors, temp)
 		}
 		
 	}

@@ -165,13 +165,16 @@ posteriorPredictivePlot = function(results, pnums = NULL, conditions=NULL, rowLa
 		} else {
 			rowLabel = ""
 			thisFactorLevels = results$config$factors[ results$config$factors$cond == cond, ]
-			for (i in 1:length(results$config$factorNames)) {
-				n = results$config$factorNames[i]
+			
+			factorNames = guessFactorNames(results$config$factors)
+			
+			for (i in 1:length(factorNames)) {
+				n = factorNames[i]
 				level = thisFactorLevels[1,n]
 				
 				rowLabel = paste0(rowLabel, n, " ", level)
 				
-				if (i < length(results$config$factorNames)) {
+				if (i < length(factorNames)) {
 					rowLabel = paste0(rowLabel, ", ")
 				}
 			}

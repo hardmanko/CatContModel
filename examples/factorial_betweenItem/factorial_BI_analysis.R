@@ -72,7 +72,7 @@ plot(results$posteriors[[ "pMem_cond[a2]" ]], type='l')
 plot(results$posteriors[[ "pContBetween_cond[b2]" ]], type='l')
 
 
-# Convergence looks pretty fast, so do only 500 burn-in iterations
+# Convergence looks pretty fast, so remove only 500 burn-in iterations
 results = removeBurnIn(results, 500)
 
 
@@ -80,12 +80,14 @@ results = removeBurnIn(results, 500)
 
 # Because of figure legends, you need a large plotting surface, so plot to a pdf.
 pdf("parameterSummary.pdf", 10, 10)
-plotParameterSummary(results)
+plotParameterSummary(results, factorOrder = c("numbers", "letters"))
 dev.off()
+
 
 # There are many, many pairs of comparisons, so it's better to look at main effects
 # and interactions to determine what effects are present.
 testConditionEffects(results)
+
 
 # Test main effects and interactions
 mei = testMainEffectsAndInteractions(results)
@@ -97,12 +99,43 @@ mei[ mei$bfType == "10", ]
 meiSum[ meiSum$bf > 3, ]
 
 
+# We (should) find an interaction for contSD. Because of the interaction,
+# we can't interpret the main effect of letters, so we should perform tests
+# of the effect of letters for each level of numbers.
 
-#There are many conditions, so only plot two of them
+subRes = results # Copy the results so you can freely modify it.
+
+# Pick a level of numbers to use
+newFactors = subRes$config$factors
+newFactors = newFactors[ newFactors$numbers == 2, ] # <<< pick a level
+subRes$config$factors = newFactors
+
+# Run a test of letters for contSD.
+testSingleEffect(subRes, "contSD", "letters")
+
+
+# Let's say that we want to know which levels of the numbers factor are 
+# different for the pMem parameter. We want to do pairwise comparisons of
+# factor levels. This is different than what is done by testConditionEffects,
+# which does pairwise comparisons, but of conditions (cells).
+subRes = results
+
+# Drop the letters factor (because we are collaping across it)
+subRes$config$factors$letters = NULL
+
+# Pick the levels of the numbers factor to use
+usedFactorLevels = data.frame(numbers = c(1,2)) 
+
+testSingleEffect(subRes, "pMem", "numbers", usedFactorLevels = usedFactorLevels)
+
+
+# Plot the posterior predictive distribution to visually examine model fit.
+# There are many conditions, so only plot two of them
 posteriorPredictivePlot(results, results$pnums, conditions=c("a1", "b3"), alpha=0.1)
 
-
+# Get posterior means and credible intervals for conditions.
 posteriorMeansAndCredibleIntervals(results)
+
 
 
 # Examine the success of the parameter estimation

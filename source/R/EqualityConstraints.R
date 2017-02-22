@@ -130,7 +130,7 @@ getFactorsForConditionEffect = function(config, param) {
 	thisFactors = config$conditionEffects[[param]]
 	if (length(thisFactors) == 1) {
 		if (thisFactors == "all") {
-			thisFactors = config$factorNames
+			thisFactors = guessFactorNames(config$factors)
 		} else if (thisFactors == "none") {
 			thisFactors = character(0)
 		}

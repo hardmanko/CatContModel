@@ -1,4 +1,54 @@
 
+#' Factor Levels from Condition Names
+#' 
+#' @param factors A \code{data.frame} formatted like \code{results$config$factors}.
+#' @param conds A character vector of condition names like those in \code{factors$cond}.
+#' 
+#' @return A \code{data.frame} with one row for each element in \code{conds}. The return value will have columns for each factor plus a column named \code{cond}.
+#' 
+#' @export
+getFactorsLevelsFromConds = function(factors, conds) {
+	res = NULL
+	for (i in 1:length(conds)) {
+		thisRows = which(factors$cond == conds[i])
+		
+		if (length(thisRows) > 0) {
+			
+			res = rbind(res, factors[ thisRows, ])
+		} else {
+			#make NA factor levels
+			temp = factors[ 1, ]
+			temp[ , names(temp) ] = NA
+			temp$cond = conds[i]
+			res = rbind(res, temp)
+		}
+		
+	}
+	
+	res
+}
+
+#' Add Factor Levels to Data Frame
+#' 
+#' @param df A \code{data.frame} with a column named \code{cond} with condition names like those in \code{factors$cond}. \code{df} should not have any columns with the names of the factors.
+#' @param factors A \code{data.frame} formatted like \code{results$config$factors}.
+#' 
+#' @return A \code{data.frame} the same as \code{df} except with additional columns with factor levels.
+#' 
+#' @export
+addFactorsToDataFrame = function(df, factors) {
+	
+	tf = getFactorsLevelsFromConds(factors, df$cond)
+	tf$cond = NULL
+	
+	cbind(df, tf)
+}
+
+guessFactorNames = function(factors) {
+	n = names(factors)
+	n[ n != "cond" ]
+}
+
 substituteValues = function(x, xvals, subvals) {
 	y = rep(subvals[1], length(x)) #to get the type right
 	for (i in 1:length(xvals)) {
@@ -510,26 +560,32 @@ warpedHSVColorGeneratingFunction = function(angle, inPoints, outPoints) {
 #' 
 #' For given parameter values, a set of data, and a model variant, this calculates the likelihood for each observation in the data set.
 #' 
-#' Note that if you don't want to provide any catMu parameters, do not set catMu to NULL. Rather, set it to a zero-length vector with \code{vector(length = 0)}. Do not provide catActive parameters. Rather, filter out catMus that are inactive.
+#' Note that if you don't want to provide any catMu parameters, do not set catMu to NULL. Rather, set it to a zero-length vector with \code{vector(length = 0)}. Do not provide catActive parameters. Rather, do not include inactive catMus.
 #' 
-#' If \code{dataType} is \code{"circular"}, you should provide a value for the minSD argument.
-#' 
+#' If \code{dataType} is \code{"circular"}, you should provide a value for the minSD argument. 
 #' If \code{dataType} is \code{"linear"}, you should provide a value for \code{responseRange}
 #' 
 #' @param param A list of parameters just like that returned by \code{\link{getTransformedParameters}}.
-#' @param data A data.frame of the data for which you want to calculate the likelihood. Only the \code{study} and \code{response} columns are required.
-#' @param modelVariant One of betweenItem, withinItem, and ZL.
+#' @param data A data.frame of the data for which you want to calculate the likelihood. Only the \code{study} and \code{response} columns are required, but the \code{pnum} and \code{cond} columns may be included.
+#' @param modelVariant One of \code{"betweenItem"}, \code{"withinItem"}, and \code{"ZL"}.
 #' @param dataType One of \code{"circular"} or \code{"linear"}.
 #' @param responseRange A length 2 vector giving the theoretical minimum and maximum values of a response. Should be provided if \code{dataType} is \code{"linear"}.
 #' @param minSD The minimum standard deviation of the Von Mises or normal distributions.
 #' 
-#' @return The provided \code{data} data.frame with an additional column named \code{likelihood} giving the likelihood for that observation.
+#' @return The provided \code{data} data.frame with an additional column named \code{likelihood} giving the likelihood for each observation.
 #' 
 #' @export
 likelihood = function(param, data, modelVariant, dataType = "circular", 
 											responseRange=NULL, minSD=NULL) 
 {
-	allParam = c(getSdParams(NULL), getProbParams(NULL), "catMu")
+	
+	tr = list(config = list(modelVariant = modelVariant))
+	
+	allParam = c(getSdParams(tr, filter=TRUE), 
+							 getProbParams(tr, filter=TRUE))
+	if (modelVariant != "ZL") {
+		allParam = c(allParam, "catMu")
+	}
 	if (!all(allParam %in% names(param))) {
 		stop("Not all parameters were provided.")
 	}

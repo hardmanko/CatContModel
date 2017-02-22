@@ -232,9 +232,10 @@ getSubsampleIterationsToRemove = function(totalIterations, subsamples, subsample
 #' }
 #'
 #' @export
-#'
 testConditionEffects = function(results, param = NULL, subsamples = 1, subsampleProportion = 1, summarize=TRUE) {
 
+	#TODO: Rename to pairwiseComparisonsOfConditions?
+	
 	subsampleIterationsToRemove = getSubsampleIterationsToRemove(results$config$iterations, subsamples, subsampleProportion)
 	
 	

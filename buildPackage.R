@@ -7,7 +7,7 @@ library(Rcpp)
 library(devtools)
 library(roxygen2)
 
-CatContPackageVersion = "0.7.1"
+CatContPackageVersion = "0.7.2"
 addingDataSets = FALSE
 
 baseDir = "~/../Programming/R/CatContModel/"
@@ -82,7 +82,7 @@ devtools::use_package("LineChart", type = "Suggests", pkg=packageLocation)
 #Modify the DESCRIPTION
 dcf = read.dcf( paste(fullPackagePath, "DESCRIPTION", sep="") )
 dcf[,"Title"] = "Categorical and Continuous Working Memory Models for Delayed-Estimation Tasks"
-dcf[,"Description"] = "Perform parameter estimation, posterior distribution analysis, and model comparison with the models used by Hardman, Vergauwe, & Ricker (2016). The models in this package are for delayed-estimation tasks that are commonly used in the working memory literature. The models a difficult to implement and work with for a variety of reasons, hence the value of this package. Hierarchical Bayesian implementations of between-item and within-item model variants used by Hardman, Vergauwe, and Ricker are included, as is the Zhang & Luck (2008) model. For any of these models, functions in this package allow you to relatively easily estimate the model parameters, plot parameter values, calculate posterior means and credible intervals, perform tests of the effect of task conditions on parameters, and calculate model fit statistics, among other things."
+dcf[,"Description"] = "Perform parameter estimation, posterior distribution analysis, and model comparison with the models used by Hardman, Vergauwe, & Ricker (2017). The models in this package are for delayed-estimation tasks that are commonly used in the working memory literature. The models a difficult to implement and work with for a variety of reasons, hence the value of this package. Hierarchical Bayesian implementations of between-item and within-item model variants used by Hardman, Vergauwe, and Ricker are included, as is the Zhang & Luck (2008) model. For any of these models, functions in this package allow you to relatively easily estimate the model parameters, plot parameter values, calculate posterior means and credible intervals, perform tests of the effect of task conditions on parameters, and calculate model fit statistics, among other things."
 dcf[,"Author"] = "Kyle O Hardman"
 dcf[,"Maintainer"] = "Kyle O Hardman <kylehardman@gmail.com>"
 dcf[,"Version"] = CatContPackageVersion
