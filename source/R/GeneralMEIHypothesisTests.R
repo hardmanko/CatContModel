@@ -99,7 +99,7 @@ makeCellName = function(cnl) {
 # other than for contr.treatment (and contr.SAS).
 makeDesignMatrix = function(factors, dmFactors, contrastType, renameCols=FALSE) {
 	
-	if (class(dmFactors) == class(formula())) {
+	if (class(dmFactors) == class(stats::formula())) {
 		form = dmFactors
 	} else {
 		form = paste("~", paste(dmFactors, collapse = " * "))
@@ -343,7 +343,7 @@ testHypothesis_effect = function(priorEffects, postEffects, devianceFunction = N
 testHypothesis = function(priorCMs, postCMs, factors, testedFactors, dmFactors = testedFactors,
 													contrastType = NULL, devianceFunction = NULL, testFunction = NULL) {
 	
-	if (class(dmFactors) != class(formula()) && !all(testedFactors %in% dmFactors)) {
+	if (class(dmFactors) != class(stats::formula()) && !all(testedFactors %in% dmFactors)) {
 		stop("testedFactors must be a subset of dmFactors.")
 	}
 	

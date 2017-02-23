@@ -75,8 +75,8 @@ file.remove( paste( fullPackagePath, "Read-and-delete-me", sep="") )
 devtools::use_package("CircStats", pkg=packageLocation)
 devtools::use_package("polspline", pkg=packageLocation)
 devtools::use_package("msm", pkg=packageLocation)
+devtools::use_package("R.rsp", type = "Suggests", pkg=packageLocation)
 devtools::use_package("LineChart", type = "Suggests", pkg=packageLocation)
-
 
 
 #Modify the DESCRIPTION
@@ -87,10 +87,11 @@ dcf[,"Author"] = "Kyle O Hardman"
 dcf[,"Maintainer"] = "Kyle O Hardman <kylehardman@gmail.com>"
 dcf[,"Version"] = CatContPackageVersion
 
-newCols = matrix("R (>= 3.3)", nrow=1, ncol=1)
-colnames(newCols) = c("Depends")
+dependsCol = matrix("R (>= 3.3)", nrow=1, ncol=1, dimnames = list(c(), "Depends"))
 
-dcf = cbind(dcf, newCols)
+vignBuilder = matrix("R.rsp", nrow=1, ncol=1, dimnames = list(c(), "VignetteBuilder"))
+
+dcf = cbind(dcf, dependsCol, vignBuilder)
 
 write.dcf(dcf, file = paste(fullPackagePath, "DESCRIPTION", sep="") )
 
@@ -99,6 +100,16 @@ write.dcf(dcf, file = paste(fullPackagePath, "DESCRIPTION", sep="") )
 dir.create(paste(fullPackagePath, "inst/", sep=""))
 #file.copy(from = paste(baseDir, "docs/toCopy/CITATION", sep=""), to = paste(fullPackagePath, "inst/CITATION", sep=""))
 file.copy(from = paste(baseDir, "LICENSE.md", sep=""), to = paste(fullPackagePath, "LICENSE", sep=""))
+
+#Copy over manual and supporting asis file
+file.copy(from = paste0(baseDir, "docs/introduction/Introduction.pdf"), 
+					to = paste0(fullPackagePath, "inst/doc/Introduction.pdf"))
+
+file.copy(from = paste0(baseDir, "docs/toCopy/Introduction.pdf.asis"), 
+					to = c(paste0(fullPackagePath, "inst/doc/Introduction.pdf.asis"),
+								 paste0(fullPackagePath, "vignettes/Introduction.pdf.asis")
+								 )
+					)
 
 
 
@@ -119,7 +130,7 @@ devtools::check(packageLocation)
 #run either of the following commands!!!
 
 #Build source archive of package
-devtools::build(packageLocation, path=paste(baseDir, "packaged/", sep="") ) 
+devtools::build(packageLocation, path=paste(baseDir, "packaged/", sep="") )
 
 #Build binary archive of package
 devtools::build(packageLocation, path=paste(baseDir, "packaged/", sep=""), binary = TRUE)

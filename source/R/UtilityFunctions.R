@@ -1,4 +1,13 @@
 
+#' Open CatContModel Package Introduction Manual
+#' 
+#' Opens the manual for the package. 
+#' 
+#' @export
+CatContModelManual = function() {
+	utils::vignette("Introduction", "CatContModel")
+}
+
 #' Factor Levels from Condition Names
 #' 
 #' @param factors A \code{data.frame} formatted like \code{results$config$factors}.
