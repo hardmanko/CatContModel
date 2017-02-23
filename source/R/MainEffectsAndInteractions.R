@@ -112,7 +112,7 @@ testEffect_general = function(priorCMs, postCMs, factors, testedFactors, dmFacto
 #' @param results The results from the \code{\link{runParameterEstimation}} function.
 #' @param param The name of the parameter for which to perform the test.
 #' @param testedFactors Character vector. The factors for which to perform the hypothesis test as a vector of factor names. A single factor name results in the test of the main effect of the factor. Multiple factor names result in the test of the interaction of all of those factors.
-#' @param dmFactors Character vector. The factors to use to construct the design matrix. For a fully-crossed (balanced) design, this can always be equal to \code{testFactors} (the default). For non-fully-crossed designs, you may sometimes want to create a design matrix using some factors, but perform a hypothesis test with only some of those factors (\code{testedFactors} must be a subset of \code{dmFactors}).
+#' @param dmFactors Character vector or formula. The factors to use to construct the design matrix. For a fully-crossed (balanced) design, this can always be equal to \code{testFactors} (the default). For non-fully-crossed designs, you may sometimes want to create a design matrix using some factors, but perform a hypothesis test with only some of those factors (\code{testedFactors} must be a subset of \code{dmFactors}). You may instead supply a \code{formula} like that taken by \code{\link{model.matrix}} which will be used to create the design matrix.
 #' @param usedFactorLevels A \code{data.frame} with columns for each of the factors. Each row specifies factor levels that should be included in the test. This allows you to do things like pairwise comparisons of specific factor levels.
 #' @param priorSamples Number of samples to take from the prior distribution of the effect parameters. You should not change this from the default unless you are using a custom testFunction, in which case you might want to use a different value.
 #' @param devianceFunction You should not provide a value for this unless you (think you) know what you are doing. A function used for calculating the deviation of the effect parameters. It takes a vector of effect parameters and calculates some measure of how dispersed they are. One example of such a function is the built-in R function \code{var}.
@@ -143,9 +143,9 @@ testSingleEffect = function(results, param, testedFactors, dmFactors = testedFac
 	
 }
 
-# useFullDMForUnbalanced If TRUE and the design is unbalanced, the design matrix that is used for all tests will be the design matrix with all effects in it. This means that a main effect will not really be a marginal test, because interactions will be accounted for. This may or may not be what you want to do.
-testMEI_singleParameter = function(results, param, priorSamples = NULL, doPairwise = FALSE, devianceFunction = NULL, testFunction = NULL, useFullDMForUnbalanced = TRUE) {
-	
+# You could add an argument: useFullDMForUnbalanced If TRUE and the design is unbalanced, the design matrix that is used for all tests will be the design matrix with all effects in it. This means that a main effect will not really be a marginal test, because interactions will be accounted for. This may or may not be what you want to do.
+testMEI_singleParameter = function(results, param, priorSamples = NULL, doPairwise = FALSE, devianceFunction = NULL, testFunction = NULL) {
+
 	factorsToTest = getFactorsForConditionEffect(results$config, param)
 	if (length(factorsToTest) == 0) {
 		return(NULL)
@@ -229,7 +229,7 @@ testMEI_singleParameter = function(results, param, priorSamples = NULL, doPairwi
 #' For designs that are fully-crossed, sums-to-zero contrasts are used by default. Like any other kind of orthogonal contrast, sums-to-zero contrasts result in main effects and interactions that are independent of one another. Thus, for example, a main effect is the same regardless of whether you also included an interaction in the design or not. For designs that are not fully crossed, treatment contrasts are used by default. Treatment contrasts are non-orthogonal, which means that effects are not independent of one another. For example, a main effect changes depending on whether or not you include an interaction in the model. Thus, when working with non-fully-crossed designs, you must decide what effects you want to include in the model when you are testing an effect. 
 #' This function does marginal tests: It only estimates what it needs to to do the test. Thus, if testing a main effect, only that main effect is estimated. If testing a two-factor interaction, only the two related main effects and that interaction are estimated.
 #' You cannot do more this with this function, but see \code{\link{testSingleEffect}} for a function that gives you more control over the test that is performed. 
-#' In addition, for designs that are not fully croseed, you can still use \code{\link{testConditionEffects}} to examine pairwise comparisons.
+#' In addition, for designs that are not fully croseed, you can still use \code{\link{testConditionEffects}} to examine pairwise comparisons. See the introduction.pdf manual for more discussion of non-fully-crossed designs.
 #' 
 #' @param results The results from the \code{\link{runParameterEstimation}} function.
 #' @param param Optional. Character vector of names of parameters to perform tests for. If NULL (default), is set to all parameters with condition effects.

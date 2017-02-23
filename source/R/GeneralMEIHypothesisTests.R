@@ -99,13 +99,19 @@ makeCellName = function(cnl) {
 # other than for contr.treatment (and contr.SAS).
 makeDesignMatrix = function(factors, dmFactors, contrastType, renameCols=FALSE) {
 	
-	form = paste("~", paste(dmFactors, collapse = " * "))
-	form = stats::formula(form)
-	
+	if (class(dmFactors) == class(formula())) {
+		form = dmFactors
+	} else {
+		form = paste("~", paste(dmFactors, collapse = " * "))
+		form = stats::formula(form)
+	}
+
 	tt = stats::terms(form)
 	
+	o1terms = getFirstOrderTermLabels(tt)
+	
 	contrasts = list()
-	for (fn in dmFactors) {
+	for (fn in o1terms) {
 		contrasts[[fn]] = contrastType
 	}
 	
@@ -118,6 +124,9 @@ makeDesignMatrix = function(factors, dmFactors, contrastType, renameCols=FALSE) 
 	list(mat=m, terms=tt)
 }
 
+getFirstOrderTermLabels = function(terms) {
+	attr(terms, "term.labels")[ attr(terms, "order") == 1 ]
+}
 
 # Internal function.
 # If the design matrix is not full rank, this function removes columns 
@@ -162,7 +171,12 @@ getEffectAssignmentColumns = function(dm, fNames) {
 	assignments = attr(dm$mat, "assign")
 	
 	effectAssignment = which(labels == effect)
+
 	mCols = which(assignments == effectAssignment)
+	
+	if (length(mCols) == 0) {
+		stop( paste0("No design matrix columns associated with effect \"", effect, "\".") )
+	}
 	
 	mCols
 	
@@ -322,14 +336,14 @@ testHypothesis_effect = function(priorEffects, postEffects, devianceFunction = N
 # @param postCMs Numeric matrix. Cell means sampled from the posterior distribution. The columns must correspond to the rows of factors but do not need to be named. 
 # @param factors A \code{data.frame} containing information about the experimental design. Each column is a factor of the design. Each row contains the levels of the factors that define a cell of the design. No additional columns may be included in factors.
 # @param testedFactors Character vector. The factors for which to perform the hypothesis test as a vector of factor names. A single factor name results in the test of the main effect of the factor. Multiple factor names result in the test of the interaction of all of those factors.
-# @param dmFactors Character vector. The factors to use to construct the design matrix. For a fully-crossed (balanced) design, this can always be equal to \code{testFactors} (the default). For non-fully-crossed designs, you may sometimes want to create a design matrix using some factors, but perform a hypothesis test with only some of those factors (\code{testedFactors} must be a subset of \code{dmFactors}).
+# @param dmFactors Character vector or formula. The factors to use to construct the design matrix. For a fully-crossed (balanced) design, this can always be equal to \code{testFactors} (the default). For non-fully-crossed designs, you may sometimes want to create a design matrix using some factors, but perform a hypothesis test with only some of those factors (\code{testedFactors} must be a subset of \code{dmFactors}). You may instead supply a \code{formula} like that taken by \code{\link{model.matrix}} which will be used to create the design matrix.
 # @param contrastType Character (or function). The contrast to use to create the design matrix. Can be any of the function names on the documentation page for \code{contr.sum}. For a non-fully-crossed (unbalanced) design, you should use either "contr.treatment" or "contr.SAS". For a balanced design, you can use anything, but psychologists are most used to "contr.sum", which uses sums-to-zero constraints.
 # @param devianceFunction See the documentation for \code{testHypothesis_effect}. You can probably leave this at the default value.
 # @param testFunction See the documentation for \code{testHypothesis_effect}. You can probably leave this at the default value.
 testHypothesis = function(priorCMs, postCMs, factors, testedFactors, dmFactors = testedFactors,
 													contrastType = NULL, devianceFunction = NULL, testFunction = NULL) {
 	
-	if (!all(testedFactors %in% dmFactors)) {
+	if (class(dmFactors) != class(formula()) && !all(testedFactors %in% dmFactors)) {
 		stop("testedFactors must be a subset of dmFactors.")
 	}
 	
