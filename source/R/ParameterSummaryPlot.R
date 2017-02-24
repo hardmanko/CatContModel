@@ -403,6 +403,7 @@ plotParameterSummary = function(results, paramSymbols=NULL, catMuPrec=2, factorO
 	graphics::split.screen(screenCells)
 	#par(mar=c(4,5,2,1))
 	
+	availableFactorNames = guessFactorNames(results$config$factors)
 	post = convertPosteriorsToMatrices(results)
 	
 	for (paramInd in 1:length(parameterOrder)) {
@@ -414,7 +415,9 @@ plotParameterSummary = function(results, paramSymbols=NULL, catMuPrec=2, factorO
 		
 		pc = parameterConfiguration[[param]]
 
+		#Get the factors for this parameter that 1) are estimated and 2) are in the available factors in factors.
 		parameterFactors = getFactorsForConditionEffect(results$config, param)
+		parameterFactors = parameterFactors[ parameterFactors %in% availableFactorNames ]
 		
 		if (length(parameterFactors) == 0) {
 			#no condition effects, do some kind of histogram
@@ -429,9 +432,27 @@ plotParameterSummary = function(results, paramSymbols=NULL, catMuPrec=2, factorO
 				plotHistWithMean(meanCatActive, xlab="Number of Categories", breaks=10)
 				
 			} else {
-				#do histogram
+				# Do histogram. Collapse across all available conditions, 
+				# applying condition effects to participant parameters.
+				
 				trans = getParameterTransformation(param, results)
-				meanForParts = apply( trans(post[[param]]), 2, mean)
+				
+				allConds = results$config$factors$cond
+				ceMat = matrix(NA, nrow = results$config$iterations, ncol = length(allConds))
+				for (cc in 1:length(allConds)) {
+					ceMat[,cc] = results$posteriors[[ paste0(param, "_cond[", allConds[cc], "]") ]]
+				}
+				
+				meanForParts = rep(NA, ncol(post[[param]]))
+				for (pi in 1:ncol(post[[param]])) {
+					thisP = post[[param]][,pi]
+					thisP = matrix(rep(thisP, times=ncol(ceMat)), ncol=ncol(ceMat), byrow = FALSE) #expand
+
+					combinedP = trans(thisP + ceMat)
+					
+					meanForParts[pi] = mean(combinedP)
+				}
+				
 				plotHistWithMean(meanForParts, xlab=pc$label, breaks=pc$breaks, xlim=pc$range)
 			}
 			
