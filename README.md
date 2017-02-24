@@ -70,6 +70,8 @@ This package is released under the MIT license. See LICENSE.md for more informat
 
 # Versions
 
+0.7.3 - Bugfix. See the release.
+
 0.7.2 - Added support for non-fully-crossed designs. Additional documentation and bugfixes.
 
 0.7.1 - Bugfixes in examineMHAcceptance and posteriorPredictivePlot.
