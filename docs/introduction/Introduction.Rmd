@@ -892,10 +892,28 @@ results = runParameterEstimation(config, data, constantValueOverrides = pcbOverr
 
 ### Within-Item
 
-The within-item model has an issue, which is that if very few categories are active, `pContWithin` is essentially forced to be 1. Imagine the case in which there is only 1 active category at 180 degrees and that `pContWithin` is 0.5. This means that the model will predict that memory responses will be on a line essentially going from (0, 90) to (360, 270). This forces `pContWithin` to 1 so that the line will go from (0, 0) to (360, 360) and capture the bulk of the data. The between-item model doesn't have this issue because the categorical and continuous response are treated separately
+The within-item model has an issue, which is that if very few categories are active, `pContWithin` is essentially forced to be 1. Imagine the case in which there is only 1 active category at 180 degrees and that `pContWithin` is 0.5. This means that the model will predict that memory responses will be on a line essentially going from (0, 90) to (360, 270), passing through (180, 180). This line would provide terrible fit for the data, unless there was something really bizarre about the data. This forces `pContWithin` to 1 so that the line will go from (0, 0) to (360, 360) and capture the bulk of the data. With more active categories, it becomes less of an issue as there are multiple line segments, so no one part of a line segment is too far from the intercept 0, slope 1 line.
+The between-item model doesn't have this issue because the categorical and continuous response are treated separately. One possible solution to this is to use constant parameter values overrides to force a few categories (maybe 4) to always be active, but that does have the effect of always having a few active categories.
 
-One possible solution to this is to use constant parameter values overrides to force a few categories (maybe 4) to always be active, but that does have the effect of always having a few active categories.
+For estimation of `catSD` and `contSD`, the within-item model is much more fragile than the between-item model due to how those parameters are estimated. In the between-item model, `catSD` is estimated from to categorical memory responses and categorical guesses while `contSD` is estimated from continuous memory responses. For the within item model, `catSD` is estimated from categorical guessing and from a part of the mixed categorical and continuous responses, while `contSD` is estimated from a part of the mixed categorical and continuous responses. 
 
+For more information, read the "Within-Item Model Variant" section of the Appendix of @HardmanVergauweRicker2017. In particular, notice how Equation 25 for $\sigma^{W}$ contains the two parameters of interest, `contSD` ($\sigma^{O}$) and `catSD` ($\sigma^{A}$). Then $\sigma^{W}$ gets plugged in to Equation 22, which contains data. Thus, $\sigma^{W}$ is straightforward to estimate because it is based on data directly, but `contSD` and `catSD` cannot be estimated directly: they could trade off perfectly without some other constraint. That other constraint comes from the estimation of `catSD` from categorical guesses.
+
+**Important**: From the above, if there is no categorical guessing, the within-item model _cannot estimate_ both `catSD` and `contSD`. In fact, it will likely be unable to estimate either of them as they will trade off horribly. If there is very little categorical guessing, like 10\% of guesses, you probably can't reasonably estimate `catSD` or `contSD` either.
+
+If there is truly 0 categorical guessing, one partial solution would be to set $\sigma^A$ to the constant value 0 (and probably also set `pCatGuess` to 0 to be sure that no categorical guessing is estimated). In this case, you cannot estimate both $\sigma^O$ and $\sigma^A$, but you can estimate their mixture, $\sigma^W$. The model doesn't diectly estimate $\sigma^W$, but you can calculate it after the fact by using the following logic.
+
+Start from Equation 25:
+
+$\sigma^W = [ P^2 * (\sigma^O)^2 + (1 - P^2) * (\sigma^A)^2 ]^{1/2}$
+
+If $\sigma^A = 0$, then the above equation becomes,
+
+$\sigma^W = [ P^2 * (\sigma^O)^2 ]^{1/2} = P * \sigma^O$
+
+Note that you cannot interpret $\sigma^O$ as meaning anything in this context, because you don't know what $\sigma^A$ is (it is not actually 0). You can only interpret $\sigma^W$ as being the mixture of two unknown quantities. Given that, it may be useful to know that $\sigma^W \leq max(\sigma^O, \sigma^A)$.
+
+If you have some small but decidedly nonzero amount of categorical guessing, it may be a better solution to set `catSD` to a constant value (based on past research, maybe).
 
 ### ZL (Zhang & Luck)
 
