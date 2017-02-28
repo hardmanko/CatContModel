@@ -97,7 +97,6 @@ namespace CatCont {
 				OUT_weights[i] = d;
 			}
 
-			//TODO: What do you do if densSum is tiny/zero???
 			if (densSum < 1e-250) {
 
 				//If densSum is tiny, give equal weights
@@ -111,7 +110,7 @@ namespace CatCont {
 			}
 		}
 
-
+		//See Equation 25 in the Appendix. This is a rewritten form. sigma^2 = 1 / kappa
 		double combineKappas(double contKappa, double catKappa, double pCont) {
 
 			//This is based on the idea that the study and category locations both have some amount of
@@ -119,7 +118,7 @@ namespace CatCont {
 			double combinedVariance = (pow(pCont, 2) / contKappa) + (pow((1 - pCont), 2) / catKappa);
 
 			double newKappa = 1 / combinedVariance; //convert variance back to precision
-			newKappa = std::min(newKappa, vmLut.maxValue()); //make sure the newKappa is in range. This is invisible to the rest of the system!
+			newKappa = std::min(newKappa, vmLut.maxValue()); //Make sure the newKappa is in range. This is invisible to the rest of the system!
 															 //However, it is also very rare that this is needed, at least for my data.
 			return newKappa;
 		}

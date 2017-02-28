@@ -32,6 +32,7 @@ verifyConfigurationList = function(config, data) {
 	
 	allAllowedConfigKeys = c("iterations", "modelVariant", "iterationsPerStatusUpdate", 
 													 "cornerstoneConditionName", "maxCategories", "minSD", 
+													 "catMuPriorApproximationPrecision",
 													 "calculateParticipantLikelihoods", "conditionEffects",
 													 "dataType", "responseRange", "catMuRange", "factors")
 	
@@ -124,6 +125,11 @@ verifyConfigurationList = function(config, data) {
 	if (is.null(config$minSD)) {
 		config$minSD = 1
 		cat(paste("Note: config$minSD not set. Set to ", config$minSD, " degree.\n", sep=""))
+	}
+	
+	if (is.null(config$catMuPriorApproximationPrecision)) {
+		config$catMuPriorApproximationPrecision = 60
+		cat(paste("Note: config$catMuPriorApproximationPrecision not set. Set to ", config$catMuPriorApproximationPrecision, " points at which the prior is evaluated.\n", sep=""))
 	}
 	
 	if (is.null(config$calculateParticipantLikelihoods)) {

@@ -65,6 +65,8 @@ namespace CatCont {
 			string cornerstoneConditionName;
 			unsigned int cornerstoneConditionIndex;
 
+			unsigned int catMuPriorApproximationPrecision;
+
 			SDRanges ranges;
 
 			bool calculateParticipantLikelihoods;
@@ -77,13 +79,8 @@ namespace CatCont {
 			vector<string> getParamWithoutConditionEffects(void) const;
 			vector<string> getParamWithHierachicalPriors(void) const;
 
-			//EqualityConstraints equalCon;
-
 			Linear::LinearConfiguration linearConfiguration;
 		};
-
-		Bayesian();
-
 
 
 		void setData(vector<ParticipantData> data);
@@ -167,8 +164,6 @@ namespace CatCont {
 			double sd; //standard deviation in degrees/units
 			double kappa; //precision in radians
 			double maxLikelihood; //non-log
-
-			unsigned int catMuScaleFactorApproximationSteps;
 		} _catMuPriorData;
 
 		double _scaledCatMuDensity(const vector<double>& mus, const vector<unsigned int>& catActives, unsigned int k, unsigned int steps) const;

@@ -427,7 +427,7 @@ plotWeightsFunction = function(catMu, catSelectivity, dataType = "circular",
 
 
 
-
+#These equations numbers correspond to the Appendix of Hardman, Vergauwe, and Ricker (2017)
 h_eq20 = function(mu_k, nu_k, mu_kp, nu_kp, catMuPriorSD, dataType) {
 	
 	if (dataType == "circular") {
@@ -509,7 +509,7 @@ plotCatMuPrior = function(catMuPriorSD, catMu, dataType = "circular", catActive 
 	if (dataType == "circular") {
 		xs = seq(0, 360, 1)
 	} else if (dataType == "linear") {
-		xs = seq(muRange[1], muRange[2], 1)
+		xs = seq(muRange[1], muRange[2], length.out = 360)
 	}
 	
 	dens = xs

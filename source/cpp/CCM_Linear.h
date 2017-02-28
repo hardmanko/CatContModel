@@ -2,9 +2,6 @@
 
 #include "CCM_Util.h"
 
-//#include "GibbsSampler.h"
-//#include "UtilityFunctions.h"
-
 namespace CatCont {
 
 	namespace Linear {
@@ -17,9 +14,9 @@ namespace CatCont {
 				double lower;
 				double upper;
 			} response;
-			//study??
 
-			//just make these twice the response ones to sort of constrain the mus?
+			//Study ranges are not needed
+
 			struct {
 				double lower;
 				double upper;
@@ -27,18 +24,11 @@ namespace CatCont {
 
 		};
 
-		//Minial version?
-		struct LinearLikelihoodConfig {
-			ModelVariant modelVariant;
-
-			double lower;
-			double upper;
-		};
-
 		double normalPDF(double x, double mu, double sd);
 		double normalCDF(double x, double mu, double sd);
 		double dtnorm_denominator(double mu, double sd, double lower, double upper);
-		double dtnorm(double x, double mu, double sd, double lower, double upper, bool log = false);
+		double dtnorm(double x, double mu, double sd, double lower, double upper, bool log_ = false);
+		vector<double> dtnorm(const vector<double>& x, double mu, double sd, double lower, double upper, bool log_);
 		double dtnorm_noBoundCheck(double x, double mu, double sd, double lower, double upper);
 
 		vector<double> betweenAndWithinLikelihood(const CombinedParameters& par, const ConditionData& data, const LinearConfiguration& config);

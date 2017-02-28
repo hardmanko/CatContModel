@@ -87,14 +87,7 @@ namespace CatCont {
 				vector<double>& samples = par->getSamples();
 				samples.clear();
 				samples.push_back(overrides.startingValues.at(par->name));
-			} 
-			/*
-			else {
-				std::stringstream ss;
-				ss << "Note: No starting value found for \"" << par->name << "\".";
-				logMessage("setParameterStartingValues", ss.str());
 			}
-			*/
 		}
 
 		//Also check which values are provided but for which there is no parameter.

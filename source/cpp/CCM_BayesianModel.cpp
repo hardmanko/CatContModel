@@ -4,13 +4,6 @@
 namespace CatCont {
 
 	bool usingDecorrelatingSteps = false;
-	const unsigned int catMuScaleFactorApproximationSteps = 60;
-
-	Bayesian::Bayesian() {
-		_catMuPriorData.catMuScaleFactorApproximationSteps = catMuScaleFactorApproximationSteps;
-		config.calculateParticipantLikelihoods = false;
-	}
-
 
 	double Bayesian::_llFunction(const CombinedParameters& par, const ConditionData& data) const {
 		double rval = 0;
@@ -184,7 +177,8 @@ namespace CatCont {
 			catActives[j] = (unsigned int)param.at("catActive" + catIStr);
 		}
 
-		double density = _scaledCatMuDensity(mus, catActives, catIndex, _catMuPriorData.catMuScaleFactorApproximationSteps);
+		
+		double density = _scaledCatMuDensity(mus, catActives, catIndex, config.catMuPriorApproximationPrecision);
 
 		return std::log(density);
 	}
@@ -208,8 +202,8 @@ namespace CatCont {
 		activeCatActives[catIndex] = 1;
 		inactiveCatActives[catIndex] = 0;
 
-		double activeDens = _scaledCatMuDensity(mus, activeCatActives, catIndex, _catMuPriorData.catMuScaleFactorApproximationSteps);
-		double inactiveDens = _scaledCatMuDensity(mus, inactiveCatActives, catIndex, _catMuPriorData.catMuScaleFactorApproximationSteps);
+		double activeDens = _scaledCatMuDensity(mus, activeCatActives, catIndex, config.catMuPriorApproximationPrecision);
+		double inactiveDens = _scaledCatMuDensity(mus, inactiveCatActives, catIndex, config.catMuPriorApproximationPrecision);
 
 		double numDens = (catActives[catIndex] == 1) ? activeDens : inactiveDens;
 		double denDens = activeDens + inactiveDens;
@@ -272,14 +266,13 @@ namespace CatCont {
 			double kappa = Circular::sdDeg_to_precRad(sd);
 
 			//clamp again. TODO: This is still not needed.
-			double clampedKappa = clamp(kappa, ranges.minPrecision, ranges.maxPrecision);
+			//double clampedKappa = clamp(kappa, ranges.minPrecision, ranges.maxPrecision);
 
-			return clampedKappa;
+			return kappa;
 		} else if (dataType == DataType::Linear) {
 			sd = clamp(sd, ranges.minSd, ranges.maxSd); //This should be treated differently for normal. The minSd can be small.
 			return sd;
 		}
-
 
 		return 0;
 	}
@@ -365,7 +358,9 @@ namespace CatCont {
 					catMu.llFunction = bind(&Bayesian::catMu_ll, this, _1, _2, i, j);
 
 					//The start value is in a grid within the response range
-					//TODO: Maybe only for linear?
+					//This works in the same way for both linear and circular. 
+					//Imagine a circular design with data on only part of the circle.
+					//Note that this uses the data response range rather than the user-settable config response range.
 					double stepSize = (data.responseRange.upper - data.responseRange.lower) / (double)config.maxCategories;
 					double startValue = (j + 0.5) * stepSize + data.responseRange.lower;
 
@@ -414,6 +409,7 @@ namespace CatCont {
 
 		vector<string> conditionEffectsToCreate = config.getParamWithAndWithoutConditionEffects();
 		EqualityConstraints eq;
+		//TODO: Do something with an error code from setup().
 		eq.setup(overrides.equalityConstraints, data.conditionNames, vector<string>(0));
 		
 		for (unsigned int condIndex = 0; condIndex < data.conditionNames.size(); condIndex++) {
@@ -516,7 +512,7 @@ namespace CatCont {
 		}
 
 
-		//between only variant: set pBetween and pContWithin to 1 (and also their condition effects to 0)
+		//between-item variant: set pBetween and pContWithin to 1 (and also their condition effects to 0)
 		if (config.modelVariant == ModelVariant::BetweenItem) {
 
 			vector<string> pToSet;
@@ -525,7 +521,7 @@ namespace CatCont {
 
 			for (string& s : pToSet) {
 				gibbs.setParameterGroupToConstantValue(s, 100); //100 being essentially 1 once transformed, 
-																   //but it actually doesn't matter because the between likelihood function is used.
+																//but it actually doesn't matter because the between likelihood function is used.
 				gibbs.setParameterGroupToConstantValue(s + "_cond", 0);
 
 				//Get rid of population parameters
@@ -538,7 +534,7 @@ namespace CatCont {
 			}
 		}
 
-		//within only variant: set pBetween and pContWithin to 0 (and also their condition effects to 0)
+		//within-item variant: set pBetween and pContWithin to 0 (and also their condition effects to 0)
 		if (config.modelVariant == ModelVariant::WithinItem) {
 			vector<string> pToSet;
 			pToSet.push_back("pBetween");
@@ -546,7 +542,7 @@ namespace CatCont {
 
 			for (string& s : pToSet) {
 				gibbs.setParameterGroupToConstantValue(s, -100); //-100 being essentially 0 once transformed, 
-																//but it actually doesn't matter because the within likelihood function is used.
+																 //but it actually doesn't matter because the within likelihood function is used.
 				gibbs.setParameterGroupToConstantValue(s + "_cond", 0);
 
 				//Get rid of population parameters

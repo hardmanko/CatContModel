@@ -4,114 +4,7 @@
 #ifdef COMPILING_WITH_RCPP
 
 namespace CatCont {
-/*
-void Bayesian::_doMhOverrides(void) {
-	Rcpp::Rcout << "MH overrides: " << rcppConfig.mhTuningOverrides.size() << endl;
-	if (rcppConfig.mhTuningOverrides.size() == 0) {
-		return;
-	}
 
-	Rcpp::CharacterVector rawNames = rcppConfig.mhTuningOverrides.names();
-	std::vector<string> names(rawNames.begin(), rawNames.end());
-
-	for (unsigned int i = 0; i < names.size(); i++) {
-
-		string name = names[i];
-
-		if (mhTuningSd.find(name) != mhTuningSd.end()) {
-
-			Rcpp::NumericVector vVal = rcppConfig.mhTuningOverrides[name];
-			double val = vVal[0];
-
-			mhTuningSd[name] = val;
-		} else {
-			logMessage("_doMhOverrides", "Warning: Invalid MH tuning override key: \"" + names[i] + "\" ignored.");
-		}
-
-	}
-}
-
-void Bayesian::_doPriorOverrides(void) {
-	Rcpp::Rcout << "Prior overrides: " << rcppConfig.priorOverrides.size() << endl;
-	if (rcppConfig.priorOverrides.size() == 0) {
-		return;
-	}
-
-	Rcpp::CharacterVector rawNames = rcppConfig.priorOverrides.names();
-	std::vector<string> names(rawNames.begin(), rawNames.end());
-
-	for (unsigned int i = 0; i < names.size(); i++) {
-
-		string name = names[i];
-
-		if (priors.find(name) != priors.end()) {
-
-			Rcpp::NumericVector vVal = rcppConfig.priorOverrides[name];
-			double val = vVal[0];
-
-			priors[name] = val;
-		} else {
-			logMessage("_doPriorOverrides", "Warning: Invalid prior override key: \"" + name + "\" ignored.");
-		}
-
-	}
-
-}
-
-void Bayesian::_doConstantParameterOverrides(void) {
-
-	Rcpp::Rcout << "Constant parameter value overrides: " << rcppConfig.constantValueOverrides.size() << endl;
-	if (rcppConfig.constantValueOverrides.size() == 0) {
-		return;
-	}
-
-	Rcpp::CharacterVector rawNames = rcppConfig.constantValueOverrides.names();
-	std::vector<string> names(rawNames.begin(), rawNames.end());
-	map<string, double> vals;
-	for (unsigned int i = 0; i < names.size(); i++) {
-		vals[names[i]] = rcppConfig.constantValueOverrides[names[i]];
-	}
-
-	vector<GibbsParameter*> parameters = gibbs.getParameters();
-	for (unsigned int i = 0; i < parameters.size(); i++) {
-		GibbsParameter* par = parameters[i];
-
-		map<string, double>::iterator it = vals.find(par->name);
-
-		if (it != vals.end()) {
-			gibbs.replaceParameter(par->name, ConstantParameter(it->second, par->name, par->group));
-		}
-
-	}
-
-	//Also check which values are provided but for which there is no parameter.
-	for (map<string, double>::iterator it = vals.begin(); it != vals.end(); it++) {
-		if (!gibbs.hasParameter(it->first)) {
-			std::stringstream ss;
-			ss << "Note: Constant value provided for \"" << it->first << "\", but there is no parameter by that name.";
-			logMessage("setParameterStartingValues", ss.str());
-		}
-	}
-
-}
-
-void Bayesian::_doStartingValueOverrides(void) {
-	Rcpp::Rcout << "Starting value overrides: " << rcppConfig.startingValueOverrides.size() << endl;
-	if (rcppConfig.startingValueOverrides.size() == 0) {
-		return;
-	}
-
-	Rcpp::CharacterVector rawNames = rcppConfig.startingValueOverrides.names();
-	std::vector<string> names(rawNames.begin(), rawNames.end());
-
-	std::map<std::string, double> startingValues;
-	for (unsigned int i = 0; i < names.size(); i++) {
-		startingValues[names[i]] = rcppConfig.startingValueOverrides[names[i]];
-	}
-
-	this->setParameterStartingValues(startingValues);
-}
-*/
 
 vector<ParticipantData> getParticipantData(Rcpp::DataFrame df, CatCont::DataType dataType, bool verbose) {
 
@@ -192,6 +85,8 @@ CatCont::Bayesian::Configuration readConfigurationFromList(Rcpp::List configList
 
 	string dataTypeStr = configList["dataType"];
 	config.dataType = CatCont::dataTypeFromString(dataTypeStr);
+
+	config.catMuPriorApproximationPrecision = configList["catMuPriorApproximationPrecision"];
 
 	if (config.dataType == CatCont::DataType::Linear) {
 		config.linearConfiguration = getLinearConfigurationFromList(configList);
@@ -278,6 +173,11 @@ Rcpp::List CCM_CPP_runParameterEstimation(Rcpp::List generalConfig,
 
 	bm.config = readConfigurationFromList(generalConfig);
 
+	//Seed the gibbs RNG from the R RNG.
+	unsigned int uintmax = std::numeric_limits<unsigned int>::max();
+	unsigned int rngSeed = uintmax * CatCont::uniformDeviate(0, 1);
+	bm.gibbs.getGenerator().seed(rngSeed);
+
 	bm.gibbs.iterationsPerStatusUpdate = bm.config.iterationsPerStatusUpdate;
 
 	if (bm.config.dataType == CatCont::DataType::Circular) {
@@ -300,7 +200,7 @@ Rcpp::List CCM_CPP_runParameterEstimation(Rcpp::List generalConfig,
 
 	Rcpp::Rcout << "Doing parameter setup." << endl;
 
-	bm.createParameters(); //must happen after priors and mhTuning
+	bm.createParameters();
 
 	Rcpp::Rcout << "Running Gibbs sampler." << endl;
 
@@ -366,8 +266,6 @@ Rcpp::DataFrame CCM_CPP_calculateWAIC(Rcpp::List resultsObject) {
 		}
 	}
 
-	//Rcpp::Rcout << "Calculating WAIC" << std::endl;
-
 	map<string, map<string, double>> waicData = CatCont::calculateWAIC(partData, config, posteriorIterations);
 
 	vector<string> pnums;
@@ -399,8 +297,6 @@ Rcpp::DataFrame CCM_CPP_calculateWAIC(Rcpp::List resultsObject) {
 	);
 
 	return result;
-
-	//return Rcpp::wrap(waicData);
 }
 
 
