@@ -247,7 +247,7 @@ double curriedBesselFunction(double x) {
 	return R::bessel_i(x, 0, 2); //Exponent scale == true (2 == true, lol)
 }
 
-void conditionalConfigureVMLut(double maxValue, double stepSize) {
+void conditionalConfigureVMLut(double maxValue, double stepSize, bool message = true) {
 
 	bool rangeCorrect = abs(CatCont::vmLut.maxValue() - maxValue) < 0.00001;
 	bool stepSizeCorrect = abs(CatCont::vmLut.stepSize - stepSize) < 0.00001;
@@ -255,7 +255,9 @@ void conditionalConfigureVMLut(double maxValue, double stepSize) {
 	if (rangeCorrect && stepSizeCorrect) {
 		//Rcpp::Rcout << "Von Mises look up table already set up." << endl;
 	} else {
-		Rcpp::Rcout << "Setting up Von Mises look up table." << endl;
+		if (message) {
+			Rcpp::Rcout << "Setting up Von Mises look up table." << endl;
+		}
 		CatCont::vmLut.setup(maxValue, stepSize, &curriedBesselFunction);
 	}
 }
@@ -279,7 +281,7 @@ Rcpp::List CCM_CPP_runParameterEstimation(Rcpp::List generalConfig,
 	bm.gibbs.iterationsPerStatusUpdate = bm.config.iterationsPerStatusUpdate;
 
 	if (bm.config.dataType == CatCont::DataType::Circular) {
-		conditionalConfigureVMLut(bm.config.ranges.maxPrecision, VON_MISES_STEP_SIZE);
+		conditionalConfigureVMLut(bm.config.ranges.maxPrecision, VON_MISES_STEP_SIZE, true);
 	}
 
 
@@ -347,7 +349,7 @@ Rcpp::DataFrame CCM_CPP_calculateWAIC(Rcpp::List resultsObject) {
 	vector<ParticipantData> partData = getParticipantData(data, config.dataType, false);
 
 	if (config.dataType == CatCont::DataType::Circular) {
-		conditionalConfigureVMLut(config.ranges.maxPrecision, VON_MISES_STEP_SIZE);
+		conditionalConfigureVMLut(config.ranges.maxPrecision, VON_MISES_STEP_SIZE, false);
 	}
 
 	vector< ParameterList > posteriorIterations(config.iterations);
@@ -443,7 +445,7 @@ Rcpp::List CCM_CPP_likelihoodWrapper(Rcpp::List param, Rcpp::DataFrame data, Rcp
 	} else if (dataType == CatCont::DataType::Circular) {
 
 		double maxPrecision = CatCont::Circular::sdDeg_to_precRad(config["minSD"]);
-		conditionalConfigureVMLut(maxPrecision, VON_MISES_STEP_SIZE);
+		conditionalConfigureVMLut(maxPrecision, VON_MISES_STEP_SIZE, false);
 
 		//Parameters from degrees to radians
 		cp.contSD = CatCont::Circular::sdDeg_to_precRad(cp.contSD);
