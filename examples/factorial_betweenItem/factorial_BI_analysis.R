@@ -80,7 +80,7 @@ results = removeBurnIn(results, 500)
 
 # Because of figure legends, you need a large plotting surface, so plot to a pdf.
 pdf("parameterSummary.pdf", 10, 10)
-plotParameterSummary(results, factorOrder = c("numbers", "letters"))
+plotParameterSummary(results)
 dev.off()
 
 
@@ -96,7 +96,7 @@ mei = testMainEffectsAndInteractions(results)
 mei[ mei$bfType == "10", ]
 
 # Select tests with reasonably strong BFs (either for or against an effect).
-meiSum[ meiSum$bf > 3, ]
+mei[ mei$bf > 3, ]
 
 
 # We (should) find an interaction for contSD. Because of the interaction,
@@ -117,7 +117,7 @@ testSingleEffect(subRes, "contSD", "letters")
 # Let's say that we want to know which levels of the numbers factor are 
 # different for the pMem parameter. We want to do pairwise comparisons of
 # factor levels. This is different than what is done by testConditionEffects,
-# which does pairwise comparisons, but of conditions (cells).
+# which does pairwise comparisons, but of conditions (cells), not of factor levels.
 subRes = results
 
 # Drop the letters factor (because we are collaping across it)
@@ -127,6 +127,38 @@ subRes$config$factors$letters = NULL
 usedFactorLevels = data.frame(numbers = c(1,2)) 
 
 testSingleEffect(subRes, "pMem", "numbers", usedFactorLevels = usedFactorLevels)
+
+
+###
+# You can also do other hypothesis tests by working directly with CMBBHT
+# See the documentation for that package for more information about using it
+fact = results$config$factors
+fact$cond = NULL #The factors data.frame used by CMBBHT cannot have extra columns
+
+#Get prior and posterior condition effects
+pp = getConditionEffects(results, "contSD")
+names(pp)
+
+library(CMBBHT)
+
+tf = function(prior, post) {
+	
+	I_M0 = function(eff) {
+		# The null hypothesis/model is that all absolute 
+		# effect parameters are less than 2.
+		all(abs(eff) < 2)
+	}
+	
+	testFunction_encompassingPriors(prior, post, I_M0)
+}
+
+testHypothesis(pp$prior, pp$post, fact, "numbers", testFunction = tf)
+
+eff = getEffectParameters(pp$post, fact, "numbers")
+summary = summarizeEffectParameters(eff)
+plotEffectParameterSummary(summary)
+
+
 
 
 # Plot the posterior predictive distribution to visually examine model fit.

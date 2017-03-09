@@ -753,7 +753,7 @@ Here is a different example.
  b | 0 | . | . |
  c | 0 | . | . |
 
-We can see that there is a marginal main effect of letters when nothing else is considered. However, when the main effect of numbers is included in the design, the parameters associated with the `2` and `3` levels of the numbers factor account for the apparent marginal lettters effect. This, main effects can be affected by the inclusion of other main effects.
+We can see that there is a marginal main effect of letters when nothing else is considered. However, when the main effect of numbers is included in the design, the parameters associated with the `2` and `3` levels of the numbers factor account for the apparent marginal lettters effect. Thus, main effects can be affected by the inclusion of other main effects.
 
 ```{r}
 
@@ -915,9 +915,9 @@ Note that you cannot interpret $\sigma^O$ as meaning anything in this context, b
 
 If you have some small but decidedly nonzero amount of categorical guessing, it may be a better solution to set `catSD` to a constant value (based on past research, maybe).
 
-### ZL (Zhang & Luck)
+### ZL (Zhang & Luck, 2008)
 
-There is nothing particularly interesting about my implementation of the ZL model, but it is still a hierarchical Bayesian model with effects of experimental condition. It may be useful on its own or as a model to compare the other models to.
+There is nothing particularly interesting about my implementation of the @ZhangLuck2008 model, but it is still a hierarchical Bayesian model with effects of experimental condition. It may be useful on its own or as a model to compare the other models to.
 
 
 ## Stimuli

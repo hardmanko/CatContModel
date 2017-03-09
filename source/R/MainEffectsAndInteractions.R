@@ -2,7 +2,7 @@
 
 
 
-sampleFromConditionEffectPriors = function(results, param, priorSamples) {
+getPriorConditionEffects = function(results, param, priorSamples) {
 	
 	factors = results$config$factors
 	
@@ -50,6 +50,39 @@ sampleFromConditionEffectPriors = function(results, param, priorSamples) {
 	
 }
 
+getPosteriorConditionEffects = function(results, param) {
+	
+	factors = results$config$factors
+	
+	postDs = matrix(NA, nrow=results$config$iterations, ncol=nrow(factors))
+	for (i in 1:nrow(factors)) {
+		postDs[,i] = results$posteriors[[ paste(param, "_cond[", factors$cond[i], "]", sep="") ]]
+	}
+	
+	colnames(postDs) = factors$cond
+	
+	postDs
+}
+
+#' Matrices of Prior and Posterior Condition Effects
+#' 
+#' Get matrices of prior and posterior condition effects for a given parameter. 
+#' These can be used to perform tests with, e.g., the CMBBHT package.
+#' 
+#' @param results The results from the [`runParameterEstimation`] function.
+#' @param param The parameter to get condition effects for.
+#' @param priorSamples The number of samples to take from the priors on the condition effects.
+#' 
+#' @return A list with two matrices, `prior` and `post`. Each column is one condition effect and each row is one sample from the prior or posterior.
+#' 
+#' @md
+#' @export
+getConditionEffects = function(results, param, priorSamples=results$config$iterations) {
+	prior = getPriorConditionEffects(results, param, priorSamples)
+	post = getPosteriorConditionEffects(results, param)
+	list(prior=prior, post=post)
+}
+
 #' Posterior Distributions of Main Effect and Interaction Parameters
 #' 
 #' @param results The results from the \code{\link{runParameterEstimation}} function.
@@ -63,49 +96,20 @@ sampleFromConditionEffectPriors = function(results, param, priorSamples) {
 #' @export
 getEffectParameterPosteriors = function(results, param, testedFactors, dmFactors = testedFactors, contrastType = NULL) {
 	
-	factors = results$config$factors
+	postCMs = getPosteriorConditionEffects(results, param)
 	
-	postDs = matrix(NA, nrow=results$config$iterations, ncol=nrow(factors))
-	for (i in 1:nrow(factors)) {
-		postDs[,i] = results$posteriors[[ paste(param, "_cond[", factors$cond[i], "]", sep="") ]]
-	}
-
-	gmeihtf = factors
+	gmeihtf = results$config$factors
 	gmeihtf$cond = NULL #NO EXTRA COLUMNS
 	
-	getEffectParameters(cellMeans=postDs, factors=gmeihtf, testedFactors = testedFactors, dmFactors = dmFactors, contrastType = contrastType)
+	CMBBHT::getEffectParameters(cellMeans=postCMs, factors=gmeihtf, testedFactors = testedFactors, dmFactors = dmFactors, contrastType = contrastType)
 
 }
 
-
-testEffect_general = function(priorCMs, postCMs, factors, testedFactors, dmFactors = testedFactors,
-															uniqueFL = NULL, devianceFunction = NULL, testFunction = NULL, contrastType = NULL) 
-{
-
-	gmeihtf = factors
-	gmeihtf$cond = NULL
-	
-	priorEffects = getEffectParameters(cellMeans=priorCMs, factors=gmeihtf, testedFactors = testedFactors, 
-																		 dmFactors = dmFactors, contrastType = contrastType)
-	postEffects = getEffectParameters(cellMeans=postCMs, factors=gmeihtf, testedFactors = testedFactors, 
-																		dmFactors = dmFactors, contrastType = contrastType)
-	
-	# Only use cells that are included in uniqueFL
-	if (!is.null(uniqueFL)) {
-		cns = makeCellName(uniqueFL)
-		
-		priorEffects = priorEffects[ , cns ]
-		postEffects = postEffects[ , cns ]
-	}
-	
-	testHypothesis_effect(priorEffects = priorEffects, postEffects = postEffects, devianceFunction = devianceFunction, testFunction = testFunction)
-
-}
 
 #' Perform a Single Hypothesis Test of a Main Effect or Interaction
 #' 
 #' This function performs a single hypothesis test of a selected effect.
-#' This is a lower-level function than \code{\link{testMainEffectsAndInteractions}} and it gives you more control than that function.
+#' This is a lower-level function than \code{\link{testMainEffectsAndInteractions}} and it gives you more control than that function. For even more control, see [`getConditionEffects`] and the CMBBHT package (https://github.com/hardmanko/CMBBHT).
 #' 
 #' See the details of \code{\link{testMainEffectsAndInteractions}} for some discussion of fully-crossed vs non-fully-crossed designs.
 #' 
@@ -113,38 +117,35 @@ testEffect_general = function(priorCMs, postCMs, factors, testedFactors, dmFacto
 #' @param param The name of the parameter for which to perform the test.
 #' @param testedFactors Character vector. The factors for which to perform the hypothesis test as a vector of factor names. A single factor name results in the test of the main effect of the factor. Multiple factor names result in the test of the interaction of all of those factors.
 #' @param dmFactors Character vector or formula. The factors to use to construct the design matrix. For a fully-crossed (balanced) design, this can always be equal to \code{testFactors} (the default). For non-fully-crossed designs, you may sometimes want to create a design matrix using some factors, but perform a hypothesis test with only some of those factors (\code{testedFactors} must be a subset of \code{dmFactors}). You may instead supply a \code{formula} like that taken by \code{\link{model.matrix}} which will be used to create the design matrix.
-#' @param usedFactorLevels A \code{data.frame} with columns for each of the factors. Each row specifies factor levels that should be included in the test. This allows you to do things like pairwise comparisons of specific factor levels.
-#' @param priorSamples Number of samples to take from the prior distribution of the effect parameters. You should not change this from the default unless you are using a custom testFunction, in which case you might want to use a different value.
-#' @param devianceFunction You should not provide a value for this unless you (think you) know what you are doing. A function used for calculating the deviation of the effect parameters. It takes a vector of effect parameters and calculates some measure of how dispersed they are. One example of such a function is the built-in R function \code{var}.
-#' @param testFunction Do not use this argument.
-#' @param contrastType Character (or function). The contrast to use to create the design matrix. Can be any of the function names on the documentation page for \code{contr.sum}. For a non-fully-crossed (unbalanced) design, you should use either "contr.treatment" or "contr.SAS". For a balanced design, you can use anything, but psychologists are most used to "contr.sum", which uses sums-to-zero constraints.
+#' @param usedFactorLevels A \code{data.frame} with columns for each of the factors in \code{testedFactors}. Each row specifies factor levels that should be included in the test. This allows you to do things like pairwise comparisons of specific factor levels.
+#' @param priorSamples Number of samples to take from the prior distribution of the effect parameters. You should not change this from the default unless you are using a custom \code{testFunction}, in which case you might want to use a different value.
+#' @param testFunction See \code{\link{CMBBHT::testHypothesis}}.
+#' @param contrastType See \code{\link{CMBBHT::testHypothesis}}.
 #' 
-#' @return Depends on the choice of \code{testFunction}. 
+#' @return Depends on the choice of \code{testFunction}. Typically a list with, at least, elements \code{bf10} and \code{bf01} which are the Bayes factors in favor of and against the tested effect, respectively.
 #' 
 #' @export
 testSingleEffect = function(results, param, testedFactors, dmFactors = testedFactors, 
 														usedFactorLevels = NULL, priorSamples = results$config$iterations, 
-														devianceFunction = NULL, testFunction = NULL, contrastType = NULL) 
+														testFunction = NULL, contrastType = NULL) 
 {
-	
-	factors = results$config$factors
-	
-	#get priors and posteriors
-	priorCMs = sampleFromConditionEffectPriors(results, param, priorSamples)
-	
-	postCMs = matrix(NA, nrow=results$config$iterations, ncol=nrow(factors))
-	for (i in 1:nrow(factors)) {
-		postCMs[,i] = results$posteriors[[ paste(param, "_cond[", factors$cond[i], "]", sep="") ]]
+	if (is.null(testFunction)) {
+		testFunction = CMBBHT::testFunction_SDDR
 	}
 	
-	testEffect_general(priorCMs, postCMs, factors=factors, testedFactors=testedFactors, dmFactors=dmFactors,
-										 uniqueFL=usedFactorLevels,
-										 devianceFunction=devianceFunction, testFunction=testFunction , contrastType=contrastType)
+	gmeihtf = results$config$factors
+	gmeihtf$cond = NULL
+	
+	ces = getConditionEffects(results, param, priorSamples)
+	
+	CMBBHT::testHypothesis(ces$prior, ces$post, gmeihtf, testedFactors, 
+												 dmFactors=dmFactors, contrastType=contrastType,
+												 testFunction = testFunction, usedFactorLevels = usedFactorLevels)
 	
 }
 
 # You could add an argument: useFullDMForUnbalanced If TRUE and the design is unbalanced, the design matrix that is used for all tests will be the design matrix with all effects in it. This means that a main effect will not really be a marginal test, because interactions will be accounted for. This may or may not be what you want to do.
-testMEI_singleParameter = function(results, param, priorSamples = NULL, doPairwise = FALSE, devianceFunction = NULL, testFunction = NULL) {
+testMEI_singleParameter = function(results, param, priorSamples = NULL, doPairwise = FALSE, testFunction = NULL) {
 
 	factorsToTest = getFactorsForConditionEffect(results$config, param)
 	if (length(factorsToTest) == 0) {
@@ -174,7 +175,7 @@ testMEI_singleParameter = function(results, param, priorSamples = NULL, doPairwi
 		
 		thisRes = testSingleEffect(results, param, testedFactors = theseFactors, 
 															 priorSamples = priorSamples, 
-															 devianceFunction = devianceFunction, testFunction = testFunction)
+															 testFunction = testFunction)
 		
 		omnibus = data.frame(param=param, factor=factorName, levels="Omnibus", 
 												 bf10=thisRes$bf10, bf01=thisRes$bf01, success=thisRes$success)
@@ -195,8 +196,7 @@ testMEI_singleParameter = function(results, param, priorSamples = NULL, doPairwi
 				uniqueFL = as.data.frame(uniqueFL, stringsAsFactors = FALSE)
 				
 				thisRes = testSingleEffect(results, param, testedFactors = thisFactor, 
-																	 usedFactorLevels = uniqueFL, priorSamples = priorSamples, 
-																	 devianceFunction = devianceFunction_absDif,
+																	 usedFactorLevels = uniqueFL, priorSamples = priorSamples,
 																	 testFunction = testFunction)
 				
 				levelNames = paste0(comb[j,], collapse=", ")
@@ -221,28 +221,28 @@ testMEI_singleParameter = function(results, param, priorSamples = NULL, doPairwi
 #' 
 #' Perform hypothesis tests of main effects and interactions for one-factor and multi-factor designs. If your design is fully crossed, your life is simple. If your design is not fully crossed, you may not be able to use this function for all of your tests (see Details).
 #' 
-#' You must provide a \code{data.frame} containing the mapping from conditions to factor levels. This should be provided in \code{results$config$factors}. See \code{\link{runParameterEstimation}} for more information about creating this. If you are using a one-factor design, this will have been created for you and you don't need to do anything. If using multiple factors, you should have given \code{config$factors} to \code{runParameterEstimation}.
+#' You must provide a `data.frame` containing the mapping from conditions to factor levels. This should be provided in `results$config$factors`. See [`runParameterEstimation`] for more information about creating this `data.frame`. If you are using a one-factor design, this will have been created for you and you don't need to do anything. If using multiple factors, you should have given `config$factors` to `runParameterEstimation`.
 #' 
-#' This function uses kernel density estimation to estimate the densities of some relevant quantities. This procedure is somewhat noisy. As such, I recommend that you perform the procedure many times, the number of which can be configured with the \code{subsamples} argument. Then, aggregate results from the many repetitions of the procedure can be analyzed, which is done by default but can be changed by setting \code{summarize} to \code{FALSE}.
-#' I recommend using many \code{subsamples} to see how noisy the estimation is. You can leave \code{subsampleProportion} at 1 or use a somewhat lower value. I would recommend against using a value of \code{subsampleProportion} that would result in fewer than 1,000 iterations being used per subsample.
+#' This function uses kernel density estimation to estimate the densities of some relevant quantities. This procedure is somewhat noisy. As such, I recommend that you perform the procedure many times, the number of which can be configured with the `subsamples` argument. Then, aggregate results from the many repetitions of the procedure can be analyzed, which is done by default but can be changed by setting `summarize` to `FALSE`.
+#' I recommend using many `subsamples` to see how noisy the estimation is. You can leave `subsampleProportion` at 1 or use a somewhat lower value. I would recommend against using a value of `subsampleProportion` that would result in fewer than 1,000 iterations being used per subsample.
 #' 
-#' For designs that are fully-crossed, sums-to-zero contrasts are used by default. Like any other kind of orthogonal contrast, sums-to-zero contrasts result in main effects and interactions that are independent of one another. Thus, for example, a main effect is the same regardless of whether you also included an interaction in the design or not. For designs that are not fully crossed, treatment contrasts are used by default. Treatment contrasts are non-orthogonal, which means that effects are not independent of one another. For example, a main effect changes depending on whether or not you include an interaction in the model. Thus, when working with non-fully-crossed designs, you must decide what effects you want to include in the model when you are testing an effect. 
+#' For designs that are fully-crossed, sums-to-zero contrasts are used by default. Like any other kind of orthogonal contrast, sums-to-zero contrasts result in main effects and interactions that are independent of one another. Thus, for example, a main effect is the same regardless of whether you also included an interaction in the design or not. For designs that are not fully crossed, treatment contrasts are used by default. Treatment contrasts are non-orthogonal, which means that effects are not independent of one another. For example, a main effect might change depending on whether or not you include an interaction in the model. Thus, when working with non-fully-crossed designs, you must decide what effects you want to include in the model when you are testing an effect. 
 #' This function does marginal tests: It only estimates what it needs to to do the test. Thus, if testing a main effect, only that main effect is estimated. If testing a two-factor interaction, only the two related main effects and that interaction are estimated.
-#' You cannot do more this with this function, but see \code{\link{testSingleEffect}} for a function that gives you more control over the test that is performed. 
-#' In addition, for designs that are not fully croseed, you can still use \code{\link{testConditionEffects}} to examine pairwise comparisons. See the introduction.pdf manual for more discussion of non-fully-crossed designs.
+#' You cannot do more this with this function, but see [`testSingleEffect`] for a function that gives you more control over the test that is performed. 
+#' In addition, for designs that are not fully croseed, you can still use [`testConditionEffects`] to examine pairwise comparisons. See the introduction.pdf manual for more discussion of non-fully-crossed designs.
 #' 
-#' @param results The results from the \code{\link{runParameterEstimation}} function.
+#' @param results The results from the [`runParameterEstimation`] function.
 #' @param param Optional. Character vector of names of parameters to perform tests for. If NULL (default), is set to all parameters with condition effects.
-#' @param summarize If TRUE (default), the results across subsamples will be summarized. If FALSE, the results from each of the subsamples will be returned. Those results can be later summarized with \code{\link{summarizeSubsampleResults}}.
+#' @param summarize If TRUE (default), the results across subsamples will be summarized. If FALSE, the results from each of the subsamples will be returned. Those results can be later summarized with [`summarizeSubsampleResults`].
 #' @param subsamples Number of subsamples of the posterior chains to take. If greater than 1, subsampleProportion should be set to a value between 0 and 1 (exclusive).
-#' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should probably only be less than 1 if \code{subsamples} is greater than 1. If \code{NULL}, \code{subsampleProportion} will be set to \code{1 / subsamples} and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
+#' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should probably only be less than 1 if `subsamples` is greater than 1. If `NULL`, `subsampleProportion` will be set to `1 / subsamples` and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
 #' @param doPairwise Do pairwise tests of differences between levels of main effects (these are often called "post-hoc" tests).
-#' @param devianceFunction You should not provide a value for this unless you know what you are doing. A function used for calculating the deviation of the effect parameters. It takes a vector of effect parameters and calculates some measure of how dispersed they are. One example of such a function is the built-in R function \code{var}.
 #' 
+#' @md
 #' @export
 testMainEffectsAndInteractions = function(results, param=NULL, 
-																					subsamples = 50, subsampleProportion = 1, summarize=TRUE,
-																					doPairwise = FALSE, devianceFunction = NULL) 
+																					subsamples = 50, subsampleProportion = 1, 
+																					summarize=TRUE,	doPairwise = FALSE) 
 {
 	
 	if (is.null(results$config$factors)) {
@@ -251,7 +251,7 @@ testMainEffectsAndInteractions = function(results, param=NULL,
 	
 	gmeihtf = results$config$factors
 	gmeihtf$cond = NULL
-	if (!isDesignFullyCrossed(gmeihtf)) {
+	if (!CMBBHT::isDesignFullyCrossed(gmeihtf)) {
 		warning("Design is not fully crossed, which means that main effects and interactions cannot be orthogonal. See the documentation of this function for more information.")
 	}
 	
@@ -278,8 +278,7 @@ testMainEffectsAndInteractions = function(results, param=NULL,
 		#Very important: The kernel density estimation procedure has a problem.
 		#For the way in which it is used, the density depends on the number of
 		#samples. More samples results in less density at the tested point (in a tail) 
-		#of the kinds of distributions used.
-		#Thus, the prior and posterior sample counts must match.
+		#of the kinds of distributions used. Thus, the prior and posterior sample counts must match.
 		priorSamples = resultSubsample$config$iterations
 
 		
@@ -296,6 +295,20 @@ testMainEffectsAndInteractions = function(results, param=NULL,
 	}
 	
 	close(pb)
+	
+	if (any(BFs$success == FALSE)) {
+		
+		ff = aggregate(success ~ param * factor * levels, BFs, function(x) { sum(!x) })
+		ff$failures = ff$success
+		ff$success = NULL
+
+		warning( paste0("Bayes factor estimation failed for ", sum(BFs$success == FALSE), " subsamples. The cases with failures have been printed to the console. Failures have been stripped from the results.") )
+		cat("\n\nFailures:\n")
+		print( ff[ ff$failures > 0, ] )
+		cat("\n\n")
+		
+		BFs = BFs[ BFs$success, ]
+	}
 	
 	if (summarize) {
 		rval = summarizeSubsampleResults(BFs, aggregateBy = c("param", "factor", "levels"))
@@ -318,7 +331,7 @@ testMainEffectsAndInteractions = function(results, param=NULL,
 #' This function should be used with the values returned by \code{\link{testMainEffectsAndInteractions}} and \code{\link{testConditionEffects}} when the \code{summarize} argument is \code{FALSE}. It summarizes Bayes factors across many repeated estimates of those Bayes factors.
 #' 
 #' @param BFs A data.frame containing the individual Bayes factors. It should have a format like the result of \code{\link{testMainEffectsAndInteractions}} or \code{\link{testConditionEffects}}. 
-#' @param proportioniles Percentiles devided by 100 to calculate.
+#' @param proportioniles Percentiles divided by 100 to calculate.
 #' @param geometricZs A numeric vector of Z-values. Geometric BF quantiles will be calculated based on the geometric mean and standard deviation for each of these provided Z-values.
 #' @param consistencyCutoff A numeric vector of cutoffs. The proportion of Bayes factors above each cutoff is calculated. Defaults to \code{c(1, 3, 10)}.
 #' @param logBF Summarize log Bayes factors? If \code{FALSE}, no logs will be taken. If \code{TRUE}, log base 10 BFs will be used. If a numeric value, that value will be used as the base for the logarithm.
@@ -333,11 +346,12 @@ testMainEffectsAndInteractions = function(results, param=NULL,
 #' 	\code{geo.mean} \tab The geometric mean Bayes factor. Bayes factors estimated with the approach used in this package tend to vary exponentially, which makes the geometric mean a possibly better measure than the arithmetic mean. Note that the geometric mean and the median tend to be in closer agreement than the arithmetic mean and the median. \cr
 #' 	\code{geo.sd} \tab Geometric standard deviation of the Bayes factors. Multiply the geo.mean by the geo.sd to go up one standard deviation. In general, \code{geo.mean * geo.sd^z} will give you the geometric value corresponding to the given z score. \cr
 #' 	\code{geo.mean + n SD} \tab The geometric mean "plus" \code{n} standard deviations, where the \code{n} values are given by the \code{geometricZs} argument. \cr
-#' 	\code{p(BF > n)} \tab The proportion of Bayes factors greater than \code{n}. \cr
+#' 	`p(BF > n)` \tab The proportion of Bayes factors greater than `n`. See `consistencyCutoff` to set `n`. \cr
 #' 	\code{Min, Median, Max} \tab The minimum, median, and maximum of the Bayes factors. \cr
 #' 	\code{n\%} \tab Other percentiles, as given in the \code{proportioniles} argument.
 #' }
 #' 
+#' @md
 #' @export
 summarizeSubsampleResults = function(BFs, proportioniles = c(0, 0.025, 0.5, 0.975, 1), 
 															geometricZs = NULL, consistencyCutoff = c(1, 3, 10), logBF = FALSE, 
@@ -455,7 +469,7 @@ summarizeSubsampleResults = function(BFs, proportioniles = c(0, 0.025, 0.5, 0.97
 #all(x > 0)
 geoMean = function(x) {
 	if (any(x <= 0)) {
-		stop("geoMean: All x must be > 0.")
+		stop("All x must be > 0 to calculate the geometric mean.")
 	}
 	#prod(x)^(1 / length(x)) 
 	#which translates to
@@ -501,7 +515,8 @@ geoQ = function(z, mu, sigma) {
 #' The results of these calculations depend on a lot of information, which is most easily 
 #' provided in the results of parameter estimation. To examine the effects of changing the
 #' priors, you can test "new" priors with the \code{priorLoc} and \code{priorScale} arguments.
-#' Note that the typical proscription on nonzero prior locations holds here as well.
+#' Note, however, that the typical proscription on nonzero prior locations holds here as well,
+#' in the sense that it works mathematically, but nonzero prior locations are kind of bizarre.
 #' 
 #' 
 #' @param results The results from the \code{\link{runParameterEstimation}} function. Note that you can run 1 iteration and still have all the information you need.
@@ -512,7 +527,7 @@ geoQ = function(z, mu, sigma) {
 #' @param priorLoc A new prior location to try, overriding the value in results$priors.
 #' @param priorScale A new prior scale to try, overriding the value in results$priors.
 #' 
-#' @return A \code{data.frame} with four columns: 1) the factor being used, 2) the MEI parameter, 3) the prior location, and 4) the prior scale.
+#' @return A \code{data.frame} with four columns: the \code{factor} being used, the \code{effect} parameter, the prior \code{location}, and the prior \code{scale}.
 #' 
 #' @export
 calculateMarginalEffectParameterPriors = function(results, param, testedFactors = NULL, dmFactors = NULL, contrastType = NULL, priorLoc = NULL, priorScale = NULL) {
@@ -577,13 +592,13 @@ calculateMarginalEffectParameterPriors = function(results, param, testedFactors 
 			thisDmFactors = dmFactors
 		}
 
-		m = getPartialFilledS(gmeihtf, testedFactors = fNames, dmFactors = thisDmFactors, contrastType = contrastType)
+		S_s = CMBBHT::getPartialFilledS(gmeihtf, testedFactors = fNames, dmFactors = thisDmFactors, contrastType = contrastType)
 		
-		for (j in 1:ncol(m)) {
-			res = cauchyRvLinearCombination(locations, scales, m[,j])
+		for (j in 1:ncol(S_s)) {
+			res = cauchyRvLinearCombination(locations, scales, S_s[,j])
 			
-			temp = data.frame(factor = paste0(fNames, collapse = ":"), 
-												effect = colnames(m)[j], location = res$location, scale = res$scale)
+			temp = data.frame(factor = paste0(fNames, collapse = ":"), effect = colnames(S_s)[j], 
+												location = res$location, scale = res$scale)
 			priors = rbind(priors, temp)
 		}
 		

@@ -16,21 +16,9 @@ cauchyRvLinearCombination = function(locations, scales, coefs) {
 }
 
 
-
 #postVect: vector of the posterior distribution of the parameter you want to test
 #h0_val: The value of the parameter tested in the null hypothesis.
 #priorDensAtH0: The density of the prior distribution at h0_val
-savageDickey_unsafe = function(postVect, h0_val, priorDensAtH0) {
-	
-	ls = polspline::logspline(postVect)
-	
-	postDens = polspline::dlogspline(h0_val, ls)
-	
-	bf10 = priorDensAtH0 / postDens
-	
-	list(bf01=1/bf10, bf10=bf10)
-}
-
 savageDickey = function(postVect, h0_val, priorDensAtH0) {
 	
 	success = tryCatch({
@@ -53,12 +41,10 @@ savageDickey = function(postVect, h0_val, priorDensAtH0) {
 }
 
 
-
-
 #' Test the Amount of Categorical Responding Present in the Data
 #' 
 #' Test the amount of categorical responding present in the data in each condition.
-#' To do this test, you must have run the "betweenItem" model variant. Then, use this function on the results from that run to test whether categorical responding is or is not present in the data. A lack of categorical responding is the same as fully continuous responding, which happens when pContBetween = 1 and pCatGuess = 0. As explained in the article, testing 1 and 0 is not possible, so values near 1 and 0 should be tested instead. The test is performed in each condition separately.
+#' To do this test, you must have run the "betweenItem" model variant. Then, use this function on the results from that run to test whether categorical responding is or is not present in the data. A lack of categorical responding is the same as fully continuous responding, which happens when pContBetween = 1 and pCatGuess = 0. As explained in Hardman, Vergauwe, and Ricker (2017), testing 1 and 0 is not possible, so values near 1 and 0 should be tested instead. The test is performed in each condition separately.
 #' 
 #' @param results The results from the \code{\link{runParameterEstimation}} function.
 #' @param pContBetween_test Value of pContBetween to test.

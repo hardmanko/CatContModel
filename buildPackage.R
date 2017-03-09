@@ -7,7 +7,7 @@ library(Rcpp)
 library(devtools)
 library(roxygen2)
 
-CatContPackageVersion = "0.7.3"
+CatContPackageVersion = "0.7.4"
 addingDataSets = FALSE
 
 baseDir = "~/../Programming/R/CatContModel/"
@@ -75,9 +75,10 @@ file.remove( paste( fullPackagePath, "Read-and-delete-me", sep="") )
 devtools::use_package("CircStats", pkg=packageLocation)
 devtools::use_package("polspline", pkg=packageLocation)
 devtools::use_package("msm", pkg=packageLocation)
+
 devtools::use_package("R.rsp", type = "Suggests", pkg=packageLocation)
 devtools::use_package("LineChart", type = "Suggests", pkg=packageLocation)
-
+devtools::use_package("CMBBHT", type = "Suggests", pkg=packageLocation)
 
 #Modify the DESCRIPTION
 dcf = read.dcf( paste(fullPackagePath, "DESCRIPTION", sep="") )
@@ -96,9 +97,8 @@ dcf = cbind(dcf, dependsCol, vignBuilder)
 write.dcf(dcf, file = paste(fullPackagePath, "DESCRIPTION", sep="") )
 
 
-#Copy over CITATION and LICENSE
+#Copy over LICENSE
 dir.create(paste(fullPackagePath, "inst/", sep=""))
-#file.copy(from = paste(baseDir, "docs/toCopy/CITATION", sep=""), to = paste(fullPackagePath, "inst/CITATION", sep=""))
 file.copy(from = paste(baseDir, "LICENSE.md", sep=""), to = paste(fullPackagePath, "LICENSE", sep=""))
 
 #Copy over manual and supporting asis file

@@ -1,10 +1,12 @@
 
 # Install dependencies from CRAN. 
-install.packages(c("Rcpp", "polspline", "CircStats", "msm"))
+install.packages(c("R.rsp", "Rcpp", "polspline", "CircStats", "msm"))
 
-# Install the LineChart package from github.
+# Install the LineChart and CMBBHT packages from github.
 install.packages("devtools") # You Don't need to run this if you have devtools installed
-devtools::install_github("hardmanko/LineChart-package")
+
+devtools::install_github("hardmanko/LineChart-package@v0.3.0")
+devtools::install_github("hardmanko/CMBBHT@v0.1.1")
 
 # Install this package.
 #
@@ -19,4 +21,5 @@ devtools::install_github("hardmanko/LineChart-package")
 install.packages("%repoRoot%/packaged/CatContModel_V.V.V.zip", repos=NULL)
 #
 # P.S. The .zip extension indicates that it is a binary/compiled, version of the package.
-# This is almost certainly what you want, not .tar.gz, which are source versions of the package.
+# This is almost certainly what you want, not .tar.gz, which are source versions of the package
+# that must be compiled with a C++ compiler.
