@@ -22,13 +22,6 @@
 
 class GibbsSampler; //Forward declaration
 
-/*
-struct ParameterListData {
-	std::string group;
-	double value;
-};
-*/
-
 typedef std::map<std::string, double> ParameterList; //A map string -> double is a conventient way to pass around parameter values
 
 enum class ParameterDimension {
@@ -37,8 +30,6 @@ enum class ParameterDimension {
 	VECTOR,
 	OTHER
 };
-
-
 
 class AcceptanceTracker {
 public:
@@ -86,8 +77,8 @@ public:
 	GibbsParameter(void) :
 		name("NULL"),
 		group("NULL"),
-		dimension(ParameterDimension::OTHER),
-		_gibbs(nullptr)
+		_gibbs(nullptr),
+		_dimension(ParameterDimension::OTHER)
 	{}
 
 	virtual ~GibbsParameter(void) {
@@ -97,7 +88,14 @@ public:
 	std::string name;
 	std::string group;
 
-	ParameterDimension dimension;
+	
+	ParameterDimension getDimension(void) {
+		return _dimension;
+	}
+
+	virtual std::string type(void) const {
+		return "GibbsParameter";
+	}
 
 	virtual void update(void) {
 		double s = this->_getNextSample();
@@ -111,20 +109,21 @@ public:
 		return _samples.back();
 	}
 
-	virtual std::string type(void) const {
-		return "GibbsParameter";
+	virtual double getSample(unsigned int iteration) const {
+		//return this->getSamples.at(iteration);
+		return _samples.at(iteration);
 	}
 
 	virtual std::vector<double>& getSamples(void) {
 		return _samples;
 	}
-	
-	virtual double getSample(unsigned int iteration) const {
-		return _samples.at(iteration);
-	}
 
 	virtual AcceptanceTracker* getAcceptanceTracker(void) {
 		return nullptr;
+	}
+
+	virtual bool hasDependency(void) {
+		return false;
 	}
 
 protected:
@@ -154,7 +153,7 @@ protected:
 	}
 
 	std::vector<double> _samples;
-
+	ParameterDimension _dimension;
 };
 
 
@@ -174,7 +173,6 @@ public:
 	virtual const std::vector<std::string>& getElementNames(void) const {
 		return _elementNames;
 	}
-
 
 
 	virtual std::map<std::string, double> getCurrentValueMap(void) const {
@@ -213,7 +211,7 @@ class ConjugateParameter : public GibbsParameter {
 public:
 
 	ConjugateParameter(void) {
-		dimension = ParameterDimension::SCALAR;
+		_dimension = ParameterDimension::SCALAR;
 	}
 
 	std::function<double(const ParameterList&)> samplingFunction;
@@ -228,19 +226,92 @@ private:
 
 };
 
+class GenericDependentParameter : public GibbsParameter {
+public:
+
+	GenericDependentParameter(void) {
+		updateContinuously = true;
+	}
+
+	bool updateContinuously;
+
+	bool hasDependency(void) OVERRIDE {
+		return true;
+	}
+
+	virtual double evaluate(const ParameterList& param) const = 0;
+};
+
+class DependentParameter : public GenericDependentParameter {
+public:
+
+	DependentParameter(void) {
+		_dimension = ParameterDimension::SCALAR;
+	}
+
+	std::string sourceParameter; //The name of the parameter from which to take its value
+
+	std::string type(void) const OVERRIDE {
+		return "DependentParameter";
+	}
+
+	double evaluate(const ParameterList& param) const OVERRIDE;
+	double value(void) const OVERRIDE;
+
+	double getSample(unsigned int iteration) const OVERRIDE;
+	std::vector<double>& getSamples(void) OVERRIDE;
+
+	virtual bool hasDependency(void) OVERRIDE {
+		return true;
+	}
+
+protected:
+
+	double _getNextSample(void) OVERRIDE;
+
+};
+
+class CalculatedParameter : public GenericDependentParameter {
+public:
+	CalculatedParameter(void) {
+		_dimension = ParameterDimension::SCALAR;
+	}
+
+	//An arbitrary function that can do whatever (but probably calculate the parameter based on other parameters).
+	std::function<double(const ParameterList&)> samplingFunction; 
+
+	std::string type(void) const OVERRIDE {
+		return "CalculatedParameter";
+	}
+
+	double evaluate(const ParameterList& param) const OVERRIDE;
+	double value(void) const OVERRIDE;
+
+	double getSample(unsigned int iteration) const OVERRIDE;
+	std::vector<double>& getSamples(void) OVERRIDE;
+
+	virtual bool hasDependency(void) OVERRIDE {
+		return true;
+	}
+
+protected:
+
+	double _getNextSample(void) OVERRIDE;
+};
+
 class ConstantParameter : public GibbsParameter {
 public:
 
 	ConstantParameter(void) :
 		fixedValue(0)
 	{
-		dimension = ParameterDimension::SCALAR;
+		_dimension = ParameterDimension::SCALAR;
 	}
 
 	ConstantParameter(double val, std::string name_, std::string group_) :
 		fixedValue(val)
 	{
-		dimension = ParameterDimension::SCALAR;
+		_dimension = ParameterDimension::SCALAR;
 
 		this->name = name_;
 		this->group = group_;
@@ -287,12 +358,10 @@ public:
 		this->name = name_;
 		this->group = group_;
 		this->fixedValues = vals;
-		dimension = ParameterDimension::VECTOR;
+		_dimension = ParameterDimension::VECTOR;
 	}
 
 	std::vector<double> fixedValues;
-
-
 
 	void update(void) OVERRIDE {
 		return;
@@ -331,8 +400,6 @@ private:
 
 	void _parameterDeletedFromSampler(GibbsSampler* gs) OVERRIDE;
 
-	
-
 };
 
 /*
@@ -350,7 +417,7 @@ public:
 		range.lower = -std::numeric_limits<double>::infinity();
 		range.upper = std::numeric_limits<double>::infinity();
 
-		dimension = ParameterDimension::SCALAR;
+		_dimension = ParameterDimension::SCALAR;
 	}
 
 	std::function<double(double)> deviateFunction;
@@ -382,7 +449,7 @@ class DecorrelatingStep : public GibbsParameter {
 public:
 
 	DecorrelatingStep(void) {
-		dimension = ParameterDimension::ZERO;
+		_dimension = ParameterDimension::ZERO;
 	}
 	
 	std::function<std::map<std::string, double>(const ParameterList&)> currentValuesFunction;
@@ -405,34 +472,12 @@ protected:
 	double _getNextSample(void) OVERRIDE;
 };
 
-class DependentParameter : public GibbsParameter {
-public:
-
-	DependentParameter(void) {
-		dimension = ParameterDimension::SCALAR;
-	}
-
-	//Configure one of these two properties:
-	std::string sourceParameter; //The name of the parameter from which to take its value
-	std::function<double(const ParameterList&)> samplingFunction; //An arbitrary function that can do whatever (but probably calculate the parameter based on other parameters).
-	
-	std::string type(void) const OVERRIDE {
-		return "DependentParameter";
-	}
-	
-protected:
-
-	double _getNextSample(void) OVERRIDE;
-
-};
-
-
 
 class VectorElement : public GibbsParameter {
 public:
 
 	VectorElement(void) {
-		dimension = ParameterDimension::SCALAR;
+		_dimension = ParameterDimension::SCALAR;
 	}
 
 	//neither of these is used, at present, but could be used for backtracking from this parameter to its creator
@@ -471,12 +516,12 @@ class VectorMH_Parameter : public VectorParameter {
 public:
 
 	VectorMH_Parameter(void) {
-		dimension = ParameterDimension::VECTOR;
+		_dimension = ParameterDimension::VECTOR;
 		startValues.resize(0); //whatev
 	}
 
 	VectorMH_Parameter(unsigned int size) {
-		dimension = ParameterDimension::VECTOR;
+		_dimension = ParameterDimension::VECTOR;
 		startValues.resize(size, 0);
 		ranges.resize(size, std::make_pair(-std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity()));
 	}
@@ -541,13 +586,45 @@ public:
 		_generator.seed(rd());
 	}
 
+	void run(unsigned int samplesToCollect, bool clearExistingSamples = true);
+
+	void clear(void);
+
 	unsigned int iterationsPerStatusUpdate;
 
 	//Takes a pointer to this and the current iteration. Returns true to continue, false to stop.
 	std::function<bool(GibbsSampler*, unsigned int)> iterationCompleteCallback;
 
+	void createConstantParameter(std::string name, std::string group, double value, std::string replaceName = "", bool removeAndAdd = true);
+	void setParameterGroupToConstantValue(std::string group, double value);
+
+	unsigned int getIndex(const std::string& parameterName) const;
+	bool hasParameter(const std::string& parameterName) const;
+
+	std::vector<GibbsParameter*> getParameters(void);
+	std::vector<GibbsParameter*> getParameters(const std::vector<std::string>& param);
+
+	std::vector<unsigned int> namesToIndices(std::vector<std::string> names) const;
+
+	std::vector<double> getCurrentGroupValues(std::string group) const;
 
 
+	void setCurrentParameterValue(std::string p, double v);
+	const ParameterList& getCurrentParameterValues();
+	ParameterList getParameterList(std::vector<std::string> parameterNames);
+	ParameterList getParameterList(std::vector<unsigned int> parameterIndices);
+	ParameterList getIterationParameterValues(unsigned int iteration);
+
+	void updateDependentParameters(ParameterList* param) const;
+
+
+	std::mt19937_64& getGenerator(void) {
+		return _generator;
+	}
+
+	static std::uniform_real_distribution<double> canonical;
+
+	
 	template <typename T>
 	void addParameter(T param, double startValue = 0) {
 
@@ -573,6 +650,7 @@ public:
 	}
 
 	//replaceName = name of parameter to be replaced
+	//This puts the new parameter in the place of the old parameter so it has the same update order
 	template <typename T>
 	void replaceParameter(std::string replaceName, T param, double startValue = 0) {
 
@@ -597,14 +675,14 @@ public:
 
 		//Add the new parameter to its _groupToIndices map
 		_groupToIndices[param.group].push_back(index);
-		
+
 
 		//Add the new parameter
 		T* pp = new T; //Allocate space for the new parameter
 		*pp = param; //Copy the new parameter to that space
 		pp->_storeNewSample(startValue);
 		pp->_gibbs = this;
-		
+
 		_paramVector[index]->_parameterDeletedFromSampler(this); //Clean up old parameter
 		delete _paramVector[index]; //Delete memory that was allocated for the old parameter
 
@@ -662,41 +740,9 @@ public:
 	}
 
 
-	unsigned int getIndex(const std::string& parameterName) const;
-	bool hasParameter(const std::string& parameterName) const;
-
-	std::vector<GibbsParameter*> getParameters(void);
-	std::vector<GibbsParameter*> getParameters(const std::vector<std::string>& param);
-
-	std::vector<unsigned int> namesToIndices(std::vector<std::string> names) const;
-
-	std::vector<double> getCurrentGroupValues(std::string group) const;
-
-	//I don't think I've ever used these functions. I just use getCurrentParameterValues()
-	ParameterList getParameterList(std::vector<std::string> parameterNames);
-	ParameterList getParameterList(std::vector<unsigned int> parameterIndices);
-
-	ParameterList& getCurrentParameterValues(void);
-	ParameterList getIterationParameterValues(unsigned int iteration);
-
-	void setParameterGroupToConstantValue(std::string group, double value);
-
-	void run(unsigned int samplesToCollect, bool clearExistingSamples);
-
-	void clear(void);
-
-
-	std::mt19937_64& getGenerator(void) {
-		return _generator;
-	}
-
-	static std::uniform_real_distribution<double> canonical;
-
-	
-
-
 #ifdef COMPILING_WITH_CX
 	void outputPosteriors(std::string outputDirectory);
+	CX_DataFrame getPosteriors(void);
 
 	CX_DataFrame getAcceptanceRates(void);
 	void outputAcceptanceRates(std::string filename);
@@ -721,6 +767,11 @@ private:
 	std::mt19937_64 _generator;
 	
 	void _remakeIndices(void);
+
+	void _makeDependentParameterList(void);
+	std::vector<unsigned int> _continuouslyUpdatedDependentParameters;
+	std::vector<unsigned int> _dependentParameters;
+	std::vector<unsigned int> _independentParameters;
 
 };
 

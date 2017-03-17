@@ -119,8 +119,8 @@ getEffectParameterPosteriors = function(results, param, testedFactors, dmFactors
 #' @param dmFactors Character vector or formula. The factors to use to construct the design matrix. For a fully-crossed (balanced) design, this can always be equal to \code{testFactors} (the default). For non-fully-crossed designs, you may sometimes want to create a design matrix using some factors, but perform a hypothesis test with only some of those factors (\code{testedFactors} must be a subset of \code{dmFactors}). You may instead supply a \code{formula} like that taken by \code{\link{model.matrix}} which will be used to create the design matrix.
 #' @param usedFactorLevels A \code{data.frame} with columns for each of the factors in \code{testedFactors}. Each row specifies factor levels that should be included in the test. This allows you to do things like pairwise comparisons of specific factor levels.
 #' @param priorSamples Number of samples to take from the prior distribution of the effect parameters. You should not change this from the default unless you are using a custom \code{testFunction}, in which case you might want to use a different value.
-#' @param testFunction See \code{\link{CMBBHT::testHypothesis}}.
-#' @param contrastType See \code{\link{CMBBHT::testHypothesis}}.
+#' @param testFunction See \code{\link[CMBBHT]{testHypothesis}}.
+#' @param contrastType See \code{\link[CMBBHT]{testHypothesis}}.
 #' 
 #' @return Depends on the choice of \code{testFunction}. Typically a list with, at least, elements \code{bf10} and \code{bf01} which are the Bayes factors in favor of and against the tested effect, respectively.
 #' 
@@ -298,7 +298,7 @@ testMainEffectsAndInteractions = function(results, param=NULL,
 	
 	if (any(BFs$success == FALSE)) {
 		
-		ff = aggregate(success ~ param * factor * levels, BFs, function(x) { sum(!x) })
+		ff = stats::aggregate(success ~ param * factor * levels, BFs, function(x) { sum(!x) })
 		ff$failures = ff$success
 		ff$success = NULL
 
@@ -532,6 +532,17 @@ geoQ = function(z, mu, sigma) {
 #' @export
 calculateMarginalEffectParameterPriors = function(results, param, testedFactors = NULL, dmFactors = NULL, contrastType = NULL, priorLoc = NULL, priorScale = NULL) {
 	
+	gmeihtf = results$config$factors
+	gmeihtf$cond = NULL
+	
+	if (is.null(contrastType)) {
+		if (CMBBHT::isDesignFullyCrossed(gmeihtf, FALSE)) {
+			contrastType = "contr.sum"
+		} else {
+			contrastType = "contr.treatment"
+		}
+	}
+	
 	factors = results$config$factors
 	
 	testedFactorsSpecified = !is.null(testedFactors)
@@ -582,9 +593,6 @@ calculateMarginalEffectParameterPriors = function(results, param, testedFactors 
 				}
 			}
 		}
-
-		gmeihtf = results$config$factors
-		gmeihtf$cond = NULL
 		
 		if (is.null(dmFactors)) {
 			thisDmFactors = fNames

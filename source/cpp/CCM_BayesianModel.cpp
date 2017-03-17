@@ -69,8 +69,6 @@ namespace CatCont {
 
 	double Bayesian::multiConditionParameter_ll(double thisParam, const ParameterList& param, vector<unsigned int> condIndices, string baseName) const {
 
-		//const vector<unsigned int>& sharedCond = config.equalCon.getEqualConditionIndices(baseName, condIndex);
-
 		double llSum = 0;
 		for (unsigned int cond : condIndices) {
 			llSum += singleCond_ll(param, cond);
@@ -422,23 +420,17 @@ namespace CatCont {
 				string group = parName + "_cond";				
 
 				if (condIndex == config.cornerstoneConditionIndex) {
-					//Do the 0 param
-					DependentParameter par;
 
-					par.name = name;
-					par.group = group;
-
-					par.sourceParameter = par.name; //Make itself its source: That will just result in it keeping the same value each time it updates.
-
-					gibbs.addParameter(par, 0);
+					gibbs.createConstantParameter(name, group, 0);
 
 				} else {
 
 					string source = eq.getSourceParameter(name);
 
-					if (source == "FREE_PARAMETER") {
+					if (source == EqualityConstraints::FreeParameter) {
 						//set up free parameter with multiConditionParameter_ll
 
+						//unsigned int sourceIndex = condIndex;
 						vector<unsigned int> conditionIndices = eq.getEqualConditionIndices(parName, condIndex);
 
 						MH_Parameter par;
@@ -459,7 +451,7 @@ namespace CatCont {
 
 						dp.sourceParameter = source;
 
-						gibbs.addParameter(dp, 0);
+						gibbs.addParameter(dp);
 					}
 
 				}
@@ -596,9 +588,11 @@ namespace CatCont {
 
 				string istr = "[" + data.participants.at(i).pnum + "]";
 
-				DependentParameter spLL;
+				CalculatedParameter spLL;
 				spLL.name = "participantLL" + istr;
 				spLL.group = "participantLL";
+
+				spLL.updateContinuously = false; //Only update once per iteration
 
 				spLL.samplingFunction = std::bind(&Bayesian::_singleParticipantLLSamplingFunction, this, _1, i);
 

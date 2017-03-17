@@ -349,7 +349,7 @@ getParameterTransformation = function(param, results, inverse=FALSE) {
 #' 
 #' This function is the weights function, given in Equation 5 of the Appendix of Hardman, Vergauwe, and Ricker (2016).
 #' 
-#' @param study A study angle, in degrees.
+#' @param study A scalar study angle, in degrees.
 #' @param catMu A vector of category means, in degrees.
 #' @param catSelectivity The categorical selectivity parameter, as standard deviation in degrees.
 #' @param dataType One of \code{"circular"} or \code{"linear"}.
@@ -388,6 +388,8 @@ categoryWeightsFunction = function(study, catMu, catSelectivity, dataType = "cir
 #' @param lwd A vector of line width for the different categories.
 #' @param study The study angles at which the category weights are plotted (i.e. a grid of x-values).
 #' @param axes If TRUE, axes are plotted.
+#' 
+#' @return Invisibly, the densities used to make the plot. Each column is related to one catMu.
 #'  
 #' @seealso \link{categoryWeightsFunction} to get the vector of probabilities for a single study angle.
 #' @export
@@ -405,7 +407,7 @@ plotWeightsFunction = function(catMu, catSelectivity, dataType = "circular",
 	
 	dens = matrix(0, nrow=length(study), ncol=length(catMu))
 	
-	graphics::plot(c(0, 360), c(0,1), type='n', axes=FALSE, 
+	graphics::plot(range(study), c(0,1), type='n', axes=FALSE, 
 			 xlab="Study Angle", ylab="Probability to Select Category")
 	graphics::box()
 	if (axes) {
@@ -417,9 +419,11 @@ plotWeightsFunction = function(catMu, catSelectivity, dataType = "circular",
 		dens[i,] = categoryWeightsFunction(study[i], catMu, catSelectivity, dataType=dataType)
 	}
 	for (i in 1:ncol(dens)) {
-		graphics::lines(study, dens[,i], col=colors[i], lty=lty[i], lwd=lwd)
+		graphics::lines(study, dens[,i], col=colors[i], lty=lty[i], lwd=lwd[i])
 	}
-	dens
+	colnames(dens) = catMu
+	rownames(dens) = study
+	invisible(dens)
 }
 
 

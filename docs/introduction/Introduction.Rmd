@@ -1,7 +1,7 @@
 ---
 title: "CatContModel Introduction"
 author: "Kyle Hardman"
-date: "Package version 0.7.2, February 2017"
+date: "Package version 0.7.4, March 2017"
 output: pdf_document
 linkcolor: blue
 csl: apa-single-spaced.csl
@@ -658,7 +658,7 @@ mei = testMainEffectsAndInteractions(results)
 mei[ mei$bfType == "10", ] #Only look at the Bayes factors in favor of there being an effect
 ```
 
-The result is a data frame with many columns, the meaning of most of which are explained in the documentation for `summarizeSubsampleResults`. The first two columns give the parameter for which the test was performed (`param`) and the factor of the design for which the test was performed (`factor`). Interactions between factors are indicated by putting a colon (":") between two or more factors. For example, the interaction between letters and numbers would be indicated with `letters:numbers`. The `levels` column indicates which levels of the effect were used for the test. If `Omnibus`, that means that all levels were used and it is an omnibus test. All of the values in the `levels` column will be `Omnibus` unless you specify that pairwise comparisons should be done, which you can do by setting the `doPairwise` argument of `testMainEffectsAndInteractions` to `TRUE`.
+The result is a data frame with many columns, the meaning of most of which are explained in the documentation for `summarizeSubsampleResults`. The first two columns give the parameter for which the test was performed (`param`) and the factor of the design for which the test was performed (`factor`). Interactions between factors are indicated by putting a colon (":") between two or more factors. For example, the interaction between the `letters` and `numbers` factors would be indicated with `letters:numbers`. The `levels` column indicates which levels of the effect were used for the test. If `Omnibus`, that means that all levels were used and it is an omnibus test. All of the values in the `levels` column will be `Omnibus` unless you specify that pairwise comparisons should be done, which you can do by setting the `doPairwise` argument of `testMainEffectsAndInteractions` to `TRUE`.
 
 See the `factorial_betweenItem` example for more examples of using this function and playing with its output.
 
@@ -670,122 +670,29 @@ calculateMarginalEffectParameterPriors(results, "pMem")
 
 Some caveats about these hypothesis tests: I am fairly confident that everything I am doing is mathematically and statistically principled. However, it has not been peer reviewed. In addition, although the procedures may be principled, there is a good deal of approximation involved, which could hurt the accuracy of the results. Bayes factors substantially far from 1 should be taken with a grain of salt as the approximations are likely more error-prone the more extreme the Bayes factors are. At the same time, of course, large Bayes factors do not need to be known with a great deal of precision to know the substantive result.
 
-## Unbalanced Designs {#unbalancedDesigns}
+## Non-Fully-Crossed/Unbalanced Designs {#unbalancedDesigns}
 
-This section is an exploration of why non-fully-crossed designs are weird to analyze.
+When you have an unbalanced design (factors are not fully crossed), the analysis becomes difficult. 
+Please read the section with the same name as this section in the CMBBHT package manual [here](https://github.com/hardmanko/CMBBHT/releases/download/v0.1.1/Manual.pdf).
 In brief, you have to make subjective choices. `testMainEffectsAndInteractions` makes one choice for you, but you can use the lower-level function `testSingleEffect` to get more control.
 
-Consider the following non-fully-crossed (unbalanced) design, in which there are two factors, each with three levels.
-
-```{r}
-factors = data.frame(
-	letters = c('a', 'b', 'b', 'c', 'c', 'c'),
-	numbers = c('1', '1', '2', '1', '2', '3'),
-	mus     = c( 0,   0,   6,   0,   0,   0 )
-	)
-```
-
-Let's imagine that for some parameter we get the following pattern of cell means. A "." indicates a missing cell in the design.
-
- / | 1 | 2 | 3 |
----|---|---|---|
- a | 0 | . | . |
- b | 0 | 6 | . |
- c | 0 | 0 | 0 |
- 
-In this design, you can conceptually think of the following effect parameters: A grand mean or intercept, main effects of the letters factor, main effects of the numbers factor, and interaction terms. 
-
-Assume that you want to test the main effect of the letters factor. There are two ways we can think about the main effect. The first is to consider the main effect of letters without considering the interaction between letters and numbers. The second is to consider the main effect in the context of the interaction. These approaches are equivalent in a fully-crossed design that uses orthogonal contrasts (the package default for fully-crossed designs), but they are not equivalent when the design is not fully crossed, in which case the contrasts cannot be orthogonal.
-
-We will start with the first approach, examining the main effect of letters without the interaction. I will do this by creating a design matrix and then solving for the effect parameters given the cell means.
-```{r}
-X = model.matrix( ~ letters, factors, 
-  contrasts.arg = list(letters = "contr.treatment"))
-X
-```
-First, the design matrix, $X$, is created using treatment contrasts, which are valid when the design is not fully crossed. The solution for the vector of effect parameters is $\beta = (X^TX)^{-1}X^T\mu$, where $\mu$ are the cell means.
-
-```{r}
-beta = solve(t(X) %*% X) %*% t(X) %*% factors$mus
-zapsmall(beta)
-```
-We can see that the parameter corresponding to the `b` level of letters, `lettersb`, is 3, while the `lettersc` parameter is 0.
-Given that treatment contrasts were used, the value for `lettersa` is 0, i.e. nothing is added to the `a` level of letters beyond the intercept.
-Thus, the effect parameters correspond to the marginal means of 0, 3, and 0 for `a`, `b`, and `c`, respectively.
-If we assume very low noise in the data, there appears to be a main effect of letters.
-
-Now let's use the second approach and include the interaction in the design and see what happens.
-Let's make the design matrix, this time including both factors and their interaction.
-
-```{r}
-X = model.matrix( ~ letters * numbers, factors, 
-  contrasts.arg = list(
-    letters = "contr.treatment", 
-    numbers = "contr.treatment"
-  )
-)
-```
-
-This design matrix, however, has too many columns (9) for the number of cells in the design (6), making it be not full rank (one outcome of which is that $X^{T}X$ is uninvertable, which it needs to be).
-I'll take advantage of a little trick to drop excess columns.
-
-```{r}
-q = qr(X)
-kept = q$pivot[ 1:q$rank ]
-X = X[ , kept ]
-X
-```
-
-Now $X$ is full rank. You can see from the columns of $X$ that there is one interaction term, `lettersb:numbers2`. This term corresponds to the cell of the design with mean 6. We can calculate the effect parameters as before.
-
-```{r}
-beta = solve(t(X) %*% X) %*% t(X) %*% factors$mus
-zapsmall(beta)
-```
-
-Now when we look at the parameter values, we can see that all of the letter main effect parameters are 0 because all of the marginal effect of cell `b2` is accounted for by the interaction. Thus, there does not appear to be a main effect of letters.
-
-Here is a different example.
-
- / | 1 | 2 | 3 |
----|---|---|---|
- a | 0 | 2 | 4 |
- b | 0 | . | . |
- c | 0 | . | . |
-
-We can see that there is a marginal main effect of letters when nothing else is considered. However, when the main effect of numbers is included in the design, the parameters associated with the `2` and `3` levels of the numbers factor account for the apparent marginal lettters effect. Thus, main effects can be affected by the inclusion of other main effects.
-
-```{r}
-
-factors = data.frame(
-  letters = c('a', 'a', 'a', 'b', 'c'),
-  numbers = c('1', '2', '3', '1', '1'),
-  mus     = c( 0,   2,   4,   0,   0 )
-)
-
-X = model.matrix( ~ letters + numbers, factors, 
-  contrasts.arg = list(
-    letters = "contr.treatment", 
-    numbers = "contr.treatment"
-  )
-)
-
-beta = solve(t(X) %*% X) %*% t(X) %*% factors$mus
-zapsmall(beta)
-```
-
-When working with non-fully-crossed designs, you have to choose what main effects or interactions to account for. This is difficult to do with the function `testMainEffectsAndInteractions`. By default, it takes the first approach: Only estimate the main effect, but not interactions. More generally, it only includes terms up to and including the tested effect. For example, if you are testing two-factor interaction, it will estimate that interaction and the two associated main effects. If there is a third factor, it will not estimate the main effect of that third factor or any interactions including that third factor.
+When working with non-fully-crossed designs, you have to choose what main effects or interactions to account for as it has implications for the results. 
+This is difficult to do with the function `testMainEffectsAndInteractions`. It only includes terms up to and including the tested effect. For example, if you are testing two-factor interaction, it will estimate that interaction and the two associated main effects. If there is a third factor, it will not estimate the main effect of that third factor or any interactions including that third factor.
 
 If you want more control over what effects are estimated, you can use the lower-level function `testSingleEffect`. Here is a minimal (and not run) usage example where the main effects of letters is tested in the context of a design matrix that includes the interaction between letters and numbers.
 
 ```{r eval=FALSE}
-testSingleEffect(results, "contSD", testedFactors = "letters", dmFactors = c("letters", "numbers"))
+testSingleEffect(results, "contSD", 
+	testedFactors = "letters", dmFactors = c("letters", "numbers"), 
+	contrastType = "contr.treatment")
 ```
+
+In addition, the `contrastType` argument allows you to select what contrasts to use. For an unbalanced design, `contr.treatment` or `contr.SAS` is what I would recommend.
 
 
 ## Nested Designs {#nestedDesigns}
 
-Sometimes you will have a nested design, where the levels of one factor are nested within the levels of another factor. One example of such a situation could come from a working memory experiment in which you have serial positions nested within set sizes. For example, you might have two set sizes of memoranda, such as lists of 2 or 4 colors. At the end of the presentation of a list, participants recall one of the items in the list to the best of their ability. The order of presentation of the items defines the serial position factor. For set size 2, there are serial positions 1 and 2. For set size 4, there are serial positions 1 through 4. This is a nested design because although set sizes 2 and 4 both have serial positions 1 and 2, the meaning of those serial positions is totally different within the context of the set size, due to (at least) primacy and recency effects. At set size 2, serial position 2 is the most recent item, so it would get a recency effect. At set size 4, however, serial position 2 is somewhere in the middle of the list, so recall should be hurt. Thus, this is a nested design, where serial positions must be treated as dependent on the set size. I will explain here how to analyze such a design with this package.
+Sometimes you will have a nested design, where the levels of one factor are nested within the levels of another factor. One example of such a situation could come from a working memory experiment in which you have serial positions nested within set sizes. For example, you might have two set sizes of memoranda, such as lists of 2 or 4 colors. At the end of the presentation of a list, participants recall one of the items in the list to the best of their ability. The order of presentation of the items defines the serial position factor. For set size 2, there are serial positions 1 and 2. For set size 4, there are serial positions 1 through 4. This is a nested design because although set sizes 2 and 4 both have serial positions 1 and 2, the meaning of those serial positions is totally different within the context of the set size, due to (at least) primacy and recency effects. At set size 2, serial position 2 is the most recent item, so it would get a recency effect. At set size 4, however, serial position 2 is somewhere in the middle of the list, so it would get neither a primacy nor a recentcy effect. Thus, this is a nested design, where serial positions must be treated as dependent on the set size. I will explain here how to analyze such a design with this package.
 
 In the results of parameter estimation, there is a `data.frame` that can be found in `results$config$factors`. For a multi-factor design, you should have provided this `data.frame` in `config$factors` before starting parameter estimation. 
 
@@ -865,8 +772,8 @@ For referencing ideas in the models, please cite @HardmanVergauweRicker2017. See
 If you use this package, please cite it:
 
 Hardman, K.O. (2016). CatContModel: Categorical and Continuous 
-Working Memory Models for Delayed Estimation Tasks (Version 0.7.2) [Computer software]. Retrieved from
-https://github.com/hardmanko/CatContModel/releases/tag/v0.7.2
+Working Memory Models for Delayed Estimation Tasks (Version 0.7.4) [Computer software]. Retrieved from
+https://github.com/hardmanko/CatContModel/releases/tag/v0.7.4
 
 Make sure to update the version number in both the name and the URL.
 

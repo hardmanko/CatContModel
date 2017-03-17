@@ -2,9 +2,12 @@
 
 std::uniform_real_distribution<double> GibbsSampler::canonical = std::uniform_real_distribution<double>(0, 1);
 
-//This is here because it uses the GibbsSampler class
+////////////////////
+// GibbsParameter //
+////////////////////
+
 void GibbsParameter::_updateCurrentValue(double s) {
-	_gibbs->getCurrentParameterValues().at(this->name) = s;
+	_gibbs->setCurrentParameterValue(this->name, s);
 }
 
 //////////////////
@@ -12,7 +15,7 @@ void GibbsParameter::_updateCurrentValue(double s) {
 //////////////////
 double MH_Parameter::_getNextSample(void) {
 
-	ParameterList& param = _gibbs->getCurrentParameterValues();
+	ParameterList param = _gibbs->getCurrentParameterValues();
 
 	double currentValue = this->value();
 	double candidate = this->deviateFunction(currentValue);
@@ -23,9 +26,11 @@ double MH_Parameter::_getNextSample(void) {
 	}
 	
 	param[this->name] = currentValue;
+	//_gibbs->updateDependentParameters(&param); //Does this need to be here?
 	double currentLL = this->llFunction(currentValue, param);
 
 	param[this->name] = candidate;
+	_gibbs->updateDependentParameters(&param);
 	double candidateLL = this->llFunction(candidate, param);
 	
 
@@ -46,6 +51,79 @@ double MH_Parameter::_getNextSample(void) {
 	return newValue;
 }
 
+////////////////////////
+// DependentParameter //
+////////////////////////
+
+double DependentParameter::evaluate(const ParameterList& param) const {
+	if (sourceParameter == name) {
+		return _samples.back();
+	}
+
+	return param.at(sourceParameter);
+
+	return this->_gibbs->getParameter<GibbsParameter>(sourceParameter)->value();
+}
+
+double DependentParameter::value(void) const {
+
+	//If this is its own source, return the last sample
+	if (sourceParameter == name) {
+		return _samples.back();
+	}
+
+	return this->_gibbs->getParameter<GibbsParameter>(sourceParameter)->value();
+}
+
+double DependentParameter::getSample(unsigned int iteration) const {
+	return this->_gibbs->getParameter<GibbsParameter>(sourceParameter)->getSample(iteration);
+}
+
+std::vector<double>& DependentParameter::getSamples(void) {
+	if (sourceParameter == name) {
+		return _samples;
+	}
+
+	return this->_gibbs->getParameter<GibbsParameter>(sourceParameter)->getSamples();
+}
+
+double DependentParameter::_getNextSample(void) {
+	return this->value();
+}
+
+/////////////////////////
+// CalculatedParameter //
+/////////////////////////
+
+double CalculatedParameter::_getNextSample(void) {
+	return this->value();
+}
+
+double CalculatedParameter::value(void) const {
+	return evaluate(_gibbs->getCurrentParameterValues());
+}
+
+double CalculatedParameter::evaluate(const ParameterList& param) const {
+	if (samplingFunction != nullptr) {
+		return samplingFunction(param);
+	}
+	throw(std::runtime_error("CalculatedParameter not configured with a sampling function!"));
+	return 0;
+}
+
+double CalculatedParameter::getSample(unsigned int iteration) const {
+	return samplingFunction(_gibbs->getIterationParameterValues(iteration));
+}
+
+std::vector<double>& CalculatedParameter::getSamples(void) {
+
+	//for (unsigned int i = 0; i < _samples.size(); i++) {
+	//
+	//}
+
+	return _samples;
+}
+
 
 ///////////////////////
 // DecorrelatingStep //
@@ -61,6 +139,7 @@ double DecorrelatingStep::_getNextSample(void) {
 	for (const auto& p : candidateValues) {
 		paramCopy[p.first] = p.second;
 	}
+	_gibbs->updateDependentParameters(&paramCopy);
 	double llCandidate = llFunction(candidateValues, paramCopy);
 
 
@@ -69,45 +148,38 @@ double DecorrelatingStep::_getNextSample(void) {
 	//double newValue;
 	double canonicalSample = GibbsSampler::canonical(_gibbs->getGenerator());
 
-	ParameterList& paramToUpdate = _gibbs->getCurrentParameterValues();
-
 	//if the likelihood ratio is greater than 1, the sample is always less than it, so accept
 	if (canonicalSample < likelihoodRatio) {
+		acceptanceTracker.parameterAccepted();
 
 		for (const auto& p : candidateValues) {
+
 			UNSAFE_storeNewSample(_gibbs->getParameter<GibbsParameter>(p.first), p.second);
 
-			paramToUpdate.at(p.first) = p.second; //if accepting, change the current values of the parameters stored by the sampler
+			//if accepting, change the current values of the parameters stored by the sampler
 			//if not accepting, nothing needs to be done to the current values as they have not been changed
+			_gibbs->setCurrentParameterValue(p.first, p.second);
 		}
-
-		acceptanceTracker.parameterAccepted();
 	} else {
+		acceptanceTracker.parameterRejected();
+
 		for (const auto& p : currentValues) {
 			UNSAFE_storeNewSample(_gibbs->getParameter<GibbsParameter>(p.first), p.second);
 		}
-		acceptanceTracker.parameterRejected();
 	}
 
 	return 0;
 }
 
-
+////////////////////////
+// ConjugateParameter //
+////////////////////////
 
 double ConjugateParameter::_getNextSample(void) {
 	return samplingFunction(_gibbs->getCurrentParameterValues());
 }
 
-double DependentParameter::_getNextSample(void) {
-	const ParameterList& pl = _gibbs->getCurrentParameterValues();
-	if (sourceParameter != "") {
-		return pl.at(sourceParameter);
-	} else if (samplingFunction != nullptr) {
-		return samplingFunction(pl);
-	}
-	throw(std::runtime_error("DependentParameter not configured with either a parameter name or a sampling function!"));
-	return 0;
-}
+
 
 /////////////////////////////
 // ConstantVectorParameter //
@@ -154,15 +226,13 @@ void VectorMH_Parameter::update(void) {
 	//take samples
 	std::vector<double> samples = __getNextSamples();
 
-	ParameterList& param = _gibbs->getCurrentParameterValues();
-
-
+	//Regardless of whether there was an acceptance or rejection, samples contains the current values.
 	for (unsigned int i = 0; i < _elementNames.size(); i++) {
 		//store samples in elements
 		UNSAFE_storeNewSample(_gibbs->getParameter<VectorElement>(_elementNames[i]), samples[i]);
 
 		//update sample values. don't update self, update elements
-		param[_elementNames[i]] = samples[i];
+		_gibbs->setCurrentParameterValue(_elementNames[i], samples[i]);
 	}
 }
 
@@ -204,7 +274,7 @@ void VectorMH_Parameter::createElements(GibbsSampler* gibbs) {
 
 
 std::vector<double> VectorMH_Parameter::__getNextSamples(void) {
-	ParameterList& param = _gibbs->getCurrentParameterValues();
+	ParameterList param = _gibbs->getCurrentParameterValues();
 
 	std::vector<double> currentValues(_elementNames.size());
 	for (unsigned int i = 0; i < currentValues.size(); i++) {
@@ -224,17 +294,19 @@ std::vector<double> VectorMH_Parameter::__getNextSamples(void) {
 	for (unsigned int i = 0; i < currentValues.size(); i++) {
 		param[_elementNames[i]] = currentValues[i];
 	}
+	_gibbs->updateDependentParameters(&param);
+	//Probably don't need to here
+	
+	double currentLL = this->llFunction(currentValues, param); //Calculate current log likelihood
 
-	//Calculate current log likelihood
-	double currentLL = this->llFunction(currentValues, param);
 
 	//Update values for candidate values
 	for (unsigned int i = 0; i < candidateValues.size(); i++) {
 		param[_elementNames[i]] = candidateValues[i];
 	}
-
-	//calculate candidate log likelihood
-	double candidateLL = this->llFunction(candidateValues, param);
+	_gibbs->updateDependentParameters(&param);
+	
+	double candidateLL = this->llFunction(candidateValues, param); //Calculate candidate log likelihood
 
 
 	double likelihoodRatio = exp(candidateLL - currentLL);
@@ -260,9 +332,10 @@ const std::vector<std::string>& VectorMH_Parameter::getElementNames(void) const 
 
 std::vector<double> VectorMH_Parameter::getCurrentValue(void) const {
 	std::vector<double> values(_elementNames.size());
-	ParameterList& param = _gibbs->getCurrentParameterValues();
+	ParameterList param = _gibbs->getParameterList(_elementNames);
+
 	for (unsigned int i = 0; i < _elementNames.size(); i++) {
-		values[i] = param[_elementNames[i]];
+		values[i] = param.at(_elementNames[i]);
 	}
 	return values;
 }
@@ -277,13 +350,31 @@ std::vector<double> VectorMH_Parameter::getIterationValue(unsigned int iteration
 		values[i] = param[i]->getSample(iteration);
 	}
 	return values;
-
 }
 
 
 //////////////////
 // GibbsSampler //
 //////////////////
+void GibbsSampler::createConstantParameter(std::string name, std::string group, double value, std::string replaceName, bool removeAndAdd) {
+	DependentParameter dp;
+	dp.name = name;
+	dp.group = group;
+
+	dp.sourceParameter = dp.name;
+
+	if (replaceName == "") {
+		this->addParameter(dp, value);
+	} else {
+		if (removeAndAdd) {
+			this->removeParameter(replaceName);
+			this->addParameter(dp, value);
+		} else {
+			this->replaceParameter(replaceName, dp, value);
+		}
+	}
+}
+
 ParameterList GibbsSampler::getParameterList(std::vector<std::string> parameterNames) {
 	return getParameterList(namesToIndices(parameterNames));
 }
@@ -298,8 +389,12 @@ ParameterList GibbsSampler::getParameterList(std::vector<unsigned int> parameter
 	return rval;
 }
 
-ParameterList& GibbsSampler::getCurrentParameterValues(void) {
+const ParameterList& GibbsSampler::getCurrentParameterValues(void) {
 	return _currentValues;
+}
+
+void GibbsSampler::setCurrentParameterValue(std::string p, double v) {
+	_currentValues.at(p) = v;
 }
 
 ParameterList GibbsSampler::getIterationParameterValues(unsigned int iteration) {
@@ -313,7 +408,7 @@ ParameterList GibbsSampler::getIterationParameterValues(unsigned int iteration) 
 	for (unsigned int j = 0; j < _paramVector.size(); j++) {
 		GibbsParameter* p = _paramVector[j];
 
-		switch (p->dimension) {
+		switch (p->getDimension()) {
 		case ParameterDimension::SCALAR:
 			rval[p->name] = p->getSample(iteration);
 			break;
@@ -336,11 +431,14 @@ ParameterList GibbsSampler::getIterationParameterValues(unsigned int iteration) 
 
 }
 
+
 /*
 
 clearExistingSamples clears all samples except for the starting value. It also resets MH acceptance rates.
 */
 void GibbsSampler::run(unsigned int samplesToCollect, bool clearExistingSamples) {
+
+	_makeDependentParameterList();
 
 	for (unsigned int j = 0; j < _paramVector.size(); j++) {
 		GibbsParameter* p = _paramVector[j];
@@ -360,7 +458,7 @@ void GibbsSampler::run(unsigned int samplesToCollect, bool clearExistingSamples)
 	if (clearExistingSamples) {
 		for (unsigned int j = 0; j < _paramVector.size(); j++) {
 			//clear all but the starting value
-			_paramVector[j]->_samples.resize(1);
+			_paramVector[j]->_samples.resize(1); //TODO: Bad use of private vars
 
 			if (_paramVector[j]->getAcceptanceTracker() != nullptr) {
 				_paramVector[j]->getAcceptanceTracker()->reset();
@@ -370,15 +468,24 @@ void GibbsSampler::run(unsigned int samplesToCollect, bool clearExistingSamples)
 		_storedIterations = 1; //Just the starting values
 	}
 
-	
+	//Make sure the parameters are pointing to this.
 	for (unsigned int j = 0; j < _paramVector.size(); j++) {
-		//Update the current values from the parameters
-		_currentValues[_paramVector[j]->name] = _paramVector[j]->value();
+		_currentValues[_paramVector[j]->name] = 0; //Default initialization, to be overridden.
 
-		//make sure the parameters are pointing to this.
 		_paramVector[j]->_gibbs = this;
 	}
 
+	//Update the current values for the parameters
+	//Do not use setCurrentParameterValue because that function assumes that parameters already exist.
+	for (unsigned int j = 0; j < _independentParameters.size(); j++) {
+		unsigned int ind = _independentParameters[j];
+		_currentValues[_paramVector[ind]->name] = _paramVector[ind]->value();
+	}
+	for (unsigned int j = 0; j < _dependentParameters.size(); j++) {
+		unsigned int ind = _dependentParameters[j];
+		_currentValues[_paramVector[ind]->name] = _paramVector[ind]->value();
+	}
+	
 
 	auto runStartTime = std::chrono::high_resolution_clock::now();
 	auto lapStartTime = runStartTime;
@@ -388,6 +495,7 @@ void GibbsSampler::run(unsigned int samplesToCollect, bool clearExistingSamples)
 		//Update the parameters
 		for (unsigned int j = 0; j < _paramVector.size(); j++) {
 			_paramVector[j]->update();
+			updateDependentParameters(&_currentValues);
 		}
 
 		_storedIterations++;
@@ -404,7 +512,6 @@ void GibbsSampler::run(unsigned int samplesToCollect, bool clearExistingSamples)
 		//Do status update
 		if ((i % iterationsPerStatusUpdate) == 0) {
 
-			//CX_Millis elapsedTime = Clock.now() - lapStartTime;
 			auto currentTime = std::chrono::high_resolution_clock::now();
 			long long lapDurationMs = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lapStartTime).count();
 			long long msPerIteration = (double)lapDurationMs / iterationsPerStatusUpdate;
@@ -435,6 +542,7 @@ void GibbsSampler::run(unsigned int samplesToCollect, bool clearExistingSamples)
 	GS_COUT << "\r100% complete.                                                      " << std::endl;
 #endif
 }
+
 
 
 
@@ -477,12 +585,26 @@ void outputDataVector(std::string filename, std::string header, std::vector<doub
 
 void GibbsSampler::outputPosteriors(std::string outputDirectory) {
 
-	std::vector<GibbsParameter*> param = this->getParameters();
-	for (GibbsParameter* p : param) {
+	for (GibbsParameter* p : _paramVector) {
 		GS_COUT << "Outputting posterior for " << p->name << std::endl;
 		outputDataVector(outputDirectory + "/" + p->name + ".txt", p->name, p->getSamples());
 	}
 
+}
+
+//This function is probably really slow.
+CX_DataFrame GibbsSampler::getPosteriors(void) {
+
+	CX_DataFrame post;
+
+	for (GibbsParameter* p : _paramVector) {
+		vector<double> samp = p->getSamples();
+		for (unsigned int i = 0; i < samp.size(); i++) {
+			post(i, p->name) = samp[i];
+		}
+	}
+
+	return post;
 }
 
 #endif
@@ -549,6 +671,35 @@ void GibbsSampler::_remakeIndices(void) {
 		_groupToIndices[_paramVector[i]->group].push_back(i);
 	}
 }
+
+void GibbsSampler::_makeDependentParameterList(void) {
+	_continuouslyUpdatedDependentParameters.clear();
+	_dependentParameters.clear();
+	_independentParameters.clear();
+
+	for (unsigned int i = 0; i < _paramVector.size(); i++) {
+		GenericDependentParameter* p = (GenericDependentParameter*)_paramVector[i];
+		if (p->hasDependency()) {
+			if (p->updateContinuously) {
+				_continuouslyUpdatedDependentParameters.push_back(i);
+			}
+			_dependentParameters.push_back(i);
+		} else {
+			_independentParameters.push_back(i);
+		}
+	}
+}
+
+/*
+Recalculates values for all continuously updated dependent parameters, in their insertion order.
+*/
+void GibbsSampler::updateDependentParameters(ParameterList* param) const {
+	for (unsigned int i : _continuouslyUpdatedDependentParameters) {
+		GenericDependentParameter* p = (GenericDependentParameter*)_paramVector[i];
+		(*param)[p->name] = p->evaluate(*param);
+	}
+}
+
 
 /* Replaces all of the parameters in the given parameter group with a ConstantParameter with the given value.
 */
