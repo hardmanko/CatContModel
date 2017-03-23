@@ -92,8 +92,10 @@ source("../DataSimulatingFunctions.R")
 
 trueParam = read.delim("betweenItem_parameters.txt")
 
-compareTrueAndRecovered(results, trueParam)
-
+comp = compareTrueAndRecovered(results, trueParam)
+whichRound = c("true", "rec", "cor", "slope", "dif", "percentDif")
+comp[ , whichRound ] = round(comp[ , whichRound ], 2)
+comp
 
 
 # Fit the ZL model to this data that was generated from the betweenItem model.

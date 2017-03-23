@@ -202,9 +202,13 @@ compareTrueAndRecovered = function(results, trueParam) {
 			corr = cor(rec, true)
 			slope = as.numeric(coef(lm(rec ~ true))[2])
 			dif = mean(rec - true)
-			percentDif = mean(rec - true) / mean((rec + true) / 2)
+			percentDif = mean(rec - true) / mean((rec + true) / 2) * 100
 			
-			temp = data.frame(param = param, cond = cond, cor = corr, slope = slope, dif = dif, percentDif = percentDif, stringsAsFactors = FALSE)
+			temp = data.frame(param = param, cond = cond, 
+												true = mean(true), rec = mean(rec),
+												cor = corr, slope = slope, 
+												dif = dif, percentDif = percentDif, 
+												stringsAsFactors = FALSE)
 			
 			df = rbind(df, temp)
 		}

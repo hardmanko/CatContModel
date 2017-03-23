@@ -36,11 +36,12 @@ config$conditionEffects = list(
 # 1. Override MH tuning defaults
 mhTuning = list()
 mhTuning$catSelectivity = 3
+mhTuning$pMem = 0.2
+mhTuning$pMem_cond = 0.08
 mhTuning$contSD = 2
-mhTuning$contSD_cond = 1.2
+mhTuning$contSD_cond = 1.5
 mhTuning$pContBetween = 0.4
-mhTuning$pContBetween_cond = 0.2
-mhTuning$pMem_cond = 0.15
+mhTuning$pContBetween_cond = 0.12
 
 
 # 2. Run with those MH tuning values
@@ -176,9 +177,8 @@ source("../DataSimulatingFunctions.R")
 
 trueParam = read.delim("factorial_BI_parameters.txt")
 
-trueParam$cond = results$config$factors$cond[ trueParam$cond ]
-
 comp = compareTrueAndRecovered(results, trueParam)
-comp[ , c("cor", "slope", "dif", "percentDif") ] = round(comp[ , c("cor", "slope", "dif", "percentDif") ], 2)
+whichRound = c("true", "rec", "cor", "slope", "dif", "percentDif")
+comp[ , whichRound ] = round(comp[ , whichRound ], 2)
 comp
 

@@ -86,7 +86,10 @@ source("../DataSimulatingFunctions.R")
 
 trueParam = read.delim("linear_BI_parameters.txt")
 
-compareTrueAndRecovered(results, trueParam)
+comp = compareTrueAndRecovered(results, trueParam)
+whichRound = c("true", "rec", "cor", "slope", "dif", "percentDif")
+comp[ , whichRound ] = round(comp[ , whichRound ], 2)
+comp
 
 
 
