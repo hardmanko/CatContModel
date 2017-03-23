@@ -1,3 +1,5 @@
+
+
 require(Rcpp)
 
 
@@ -47,6 +49,9 @@ verifyConfigurationList = function(config, data) {
 		stop("config$iterations not set.")
 	}
 	
+	####################
+	# dataType
+	
 	if (is.null(config$dataType)) {
 		config$dataType = "circular"
 		cat(paste("Note: config$dataType not set. Set to ", config$dataType, ".\n", sep=""))
@@ -83,7 +88,8 @@ verifyConfigurationList = function(config, data) {
 
 	}
 	
-
+	########################
+	# modelVariant
 	possibleModelVariants = c("betweenAndWithin", "betweenItem", "withinItem", "ZL")
 	visibleModelVariants = c("betweenItem", "withinItem", "ZL")
 	if (is.null(config$modelVariant)) {
@@ -94,13 +100,15 @@ verifyConfigurationList = function(config, data) {
 							 paste(visibleModelVariants, collapse = ", "), ".", sep="" ))
 	}
 	
-	
+	##################################
+	# iterationsPerStatusUpdate
 	if (is.null(config$iterationsPerStatusUpdate)) {
 		config$iterationsPerStatusUpdate = 10
 		cat(paste("Note: config$iterationsPerStatusUpdate not set. Set to ", config$iterationsPerStatusUpdate, ".\n", sep=""))
 	}
 	
-	
+	##################################
+	# cornerstoneConditionName
 	if (is.null(config$cornerstoneConditionName)) {
 		#choose cornerstone condition based on the amount of data in the condition
 		dataCounts = stats::aggregate(study ~ cond, data, length)
@@ -111,7 +119,8 @@ verifyConfigurationList = function(config, data) {
 		config$cornerstoneConditionName = as.character(config$cornerstoneConditionName)
 	}
 	
-	
+	######################
+	# maxCategories
 	if (is.null(config$maxCategories)) {
 		config$maxCategories = 16
 		if (config$modelVariant == "ZL") {
@@ -120,28 +129,65 @@ verifyConfigurationList = function(config, data) {
 		cat(paste("Note: config$maxCategories not set. Set to ", config$maxCategories, ".\n", sep=""))
 	}
 	
-
-	
+	####################
+	# minSD
 	if (is.null(config$minSD)) {
 		config$minSD = 1
 		cat(paste("Note: config$minSD not set. Set to ", config$minSD, " degree.\n", sep=""))
 	}
 	
+	##########################################
+	# catMuPriorApproximationPrecision
 	if (is.null(config$catMuPriorApproximationPrecision)) {
 		config$catMuPriorApproximationPrecision = 60
 		cat(paste("Note: config$catMuPriorApproximationPrecision not set. Set to ", config$catMuPriorApproximationPrecision, " points at which the prior is evaluated.\n", sep=""))
 	}
 	
+	###########################################
+	# calculateParticipantLikelihoods
 	if (is.null(config$calculateParticipantLikelihoods)) {
 		config$calculateParticipantLikelihoods = FALSE
 		cat(paste("Note: config$calculateParticipantLikelihoods not set. Set to ", config$calculateParticipantLikelihoods, ".\n", sep=""))
 	}
 	
 	
-	parametersWithPossibleConditionEffects = c( getProbParams(NULL), getSdParams(NULL) )
+	#######################
+	# factors
+	if (is.null(config$factors)) {
+		#If no factors provided, assume one-factor design
+		config$factors = data.frame(cond=unique(data$cond))
+		config$factors$Factor = config$factors$cond
+		cat("Note: config$factors not provided. A one-factor design is assumed.\n")
+	} else {
+		dataConds = unique(data$cond)
+		allConds = union( dataConds, config$factors$cond )
+		
+		for (cond in allConds) {
+			if (!(cond %in% config$factors$cond)) {
+				stop(paste("The condition ", cond, " is in the data but not in config$factors.", sep=""))
+			}
+			if (!(cond %in% dataConds)) {
+				stop(paste("The condition ", cond, " is in config$factors but not in the data.", sep=""))
+			}
+		}
+	}
+	for (n in names(config$factors)) {
+		config$factors[ , n ] = as.character(config$factors[ , n ])
+	}
+	
+	######################
+	# conditionEffects
+	config$conditionEffects = verifyConditionEffects(config)
+	
+	config
+}
 
+verifyConditionEffects = function(config) {
+	parametersWithPossibleConditionEffects = c( getProbParams(NULL, config$modelVariant, TRUE), 
+																							getSdParams(NULL, config$modelVariant, TRUE) )
+	
 	if (is.null(config$conditionEffects)) {
-
+		
 		pceToUse = getDefaultParametersWithConditionEffects(config$modelVariant)
 		
 		config$conditionEffects = list()
@@ -156,12 +202,11 @@ verifyConfigurationList = function(config, data) {
 		for (n in names(config$conditionEffects)) {
 			if (!(n %in% parametersWithPossibleConditionEffects)) {
 				config$conditionEffects[[n]] = NULL
-				msg = paste("In config$conditionEffects, ", n, " was included, but it is not a parameter that can have condition effects.", sep="")
-				cat( paste( msg, "\n", sep="") )
+				msg = paste0("In config$conditionEffects, parameter \"", n, "\" was included, but it is not a parameter that can have condition effects (possibly because it is not used by the current modelVariant). Its condition effects have been ignored.")
+				cat( paste( "Warning: ", msg, "\n", sep="") )
 				warning(msg)
 			}
 		}
-	
 	}
 	
 	#set all unmentioned condition effects to "none"
@@ -171,30 +216,22 @@ verifyConfigurationList = function(config, data) {
 		}
 	}
 	
-	
-	if (is.null(config$factors)) {
-		#If no factors provided, assume one-factor design
-		config$factors = data.frame(cond=unique(data$cond))
-		config$factors$Factor = config$factors$cond
-		cat("Note: config$factors not provided. A one-factor design is assumed.\n")
-	} else {
-		dataConds = unique(data$cond)
-		allConds = union( dataConds, config$factors$cond )
-
-		for (cond in allConds) {
-			if (!(cond %in% config$factors$cond)) {
-				stop(paste("The condition ", cond, " is in the data but not in config$factors.", sep=""))
-			}
-			if (!(cond %in% dataConds)) {
-				stop(paste("The condition ", cond, " is in config$factors but not in the data.", sep=""))
+	#Double check that condition effect factor names are in factors
+	factNames = CatContModel:::guessFactorNames(config$factors)
+	for (n in names(config$conditionEffects)) {
+		ce = config$conditionEffects[[n]]
+		if (sum(ce %in% c("all", "none")) >= 2) {
+			stop(paste0("config$conditionEffects$", n, " contains more than one instance of \"all\" or \"none\"."))
+		}
+		if (length(ce) > 1 || !all(ce %in% c("all", "none"))) {
+			notIn = ce[ !(ce %in% factNames) ]
+			if (length(notIn) > 0) {
+				stop( paste0("config$conditionEffects$", n, " contains factor names not found in config$factors. The bad factor name(s): ", paste(notIn, collapse=", "), ".") )
 			}
 		}
 	}
-	for (n in names(config$factors)) {
-		config$factors[ , n ] = as.character(config$factors[ , n ])
-	}
 	
-	config
+	config$conditionEffects
 }
 
 
@@ -232,6 +269,30 @@ checkConstantValueOverrides = function(config, cvo) {
 	}
 	
 	cvo
+}
+
+checkConditionEffectsGivenConstantParameters = function(config, constantValueOverrides) {
+	
+	for (param in names(config$conditionEffects)) {
+		
+		if (length(config$conditionEffects[[param]]) > 1 || config$conditionEffects[[param]] != "none") {
+			thisCPN = paste(param, "_cond[", config$factors$cond, "]", sep="")
+			
+			inCVO = thisCPN %in% names(constantValueOverrides)
+			
+			if (all(inCVO)) {
+				cat( paste0("Note: Parameter ", param, " has constant value overrides on all condition effect parameters. It has been noted to have no condition parameters.\n") )
+				
+				config$conditionEffects[[param]] = "none"
+				
+			} else if (any(inCVO)) {
+				warning( paste0("Parameter ", param, " has constant value overrides on some condition effect parameters. It will have condition effects estimated, but some follow-up tests may not work correctly. After parameter estimation is complete, consider setting results$config$conditionEffects$", param, " to \"none\".") )
+			}
+		}
+		
+	}
+	
+	config$conditionEffects
 }
 
 
@@ -301,33 +362,13 @@ runParameterEstimation = function(config, data, mhTuningOverrides=list(),
 {
 
 	config = verifyConfigurationList(config, data)
-	
 
 	startingValueOverrides = checkStartingValueOverrides(config, startingValueOverrides)
 	
 	constantValueOverrides = checkConstantValueOverrides(config, constantValueOverrides)
 	
 	# Double check that config$conditionEffects is reasonable given the constantValueOverrides
-	# TODO: This should probably go into a function
-	for (param in names(config$conditionEffects)) {
-		
-		if (config$conditionEffects[[param]] != "none") {
-			thisCPN = paste(param, "_cond[", config$factors$cond, "]", sep="")
-			
-			inCVO = thisCPN %in% names(constantValueOverrides)
-			
-			if (all(inCVO)) {
-				cat( paste0("Note: Parameter ", param, " has constant value overrides on all condition effect parameters. It has been noted to have no condition parameters.\n") )
-				
-				config$conditionEffects[[param]] = "none"
-				
-			} else if (any(inCVO)) {
-				warning( paste0("Parameter ", param, " has constant value overrides on some condition effect parameters. It will have condition effects estimated, but some follow-up tests may not work correctly. After parameter estimation is complete, consider setting results$config$conditionEffects$", param, " to \"none\".") )
-			}
-		}
-
-	}
-
+	config$conditionEffects = checkConditionEffectsGivenConstantParameters(config, constantValueOverrides)
 	
 	equalityConstraints = getConstrainedConditionEffects(config)
 	
