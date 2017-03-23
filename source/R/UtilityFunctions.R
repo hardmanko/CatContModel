@@ -119,18 +119,24 @@ getParameterSymbols = function(modelVariant) {
 
 #' Get Vectors of Parameter Names
 #' 
-#' @param results The results from the \code{\link{runParameterEstimation}} function.
-#' @param filter Filter out parameter not in the current model. If FALSE, \code{results} can be NULL.
+#' `getProbParams` gets the names of "probability parameters" (e.g. `pMem`). `getSdParams` gets the names of "SD parameters" (e.g. `contSD`).
 #' 
+#' @param results The results from the \code{\link{runParameterEstimation}} function.
+#' @param modelVariant Rather than providing `results`, you may provide this.
+#' @param filter Filter out parameters not in the current model variant. If `FALSE`, the `results` and `modelVariant` arguments can be NULL.
+#' 
+#' @return A character vector of the names of parameters used by the model variant.
+#' 
+#' @md
 #' @export
-getProbParams = function(results, filter=FALSE) {
+getProbParams = function(results, modelVariant = results$config$modelVariant, filter=FALSE) {
 	pp = c("pMem", "pBetween", "pContBetween", "pContWithin", "pCatGuess")
 	if (filter) {
-		if (results$config$modelVariant == "betweenItem") {
+		if (modelVariant == "betweenItem") {
 			pp = c("pMem", "pContBetween", "pCatGuess")
-		} else if (results$config$modelVariant == "withinItem") {
+		} else if (modelVariant == "withinItem") {
 			pp = c("pMem", "pContWithin", "pCatGuess")
-		} else if (results$config$modelVariant == "ZL") {
+		} else if (modelVariant == "ZL") {
 			pp = c("pMem")
 		}
 	}
@@ -139,10 +145,10 @@ getProbParams = function(results, filter=FALSE) {
 
 #' @rdname getProbParams
 #' @export
-getSdParams = function(results, filter=FALSE) {
+getSdParams = function(results, modelVariant = results$config$modelVariant, filter=FALSE) {
 	pp = c("contSD", "catSelectivity", "catSD")
 	if (filter) {
-		if (results$config$modelVariant == "ZL") {
+		if (modelVariant == "ZL") {
 			pp = c("contSD")
 		}
 	}
