@@ -54,7 +54,6 @@ getConstrainedConditionEffects = function(config) {
 }
 
 
-#not visible to users
 getConstrainedConditionEffectList = function(config, param, usedFactors) {
 	
 	factors = config$factors
@@ -218,6 +217,12 @@ getConditionParameterPrior = function(results, param, cond, fullParam = NULL) {
 	target = paste(param, "_cond[", cond, "]", sep="")
 	if (!is.null(fullParam)) {
 		target = fullParam
+	}
+	
+	constVal = results$constantValueOverrides[[ target ]]
+	if (!is.null(constVal)) {
+		rval = list(location = constVal, scale = 0)
+		return(rval)
 	}
 	
 	source = results$equalityConstraints[[ target ]]
