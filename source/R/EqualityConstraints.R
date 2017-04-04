@@ -134,6 +134,9 @@ getFactorsForConditionEffect = function(config, param) {
 			thisFactors = character(0)
 		}
 	}
+	
+	thisFactors = thisFactors[ thisFactors %in% guessFactorNames(config$factors) ]
+	
 	thisFactors
 }
 
