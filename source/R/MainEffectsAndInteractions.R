@@ -232,11 +232,19 @@ testMEI_singleParameter = function(results, param, priorSamples = NULL, doPairwi
 #' In addition, for designs that are not fully croseed, you can still use [`testConditionEffects`] to examine pairwise comparisons. See the introduction.pdf manual for more discussion of non-fully-crossed designs.
 #' 
 #' @param results The results from the [`runParameterEstimation`] function.
-#' @param param Optional. Character vector of names of parameters to perform tests for. If NULL (default), is set to all parameters with condition effects.
-#' @param summarize If TRUE (default), the results across subsamples will be summarized. If FALSE, the results from each of the subsamples will be returned. Those results can be later summarized with [`summarizeSubsampleResults`].
+#' @param param Optional. Character vector of names of parameters to perform tests for. If `NULL` (default), is set to all parameters with condition effects.
+#' @param summarize If `TRUE` (default), the results across subsamples will be summarized. If `FALSE`, the results from each of the subsamples will be returned. Those results can be later summarized with [`summarizeSubsampleResults`].
 #' @param subsamples Number of subsamples of the posterior chains to take. If greater than 1, subsampleProportion should be set to a value between 0 and 1 (exclusive).
 #' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should probably only be less than 1 if `subsamples` is greater than 1. If `NULL`, `subsampleProportion` will be set to `1 / subsamples` and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
 #' @param doPairwise Do pairwise tests of differences between levels of main effects (these are often called "post-hoc" tests).
+#' 
+#' @return Depends on the value of `summarize`. If `summarize == TRUE`, it will have the same return value as [`summarizeSubsampleResults`], so see that function. If `summarize == FALSE`, a `data.frame` with columns
+#' * `param`: The parameter name.
+#' * `factor`: The factor name.
+#' * `levels`: The levels of the factor. If "Omnibus", all levels are used.
+#' * `bf10`: The Bayes factor in favor of there being a difference between factor levels.
+#' * `bf01`: The Bayes factor against there being a difference between factor levels.
+#' * `success`: If `TRUE`, the Bayes factor was estimated successfully. If `FALSE`, it was not.
 #' 
 #' @md
 #' @export
