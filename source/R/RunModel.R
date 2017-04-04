@@ -1,8 +1,5 @@
 
 
-require(Rcpp)
-
-
 getDefaultParametersWithConditionEffects = function(modelVariant) {
 	pce = c("pMem", "contSD") #ZL and all other models
 	
