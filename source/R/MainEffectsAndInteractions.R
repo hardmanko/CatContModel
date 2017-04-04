@@ -237,6 +237,7 @@ testMEI_singleParameter = function(results, param, priorSamples = NULL, doPairwi
 #' @param subsamples Number of subsamples of the posterior chains to take. If greater than 1, subsampleProportion should be set to a value between 0 and 1 (exclusive).
 #' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should probably only be less than 1 if `subsamples` is greater than 1. If `NULL`, `subsampleProportion` will be set to `1 / subsamples` and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
 #' @param doPairwise Do pairwise tests of differences between levels of main effects (these are often called "post-hoc" tests).
+#' @param testFunction See \code{\link[CMBBHT]{testHypothesis}}.
 #' 
 #' @return Depends on the value of `summarize`. If `summarize == TRUE`, it will have the same return value as [`summarizeSubsampleResults`], so see that function. If `summarize == FALSE`, a `data.frame` with columns
 #' * `param`: The parameter name.
@@ -250,7 +251,8 @@ testMEI_singleParameter = function(results, param, priorSamples = NULL, doPairwi
 #' @export
 testMainEffectsAndInteractions = function(results, param=NULL, 
 																					subsamples = 50, subsampleProportion = 1, 
-																					summarize=TRUE,	doPairwise = FALSE) 
+																					summarize=TRUE,	doPairwise = FALSE, 
+																					testFunction = CMBBHT::testFunction_SDDR) 
 {
 	
 	if (is.null(results$config$factors)) {
@@ -293,7 +295,8 @@ testMainEffectsAndInteractions = function(results, param=NULL,
 		for (pInd in 1:length(param)) {
 			
 			result = testMEI_singleParameter(results=resultSubsample, param=param[pInd], 
-															priorSamples=priorSamples, doPairwise=doPairwise)
+															priorSamples=priorSamples, doPairwise=doPairwise, 
+															testFunction = testFunction)
 			BFs = rbind(BFs, result)
 			
 			utils::setTxtProgressBar(pb, value = currentStep / lastStep)
