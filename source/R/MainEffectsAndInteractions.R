@@ -88,10 +88,10 @@ getConditionEffects = function(results, param, priorSamples=results$config$itera
 #' @param results The results from the \code{\link{runParameterEstimation}} function.
 #' @param param The name of a parameter with condition effect.
 #' @param testedFactors A character vector giving the names of factors for which a hypothesis test could be performed. If there is only one factor, the main effect will be used. If there is more than one factor, the interaction of the factors will be the effect that is used. 
-#' @param dmFactors Character vector. The factors to use to construct the design matrix. For a fully-crossed (balanced) design, this can always be equal to \code{testFactors} (the default). For non-fully-crossed designs, you may sometimes want to create a design matrix using some factors, but perform a hypothesis test with only some of those factors (\code{testedFactors} must be a subset of \code{dmFactors}).
-#' @param contrastType Character (or function). The contrast to use to create the design matrix. Can be any of the function names on the documentation page for \code{contr.sum}. For a non-fully-crossed (unbalanced) design, you should use either "contr.treatment" or "contr.SAS". For a balanced design, you can use anything, but psychologists are most used to "contr.sum", which uses sums-to-zero constraints.
+#' @param dmFactors See \code{\link[CMBBHT]{testHypothesis}}. Passed directly to \code{\link[CMBBHT]{getEffectParameters}}.
+#' @param contrastType See \code{\link[CMBBHT]{testHypothesis}}. Passed directly to \code{\link[CMBBHT]{getEffectParameters}}.
 #' 
-#' @return A matrix with row being iterations and columns being effect parameters. The columns are named with the following scheme: "F1.L1:F2.L2" where "Fn" is the name of a factor and "Ln" is the level of that factor.
+#' @return A matrix with rows being iterations and columns being effect parameters. The columns are named with the following scheme: "F1.L1:F2.L2" where "Fn" is the name of a factor and "Ln" is the level of that factor and ":" indicates the combinations of factor levels.
 #' 
 #' @export
 getEffectParameterPosteriors = function(results, param, testedFactors, dmFactors = testedFactors, contrastType = NULL) {
@@ -116,8 +116,8 @@ getEffectParameterPosteriors = function(results, param, testedFactors, dmFactors
 #' @param results The results from the \code{\link{runParameterEstimation}} function.
 #' @param param The name of the parameter for which to perform the test.
 #' @param testedFactors Character vector. The factors for which to perform the hypothesis test as a vector of factor names. A single factor name results in the test of the main effect of the factor. Multiple factor names result in the test of the interaction of all of those factors.
-#' @param dmFactors Character vector or formula. The factors to use to construct the design matrix. For a fully-crossed (balanced) design, this can always be equal to \code{testFactors} (the default). For non-fully-crossed designs, you may sometimes want to create a design matrix using some factors, but perform a hypothesis test with only some of those factors (\code{testedFactors} must be a subset of \code{dmFactors}). You may instead supply a \code{formula} like that taken by \code{\link{model.matrix}} which will be used to create the design matrix.
-#' @param usedFactorLevels A \code{data.frame} with columns for each of the factors in \code{testedFactors}. Each row specifies factor levels that should be included in the test. This allows you to do things like pairwise comparisons of specific factor levels.
+#' @param dmFactors See \code{\link[CMBBHT]{testHypothesis}}.
+#' @param usedFactorLevels See \code{\link[CMBBHT]{testHypothesis}}.
 #' @param priorSamples Number of samples to take from the prior distribution of the effect parameters. You should not change this from the default unless you are using a custom \code{testFunction}, in which case you might want to use a different value.
 #' @param testFunction See \code{\link[CMBBHT]{testHypothesis}}.
 #' @param contrastType See \code{\link[CMBBHT]{testHypothesis}}.
