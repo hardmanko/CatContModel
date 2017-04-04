@@ -19,13 +19,15 @@ getDefaultParametersWithConditionEffects = function(modelVariant) {
 
 #' Verify Parameter Estimation Configuration Values
 #' 
-#' @param config A configuration to be used as the \code{config} argument of \link{runParameterEstimation}.
-#' @param data The data that will be used as the \code{data} argument of \link{runParameterEstimation}.
+#' @param config A configuration to be used as the `config` argument of [`runParameterEstimation`].
+#' @param data The data that will be used as the `data` argument of [`runParameterEstimation`].
+#' @param immediateWarnings If `TRUE`, warnings will be printed immediately. Regardless of the value, warnings will also be stored for later access with `warnings()`.
 #' 
-#' @return An updated configuration list.
+#' @return An updated configuration list, possibly with additional items added or existing items modified.
 #' 
+#' @md
 #' @export
-verifyConfigurationList = function(config, data) {
+verifyConfigurationList = function(config, data, immediateWarnings = FALSE) {
 	
 	usedConfigKeys = names(config)
 	
@@ -42,8 +44,17 @@ verifyConfigurationList = function(config, data) {
 		stop(msg)
 	}
 	
+	###############
+	# iterations
 	if (is.null(config$iterations)) {
 		stop("config$iterations not set.")
+	}
+	
+	##################################
+	# iterationsPerStatusUpdate
+	if (is.null(config$iterationsPerStatusUpdate)) {
+		config$iterationsPerStatusUpdate = 10
+		cat(paste("Note: config$iterationsPerStatusUpdate not set. Set to ", config$iterationsPerStatusUpdate, ".\n", sep=""))
 	}
 	
 	####################
@@ -95,13 +106,6 @@ verifyConfigurationList = function(config, data) {
 	if (!(config$modelVariant %in% possibleModelVariants)) {
 		stop(paste("Invalid model variant '", config$modelVariant, "' selected. Choose from one of: ", 
 							 paste(visibleModelVariants, collapse = ", "), ".", sep="" ))
-	}
-	
-	##################################
-	# iterationsPerStatusUpdate
-	if (is.null(config$iterationsPerStatusUpdate)) {
-		config$iterationsPerStatusUpdate = 10
-		cat(paste("Note: config$iterationsPerStatusUpdate not set. Set to ", config$iterationsPerStatusUpdate, ".\n", sep=""))
 	}
 	
 	##################################
@@ -200,7 +204,9 @@ verifyConditionEffects = function(config) {
 			if (!(n %in% parametersWithPossibleConditionEffects)) {
 				config$conditionEffects[[n]] = NULL
 				msg = paste0("In config$conditionEffects, parameter \"", n, "\" was included, but it is not a parameter that can have condition effects (possibly because it is not used by the current modelVariant). Its condition effects have been ignored.")
-				cat( paste( "Warning: ", msg, "\n", sep="") )
+				if (immediateWarnings) {
+					warning(msg, immediate. = TRUE)
+				}
 				warning(msg)
 			}
 		}
@@ -268,7 +274,7 @@ checkConstantValueOverrides = function(config, cvo) {
 	cvo
 }
 
-checkConditionEffectsGivenConstantParameters = function(config, constantValueOverrides) {
+checkConditionEffectsGivenConstantParameters = function(config, constantValueOverrides, immediateWarnings = FALSE) {
 	
 	for (param in names(config$conditionEffects)) {
 		
@@ -283,7 +289,11 @@ checkConditionEffectsGivenConstantParameters = function(config, constantValueOve
 				config$conditionEffects[[param]] = "none"
 				
 			} else if (any(inCVO)) {
-				warning( paste0("Parameter ", param, " has constant value overrides on some condition effect parameters. It will have condition effects estimated, but some follow-up tests may not work correctly. After parameter estimation is complete, consider setting results$config$conditionEffects$", param, " to \"none\".") )
+				msg = paste0("Parameter ", param, " has constant value overrides on some condition effect parameters. It will have condition effects estimated, but some follow-up tests may not work correctly. After parameter estimation is complete, consider setting results$config$conditionEffects$", param, " to \"none\".")
+				if (immediateWarnings) {
+					warning( msg, immediate. = TRUE )
+				}
+				warning( msg )
 			}
 		}
 		
@@ -358,14 +368,14 @@ runParameterEstimation = function(config, data, mhTuningOverrides=list(),
 																	constantValueOverrides=list()) 
 {
 
-	config = verifyConfigurationList(config, data)
+	config = verifyConfigurationList(config, data, immediateWarnings = TRUE)
 
 	startingValueOverrides = checkStartingValueOverrides(config, startingValueOverrides)
 	
 	constantValueOverrides = checkConstantValueOverrides(config, constantValueOverrides)
 	
 	# Double check that config$conditionEffects is reasonable given the constantValueOverrides
-	config$conditionEffects = checkConditionEffectsGivenConstantParameters(config, constantValueOverrides)
+	config$conditionEffects = checkConditionEffectsGivenConstantParameters(config, constantValueOverrides, immediateWarnings = TRUE)
 	
 	equalityConstraints = getConstrainedConditionEffects(config)
 	
@@ -376,8 +386,9 @@ runParameterEstimation = function(config, data, mhTuningOverrides=list(),
 	}
 	
 	if (config$dataType == "circular" && (all(data$study < 10) || all(data$response < 10))) {
-		cat("Warning: Data appear to be in radians rather than degrees. The data should be in degrees.\n")
-		warning("Data appear to be in radians rather than degrees. The data should be in degrees.")
+		msg = "Data appear to be in radians rather than degrees. The data should be in degrees."
+		warning(msg, immediate. = TRUE)
+		warning(msg)
 	}
 
 
