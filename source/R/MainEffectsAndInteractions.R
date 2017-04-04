@@ -127,21 +127,24 @@ getEffectParameterPosteriors = function(results, param, testedFactors, dmFactors
 #' @export
 testSingleEffect = function(results, param, testedFactors, dmFactors = testedFactors, 
 														usedFactorLevels = NULL, priorSamples = results$config$iterations, 
-														testFunction = NULL, contrastType = NULL) 
+														testFunction = CMBBHT::testFunction_SDDR, contrastType = NULL) 
 {
-	if (is.null(testFunction)) {
-		testFunction = CMBBHT::testFunction_SDDR
-	}
-	
+
 	gmeihtf = results$config$factors
 	gmeihtf$cond = NULL
 	
 	ces = getConditionEffects(results, param, priorSamples)
 	
-	CMBBHT::testHypothesis(ces$prior, ces$post, gmeihtf, testedFactors, 
-												 dmFactors=dmFactors, contrastType=contrastType,
-												 testFunction = testFunction, usedFactorLevels = usedFactorLevels)
+	res = tryCatch({
+		CMBBHT::testHypothesis(ces$prior, ces$post, gmeihtf, testedFactors, 
+													 dmFactors = dmFactors, contrastType = contrastType,
+													 testFunction = testFunction, usedFactorLevels = usedFactorLevels)
+	}, error = function(e) {
+		warning(e$message)
+		return(list(success=FALSE, bf10=NA, bf01=NA))
+	})
 	
+	res
 }
 
 # You could add an argument: useFullDMForUnbalanced If TRUE and the design is unbalanced, the design matrix that is used for all tests will be the design matrix with all effects in it. This means that a main effect will not really be a marginal test, because interactions will be accounted for. This may or may not be what you want to do.
