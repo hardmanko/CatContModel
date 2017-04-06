@@ -28,27 +28,31 @@ participantPosteriorSummary = function(results, params=NULL, doCatActive=TRUE, c
 		params = c(getProbParams(results, filter=TRUE), getSdParams(results, filter=TRUE))
 	}
 	
-	halfa = (1 - credLevel) / 2
+	cips = c( (1 - credLevel) / 2, (1 + credLevel) / 2 )
 	
 	for (param in params) {
 		
-		hasConditionEffect = (param %in% getParametersWithConditionEffects(results$config$conditionEffects))
+		#hasConditionEffect = (param %in% CatContModel:::getParametersWithConditionEffects(results$config$conditionEffects))
 		
 		conditions = results$config$factors$cond
-		if (!hasConditionEffect) {
-			conditions = results$config$cornerstoneConditionName
-		}
+		#if (!hasConditionEffect) {
+		#	conditions = results$config$cornerstoneConditionName
+		#}
 		
-		for (cond in conditions) {
+		for (pnum in results$pnums) {
 			
-			for (pnum in results$pnums) {
+			for (cond in conditions) {
 				
 				partParam = getParameterPosterior(results, param, pnum=pnum, cond=cond, manifest=TRUE)
 				
-				qs = as.numeric( stats::quantile(partParam, c(halfa, 1 - halfa)) )
+				qs = as.numeric( stats::quantile(partParam, cips) )
 				
 				temp = data.frame(pnum=pnum, cond=cond, param=param, 
 													mean = mean(partParam), ciLower = qs[1], ciUpper = qs[2], stringsAsFactors = FALSE)
+				
+				#if (!hasConditionEffect) {
+				#	temp$cond = "all"
+				#}
 				
 				if (!is.null(fun)) {
 					temp$fun = fun(partParam)
@@ -67,9 +71,9 @@ participantPosteriorSummary = function(results, params=NULL, doCatActive=TRUE, c
 		
 		itCount = apply(ca, 2, sum)
 		
-		qs = as.numeric( stats::quantile(itCount, c(halfa, 1 - halfa)) )
+		qs = as.numeric( stats::quantile(itCount, cips) )
 		
-		temp = data.frame(pnum=pnum, cond=results$config$cornerstoneConditionName, param="catActive", 
+		temp = data.frame(pnum=pnum, cond="ALL_CONDS", param="catActive", 
 											mean = mean(itCount), ciLower = qs[1], ciUpper = qs[2], stringsAsFactors = FALSE)
 		
 		if (!is.null(fun)) {
@@ -79,6 +83,16 @@ participantPosteriorSummary = function(results, params=NULL, doCatActive=TRUE, c
 		resDf = rbind(resDf, temp)
 		
 	}
+	
+	# Remove participant X condition cells with no data
+	uniPC = unique(results$data[ , c("pnum", "cond") ])
+	keep = rep(FALSE, nrow(resDf))
+	for (pnum in unique(uniPC$pnum)) {
+		conds = as.character(uniPC$cond[ uniPC$pnum == pnum ])
+		conds = c(conds, "ALL_CONDS")
+		keep = keep | (resDf$pnum == pnum & resDf$cond %in% conds)
+	}
+	resDf = resDf[ keep, ]
 	
 	resDf = resDf[ order(resDf$pnum, resDf$param, resDf$cond), ]
 	

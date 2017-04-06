@@ -178,11 +178,11 @@ compareTrueAndRecovered = function(results, trueParam) {
 	recPart = participantPosteriorSummary(results)
 	
 	trueParam$pnum = as.character(trueParam$pnum)
+	trueParam$cond = as.character(trueParam$cond)
+	trueParam$param = as.character(trueParam$param)
+	
 	trueParam = trueParam[ order(trueParam$pnum), ]
 	
-	if (is.factor(trueParam$param)) {
-		trueParam$param = as.vector(trueParam$param)
-	}
 	trueParam$param[ trueParam$param == "nCat" ] = "catActive"
 	
 	trueParam = trueParam[ trueParam$param != "catMu", ]
