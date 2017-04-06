@@ -178,12 +178,12 @@ verifyConfigurationList = function(config, data, immediateWarnings = FALSE) {
 	
 	######################
 	# conditionEffects
-	config$conditionEffects = verifyConditionEffects(config)
+	config$conditionEffects = verifyConditionEffects(config, immediateWarnings=immediateWarnings)
 	
 	config
 }
 
-verifyConditionEffects = function(config) {
+verifyConditionEffects = function(config, immediateWarnings = FALSE) {
 	parametersWithPossibleConditionEffects = c( getProbParams(NULL, config$modelVariant, TRUE), 
 																							getSdParams(NULL, config$modelVariant, TRUE) )
 	
@@ -220,7 +220,7 @@ verifyConditionEffects = function(config) {
 	}
 	
 	#Double check that condition effect factor names are in factors
-	factNames = CatContModel:::guessFactorNames(config$factors)
+	factNames = guessFactorNames(config$factors)
 	for (n in names(config$conditionEffects)) {
 		ce = config$conditionEffects[[n]]
 		if (sum(ce %in% c("all", "none")) >= 2) {

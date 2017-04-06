@@ -1,7 +1,4 @@
 
-
-
-
 getPriorConditionEffects = function(results, param, priorSamples) {
 	
 	factors = results$config$factors
@@ -141,7 +138,7 @@ testSingleEffect = function(results, param, testedFactors, dmFactors = testedFac
 													 testFunction = testFunction, usedFactorLevels = usedFactorLevels)
 	}, error = function(e) {
 		warning(e$message)
-		return(list(success=FALSE, bf10=NA, bf01=NA))
+		return(list(success=FALSE))
 	})
 	
 	res
@@ -179,6 +176,9 @@ testMEI_singleParameter = function(results, param, priorSamples = NULL, doPairwi
 		thisRes = testSingleEffect(results, param, testedFactors = theseFactors, 
 															 priorSamples = priorSamples, 
 															 testFunction = testFunction)
+		if (!thisRes$success) {
+			thisRes$bf10 = thisRes$bf01 = NA
+		}
 		
 		omnibus = data.frame(param=param, factor=factorName, levels="Omnibus", 
 												 bf10=thisRes$bf10, bf01=thisRes$bf01, success=thisRes$success)
@@ -201,6 +201,9 @@ testMEI_singleParameter = function(results, param, priorSamples = NULL, doPairwi
 				thisRes = testSingleEffect(results, param, testedFactors = thisFactor, 
 																	 usedFactorLevels = uniqueFL, priorSamples = priorSamples,
 																	 testFunction = testFunction)
+				if (!thisRes$success) {
+					thisRes$bf10 = thisRes$bf01 = NA
+				}
 				
 				levelNames = paste0(comb[j,], collapse=", ")
 				
