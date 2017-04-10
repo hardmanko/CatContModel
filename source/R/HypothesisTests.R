@@ -105,7 +105,7 @@ convolveFuns = function(f, g, t, range=c(-Inf, Inf)) {
 #' 
 testMeanParameterValue = function(results, param, cond, H0_value) {
 	
-	transformInverse = getParameterTransformation(param, results, inverse=TRUE)
+	transformInverse = getParameterTransformation(results, param, inverse=TRUE)
 	
 	inverseH0 = transformInverse(H0_value)
 	

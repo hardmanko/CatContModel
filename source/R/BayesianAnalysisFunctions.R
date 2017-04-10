@@ -134,7 +134,7 @@ posteriorMeansAndCredibleIntervals = function(results, params=NULL, credLevel=0.
 	
 	for (param in params) {
 		
-		trans = getParameterTransformation(param, results)
+		trans = getParameterTransformation(results, param)
 		
 		mu = results$posteriors[[ paste(param, ".mu", sep="") ]]
 		
@@ -194,7 +194,7 @@ getTransformedParameters = function(results, pnum, cond, iteration, removeInacti
 		
 		partParam = results$posteriors[[ paste(pp, "[", pnum, "]", sep="") ]][iteration]
 		
-		trans = getParameterTransformation(pp, results)
+		trans = getParameterTransformation(results, pp)
 		
 		combinedParam[[pp]] = trans(partParam + condParam)
 	}
@@ -252,7 +252,7 @@ getParameterPosterior = function(results, param, pnum, cond, manifest=TRUE) {
 	
 	param_latent = param_base + param_cond
 	
-	transformationFunction = getParameterTransformation(param, results)
+	transformationFunction = getParameterTransformation(results, param)
 	if (!manifest) {
 		transformationFunction = function(x) { x }
 	}

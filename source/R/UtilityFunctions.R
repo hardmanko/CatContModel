@@ -310,14 +310,14 @@ circAbsDist = function(x, y, degrees=TRUE) {
 #' 
 #' Returns a function that will take parameter values in the latent space and convert them to the manifest space, or vice versa if \code{inverse} is TRUE. For probability parameters, the transformation is the inverse logit transformation. For standard deviation parameters, the transformation forces the parameter to be greater than some value, given by \code{results$config$minSD}.
 #' 
-#' @param param Name of a parameter, e.g. \code{pMem}.
 #' @param results The results from the \code{\link{runParameterEstimation}} function.
+#' @param param Name of a parameter, e.g. \code{"pMem"}.
 #' @param inverse If TRUE, the inverse transformation is returned, if possible. Some transformations do not have an inverse.
 #' 
 #' @return A function of one argument that transforms the argument.
 #' 
 #' @export
-getParameterTransformation = function(param, results, inverse=FALSE) {
+getParameterTransformation = function(results, param, inverse=FALSE) {
 	probParams = c("pMem", "pBetween", "pContBetween", "pContWithin", "pCatGuess", "pCatActive")
 	sdParams = c("contSD", "catSelectivity", "catSD")
 	

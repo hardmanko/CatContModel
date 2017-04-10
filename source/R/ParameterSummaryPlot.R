@@ -125,7 +125,7 @@ getMultiConditionPMCI = function(results, param, usedConds) {
 	paramMu = results$posteriors[[ paste0(param, ".mu") ]]
 	for (j in 1:length(usedConds)) {
 		condEff = results$posteriors[[ paste0(param, "_cond[", usedConds[j], "]") ]]
-		trans = getParameterTransformation(param, results)
+		trans = getParameterTransformation(results, param)
 		condMat[,j] = trans(paramMu + condEff)
 	}
 	
@@ -435,7 +435,7 @@ plotParameterSummary = function(results, paramSymbols=NULL, catMuPrec=2, factorO
 				# Do histogram. Collapse across all available conditions, 
 				# applying condition effects to participant parameters.
 				
-				trans = getParameterTransformation(param, results)
+				trans = getParameterTransformation(results, param)
 				
 				allConds = results$config$factors$cond
 				ceMat = matrix(NA, nrow = results$config$iterations, ncol = length(allConds))

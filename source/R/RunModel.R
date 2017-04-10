@@ -861,7 +861,7 @@ removeBurnIn = function(results, burnIn) {
 setConstantParameterValue = function(data, param, value, doConditionEffects = TRUE, transformValueToLatent = TRUE) {
 	
 	if (transformValueToLatent) {
-		trans = getParameterTransformation(param, NULL, inverse=TRUE)
+		trans = getParameterTransformation(NULL, param, inverse=TRUE)
 		value = trans(value)
 		if (param %in% getProbParams(NULL)) {
 			value = min(max(value, -100), 100) #clamp probability parameters to be finite.
