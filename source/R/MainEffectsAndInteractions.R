@@ -144,6 +144,23 @@ testSingleEffect = function(results, param, testedFactors, dmFactors = testedFac
 	res
 }
 
+
+getMultilevelFactorCrossing = function(factorsToTest) {
+	combinationLayers = NULL
+	
+	for (layer in 1:length(factorsToTest)) {
+		r = utils::combn(factorsToTest, layer)
+		for (j in 1:ncol(r)) {
+			x = sort(r[,j])
+			y = paste(x, collapse=":")
+			
+			combinationLayers = rbind(combinationLayers, data.frame(combination=y, layer=length(x), stringsAsFactors=FALSE))
+		}
+	}
+	
+	combinationLayers
+}
+
 # You could add an argument: useFullDMForUnbalanced If TRUE and the design is unbalanced, the design matrix that is used for all tests will be the design matrix with all effects in it. This means that a main effect will not really be a marginal test, because interactions will be accounted for. This may or may not be what you want to do.
 testMEI_singleParameter = function(results, param, priorSamples = NULL, doPairwise = FALSE, testFunction = NULL) {
 
@@ -152,19 +169,7 @@ testMEI_singleParameter = function(results, param, priorSamples = NULL, doPairwi
 		return(NULL)
 	}
 
-	#This is basically C/P from another function. Maybe wrap it up?
-	combinationLayers = NULL
-	
-	for (layer in 1:length(factorsToTest)) {
-		r = utils::combn(factorsToTest, layer)
-		r = t(r)
-		for (j in 1:nrow(r)) {
-			x = sort(r[j,])
-			y = paste(x, collapse=":")
-			
-			combinationLayers = rbind(combinationLayers, data.frame(combination=y, layer=length(x), stringsAsFactors=FALSE))
-		}
-	}
+	combinationLayers = getMultilevelFactorCrossing(factorsToTest)
 	
 	allTests = NULL
 	for (i in 1:nrow(combinationLayers)) {
@@ -313,13 +318,25 @@ testMainEffectsAndInteractions = function(results, param=NULL,
 	
 	close(pb)
 	
+	rval = cleanAndSummarizeMEIResults(BFs, summarize=summarize, aggregateBy=c("param", "factor", "levels"))
+	rval
+	
+}
+
+eval.string = function(x, envir=parent.frame()) {
+	eval(parse(text=x), envir = envir)
+}
+
+cleanAndSummarizeMEIResults = function(BFs, summarize, aggregateBy) {
 	if (any(BFs$success == FALSE)) {
 		
-		ff = stats::aggregate(success ~ param * factor * levels, BFs, function(x) { sum(!x) })
+		form = formula(paste0("success ~ ", paste(aggregateBy, collapse=" * ")))
+		ff = stats::aggregate(form, BFs, function(x) { sum(!x) })
 		ff$failures = ff$success
 		ff$success = NULL
-
-		warning( paste0("Bayes factor estimation failed for ", sum(BFs$success == FALSE), " subsamples. The cases with failures have been printed to the console. Failures have been stripped from the results.") )
+		
+		wmsg = paste0("Bayes factor estimation failed for ", sum(BFs$success == FALSE), " subsamples. The cases with failures have been printed to the console below. Failures have been stripped from the results.")
+		warning( wmsg, immediate. = TRUE )
 		cat("\n\nFailures:\n")
 		print( ff[ ff$failures > 0, ] )
 		cat("\n\n")
@@ -328,19 +345,19 @@ testMainEffectsAndInteractions = function(results, param=NULL,
 	}
 	
 	if (summarize) {
-		rval = summarizeSubsampleResults(BFs, aggregateBy = c("param", "factor", "levels"))
-	
-		rval$notOmnibus = rval$levels != "Omnibus"
-		rval = rval[ order(rval$notOmnibus, rval$param, rval$factor, rval$levels), ]
+		rval = summarizeSubsampleResults(BFs, aggregateBy = aggregateBy)
 		
-		rval$notOmnibus = NULL
 	} else {
 		rval = BFs
-		attr(rval, "aggregateColumns") = c("param", "factor", "levels")
+		attr(rval, "aggregateColumns") = aggregateBy
 	}
 	
-	rval
+	ocode = paste0("order(", paste(paste0("rval$", aggregateBy), collapse=", "), ")")
+	eval.string(ocode)
 	
+	rval = rval[ eval.string(ocode), ]
+	
+	rval
 }
 
 #' Summarize Results from Multiple Subsamples

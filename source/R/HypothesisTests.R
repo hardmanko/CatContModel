@@ -291,24 +291,7 @@ testConditionEffects = function(results, param = NULL, subsamples = 1, subsample
 	
 	close(pb)
 	
-	#TODO: Failure shouldn't be possible any more, so this could be removed.
-	if (any(allSubsamples$success == FALSE)) {
-		failed = allSubsamples[ allSubsamples$success == FALSE, ]
-		failed = unique(failed)
-		failed = failed[ , c("param", "cond") ]
-		cat("Unable to test condition effects for the following parameters and conditions:")
-		print(failed)
-		cat("\n")
-	}
-	
-	if (summarize) {
-		rval = summarizeSubsampleResults(allSubsamples, aggregateBy = c("param", "cond"))
-		rval = rval[ order(rval$param, rval$bfType, rval$cond), ]
-	} else {
-		rval = allSubsamples
-		attr(rval, "aggregateColumns") = c("param", "cond")
-	}
-	
+	rval = cleanAndSummarizeMEIResults(allSubsamples, summarize = summarize, aggregateBy = c("param", "cond"))
 	rval
 }
 
