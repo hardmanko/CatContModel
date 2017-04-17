@@ -175,6 +175,13 @@ verifyConfigurationList = function(config, data, immediateWarnings = FALSE) {
 	for (n in names(config$factors)) {
 		config$factors[ , n ] = as.character(config$factors[ , n ])
 	}
+	for (n in names(config$factors)) {
+		nameBad = grepl("[:.]+", n)
+		levelsBad = any(grepl("[:.]+", config$factors[,n]))
+		if (nameBad || levelsBad) {
+			stop('Factor names and factor levels may not contain colon (":") or period (".").')
+		}
+	}
 	
 	######################
 	# conditionEffects
