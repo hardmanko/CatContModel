@@ -193,18 +193,18 @@ testMEI_singleParameter = function(results, param, priorSamples = NULL, doPairwi
 		if (doPairwise && combinationLayers$layer[i] == 1) {
 			#do pairwise comps
 			
-			thisFactor = theseFactors #just to be clear that there is only 1 factor
+			thisFactor = theseFactors #rename just to be clear that there is only 1 factor
 			
 			allLevels = unique(results$config$factors[ , thisFactor ])
 			comb = t(utils::combn(allLevels, 2))
 			for (j in 1:nrow(comb)) {
 				
-				uniqueFL = list()
-				uniqueFL[[thisFactor]] = comb[j,]
-				uniqueFL = as.data.frame(uniqueFL, stringsAsFactors = FALSE)
+				usedFactorLevels = list()
+				usedFactorLevels[[thisFactor]] = comb[j,]
+				usedFactorLevels = as.data.frame(usedFactorLevels, stringsAsFactors = FALSE)
 				
 				thisRes = testSingleEffect(results, param, testedFactors = thisFactor, 
-																	 usedFactorLevels = uniqueFL, priorSamples = priorSamples,
+																	 usedFactorLevels = usedFactorLevels, priorSamples = priorSamples,
 																	 testFunction = testFunction)
 				if (!thisRes$success) {
 					thisRes$bf10 = thisRes$bf01 = NA
@@ -220,7 +220,7 @@ testMEI_singleParameter = function(results, param, priorSamples = NULL, doPairwi
 		} #if doPairwise
 	} #i
 	
-	allTests = allTests[ order(allTests$levels, allTests$factor), ]
+	#allTests = allTests[ order(allTests$levels, allTests$factor), ]
 	
 	allTests
 	
@@ -273,7 +273,7 @@ testMainEffectsAndInteractions = function(results, param=NULL,
 	gmeihtf = results$config$factors
 	gmeihtf$cond = NULL
 	if (!CMBBHT::isDesignFullyCrossed(gmeihtf)) {
-		warning("Design is not fully crossed, which means that main effects and interactions cannot be orthogonal. See the documentation of this function for more information.")
+		warning("Design is not fully crossed, which means that main effects and interactions cannot be orthogonal. This complicates the meaning of tests. See the documentation of this function for more information.")
 	}
 	
 	if (is.null(param)) {

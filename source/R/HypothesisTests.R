@@ -52,7 +52,7 @@ savageDickey = function(postVect, h0_val, priorDensAtH0) {
 #' 
 #' @return A data.frame with the results of the tests.
 #' 
-#' @seealso testMeanParameterValue for a more general way to do these kinds of hypothesis tests.
+#' @seealso \code{\link{testMeanParameterValue}} for a more general way to do these kinds of hypothesis tests.
 #' 
 #' @export
 testCategoricalResponding = function(results, pContBetween_test = 0.99, pCatGuess_test = 0.01) {
@@ -160,10 +160,6 @@ getSubsampleIterationsToRemove = function(totalIterations, subsamples, subsample
 	
 	subsampleProportion = min( max(subsampleProportion, 0), 1 )
 	
-	#if (subsamples > 1 && subsampleProportion == 1) {
-	#	warning("The subsample proportion should be less than 1 if using multiple subsamples.")
-	#}
-	
 	subsampleIterationsToRemove = list()
 	
 	if (independentSubsamples) {
@@ -188,10 +184,6 @@ getSubsampleIterationsToRemove = function(totalIterations, subsamples, subsample
 	
 	subsampleIterationsToRemove
 }
-
-
-
-
 
 
 #' Test Differences Between Conditions
@@ -221,6 +213,7 @@ getSubsampleIterationsToRemove = function(totalIterations, subsamples, subsample
 testConditionEffects = function(results, param = NULL, subsamples = 1, subsampleProportion = 1, summarize=TRUE) {
 
 	#TODO: Rename to pairwiseComparisonsOfConditions?
+	#or conditionPairwiseComparisons?
 	
 	subsampleIterationsToRemove = getSubsampleIterationsToRemove(results$config$iterations, subsamples, subsampleProportion)
 	
@@ -257,23 +250,21 @@ testConditionEffects = function(results, param = NULL, subsamples = 1, subsample
 			pairs = pairs[ pairs$i < pairs$j, ]
 			
 			for (r in 1:nrow(pairs)) {
-				i = pairs$i[r]
-				j = pairs$j[r]
-				
-				g1conds = equalConds$cond[ equalConds$group == uniqueGroups[i] ]
-				g2conds = equalConds$cond[ equalConds$group == uniqueGroups[j] ]
+
+				g1conds = equalConds$cond[ equalConds$group == uniqueGroups[ pairs$i[r] ] ]
+				g2conds = equalConds$cond[ equalConds$group == uniqueGroups[ pairs$j[r] ] ]
 				
 				prior1 = getConditionParameterPrior(results, p, g1conds[1])
 				prior2 = getConditionParameterPrior(results, p, g2conds[1])
 				
-				post1 = resultSubsample$posteriors[[ paste(p, "_cond[", g1conds[1], "]", sep="") ]]
-				post2 = resultSubsample$posteriors[[ paste(p, "_cond[", g2conds[1], "]", sep="") ]]
+				post1 = resultSubsample$posteriors[[ paste0(p, "_cond[", g1conds[1], "]") ]]
+				post2 = resultSubsample$posteriors[[ paste0(p, "_cond[", g2conds[1], "]") ]]
 				
 				priorDensAtH0 = stats::dcauchy(0, prior1$location - prior2$location, prior1$scale + prior2$scale)
 				
 				testRes = savageDickey(post1 - post2, h0_val=0, priorDensAtH0 = priorDensAtH0)
 				
-				condLabel = paste( paste(g1conds, collapse=","), " - ", paste(g2conds, collapse=","), sep="")
+				condLabel = paste0( paste(g1conds, collapse=","), " - ", paste(g2conds, collapse=","))
 				
 				temp = data.frame(param=p, cond=condLabel, 
 													bf01=testRes$bf01, bf10=testRes$bf10, success = testRes$success, 
@@ -357,10 +348,6 @@ calculateWAIC = function(results, subsamples=1, subsampleProportion=1, onlyTotal
 		} else {
 			noBurnIn = results
 		}
-		
-		#if (length(subsampleIterationsToRemove) > 1) {
-		#	cat(paste("Starting subsample ", sub, ".\n", sep=""))
-		#}
 		
 		waic = CCM_CPP_calculateWAIC(noBurnIn)
 		waic$subsample = sub

@@ -1,14 +1,4 @@
 
-
-stripFactor = function(x) {
-	if (is.factor(x)) {
-		x = levels(x)[x]
-	}
-	x
-}
-
-
-
 getConstrainedConditionEffects = function(config) {
 
 	cec = NULL
@@ -58,7 +48,6 @@ getConstrainedConditionEffectList = function(config, param, usedFactors) {
 	
 	factors = config$factors
 	
-	#rval = list()
 	rval = NULL
 	
 	#special case: no factors used.
@@ -76,7 +65,6 @@ getConstrainedConditionEffectList = function(config, param, usedFactors) {
 		}
 		return(rval)
 	}
-	
 	
 	
 	cefcond = factors[ , c(usedFactors, "cond") ]
@@ -113,7 +101,6 @@ getConstrainedConditionEffectList = function(config, param, usedFactors) {
 				source = paste(param, "_cond[", thisLevelSource, "]", sep="")
 			}
 			
-			#rval[[target]] = source
 			rval = rbind(rval, data.frame(target=target, source=source, stringsAsFactors=FALSE))
 		}
 		
@@ -167,7 +154,6 @@ getRootSourceConditionParameter = function(results, param, cond, fullParam = NUL
 	
 	if (is.null(source)) {
 		warning(paste("No source parameter specified for \"", target, "\". It must be a free parameter.", sep=""))
-		#return(target)
 		source = "FREE_PARAMETER"
 	}
 	
