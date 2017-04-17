@@ -1,5 +1,5 @@
 
-setwd("~/../Programming/R/CatContModel/examples/betweenItem_betweenParticipants")
+setwd("~/../Programming/R/CatContModel/examples/betweenParticipants_oneFactor")
 
 source("../DataSimulatingFunctions.R")
 
@@ -76,7 +76,7 @@ betweenParameters = betweenParameters[ keepParam, ]
 unique(betweenData[, c('pnum', 'cond')])
 unique(betweenParameters[, c('pnum', 'cond')])
 
-write.table(betweenData, file="BI_BP_data.txt", row.names=FALSE, quote=FALSE, sep="\t")
+write.table(betweenData, file="BP_OF_data.txt", row.names=FALSE, quote=FALSE, sep="\t")
 
-write.table(betweenParameters, file="BI_BP_parameters.txt", row.names=FALSE, quote=FALSE, sep="\t")
+write.table(betweenParameters, file="BP_OF_parameters.txt", row.names=FALSE, quote=FALSE, sep="\t")
 

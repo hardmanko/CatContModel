@@ -1,14 +1,14 @@
 # This example is for a one-factor between-participants (BP) design.
-# It shows how to 
+# It shows how to test the main effect of the BP factor.
 
 
-setwd("~/../Programming/R/CatContModel/examples/betweenItem_betweenParticipants") #or wherever you are working
+setwd("~/../Programming/R/CatContModel/examples/betweenParticipants_oneFactor") #or wherever you are working
 
 library(CatContModel)
 
 # There is data from three groups in this data set,
 # with group membership given by the cond variable.
-data = read.delim("BI_BP_data.txt")
+data = read.delim("BP_OF_data.txt")
 
 # You can see that pnum X cond does not overlap.
 unique( data[, c("pnum", "cond") ])
@@ -50,9 +50,10 @@ for (n in names(resList)) {
 	resList[[n]] = continueResults$combinedResults
 }
 
-#saveRDS(resList, file="BI_BP_individualResults.RDS")
+# Commented out so you don't accidentally run it and overwrite results.
+#saveRDS(resList, file="BP_OF_resultsList.RDS")
 
-resList = readRDS("BI_BP_individualResults.RDS")
+resList = readRDS("BP_OF_resultsList.RDS")
 
 for (n in names(resList)) {
 	resList[[n]] = removeBurnIn(resList[[n]], 500)
@@ -64,7 +65,9 @@ for (n in names(resList)) {
 library(CMBBHT)
 
 # Pick a parameter. It can be any parameter in the model other than catMu and catActive.
-
+# Note that it was not necessary to specify which condition effects are used. This is 
+# because in a between-participants design each group has its parameters estimated
+# independently, so they are always allowed to different between groups.
 param = "pContBetween" 
 
 # You should be sure that all results have same number of iterations
