@@ -330,7 +330,7 @@ eval.string = function(x, envir=parent.frame()) {
 cleanAndSummarizeMEIResults = function(BFs, summarize, aggregateBy) {
 	if (any(BFs$success == FALSE)) {
 		
-		form = formula(paste0("success ~ ", paste(aggregateBy, collapse=" * ")))
+		form = stats::formula(paste0("success ~ ", paste(aggregateBy, collapse=" * ")))
 		ff = stats::aggregate(form, BFs, function(x) { sum(!x) })
 		ff$failures = ff$success
 		ff$success = NULL

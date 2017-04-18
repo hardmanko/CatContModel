@@ -170,13 +170,13 @@ getSdParams = function(results, modelVariant = results$config$modelVariant, filt
 #' 
 #' @export
 logit = function(p) {
-	qlogis(p)
+	stats::qlogis(p)
 }
 
 #' @rdname logit
 #' @export
 logitInverse = function(f) { 
-	plogis(f)
+	stats::plogis(f)
 }
 
 #' Convert Between Degrees and Radians
