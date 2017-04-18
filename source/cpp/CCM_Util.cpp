@@ -81,8 +81,8 @@ namespace CatCont {
 	}
 
 	string extractIndex(string s) {
-		unsigned int start = s.find('[');
-		unsigned int end = s.find(']');
+		size_t start = s.find('[');
+		size_t end = s.find(']');
 		if (start == string::npos || end == string::npos) {
 			return "";
 		}

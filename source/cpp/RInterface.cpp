@@ -241,7 +241,7 @@ Rcpp::DataFrame CCM_CPP_calculateWAIC(Rcpp::List resultsObject) {
 	using namespace CatCont;
 
 	Rcpp::List configList = resultsObject["config"];
-	Rcpp::DataFrame data = resultsObject["data"];
+	Rcpp::DataFrame data(resultsObject["data"]);
 	Rcpp::List posteriors = resultsObject["posteriors"];
 
 	Bayesian::Configuration config = readConfigurationFromList(configList);
