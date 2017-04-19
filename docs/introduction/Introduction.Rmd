@@ -1,7 +1,7 @@
 ---
 title: "CatContModel Introduction"
 author: "Kyle Hardman"
-date: "Package version 0.7.4, March 2017"
+date: "Package version 0.7.5, April 2017"
 output: pdf_document
 linkcolor: blue
 csl: apa-single-spaced.csl
@@ -15,7 +15,7 @@ This package contains implementations of a few variants of psychological process
 
 All of the models use Bayesian parameter estimation and model comparison methods. There is nothing inherently Bayesian about the models, but maximum likelihood estimation is, in my experience, relatively slow and unreliable. The unreliability only appears if the model is somewhat complex and if you know what to look for. The slowness of maximum likelihood only really appears once models become complex. The categorical models in this package are complex, by virtue of having a large number of parameters. As such, the choice of Bayesian methods is obvious.
 
-There are two basic steps to using this package: 1) Running the parameter estimation and 2) analyzing the posterior distributions of the parameters. These steps each have many substeps, which are described in detail in the following sections.
+There are two basic steps to using this package: 1) Running the parameter estimation and 2) analyzing the posterior distributions of the parameters. These steps each have many sub-steps, which are described in detail in the following sections.
 
 I do not hold you responsible for having read and comprehended the Appendix of @HardmanVergauweRicker2017. However, there is a great deal of information there that I do not repeat here, so it would likely be of benefit for you to read it if there is information about the specification of the model that you do not understand.
 
@@ -44,8 +44,18 @@ data = read.delim("../../examples/betweenItem/betweenItem_data.txt")
 data[1:5,]
 ```
 
+### Between-Participants Designs
 
-Ideally, you have a completely within-participants design, where all participants do all conditions. This allows for maximal interpretability of the condition effect parameters. With a between-participants design, the model will run, but it is possible to have differences between conditions get soaked up, at least in part, by participant level parameters due to different participants being in different conditions. In theory, this is mitigated by the fact that there is a hierarchical prior on all of the participant level parameters. This should keep all participants somewhat clustered around one population grand mean, while the condition effects account for differences between conditions, but this is only in theory. If using a between-participants design, you could consider using a mixed between/within design, where all participants do 2 conditions out of 3 possible conditions, for example. I have tested a partially between-participants test case, and the model seems to work ok.
+The models are designed for within-participants designs in which all participants have data in all conditions. This allows for maximal interpretability of the condition effect parameters. 
+
+With a between-participants design, the model will run, but it is possible to have differences between conditions get soaked up, at least in part, by participant level parameters due to different participants being in different conditions. In theory, this is mitigated by the fact that there is a hierarchical prior on all of the participant level parameters. This should keep all participants somewhat clustered around one population grand mean, while the condition effects account for differences between conditions, but this is only in theory. 
+
+In practice I have found that fully between-participants designs do not work properly. What happens is that the condition effect parameters trade off badly with participant level parameters, making inference about parameters questionable.
+
+I have experimented with a mixed between/within design in which all participants do 2 conditions out of 3 possible conditions. Making there be some overlap between participants and conditions seems to help and the model seems to work acceptably well.
+
+If you have a fully between-participants design, you are not totally out of luck. You should fit the model separately for each group of participants. Then you should contact me and I may be able to help you. I am working on adding some support for between-participants designs to the package and I may have the piece you need ready.
+
 
 ## Main Parameter Estimation Function
 
@@ -57,8 +67,7 @@ config = list(iterations=500, modelVariant="betweenItem")
 results = runParameterEstimation(config, data)
 ```
 ```{r echo=FALSE}
-fullResults = readRDS("betweenItem_results.RDS")
-results = fullResults
+results = readRDS("betweenItem_results.RDS")
 ```
 
 Note that the number of iterations is set to a small value here because it is only an initial run for the purposes of tuning the Metropolis-Hastings acceptance rates. You almost certainly will not be able to call this function once and be done: You need to do the Metropolis-Hastings tuning procedure, which is described below. In the end, you will need to run thousands of iterations. Expect the parameter estimation to take a long time (hours for a typically sized data set).
@@ -88,23 +97,28 @@ Repeat steps 1 to 3 until the acceptance rates are in the acceptable range.
 
 Tuning the MH acceptance rate is accomplished by adjusting the standard deviation of candidate distributions for the parameters. A larger standard deviation will result in fewer acceptances because more candidate values will be far from good parameter values. Thus, if the acceptance rate is too high, you need to increase the MH tuning standard deviation to get fewer good candidates. If the acceptance rate is too low, you need to decrease the MH tuning standard deviation to get more good candidates. 
 
-You can find the values of the tuning parameters that were used for an estimation run by examining `results$mhTuning`. Both `pMem_cond` and `condSD` had acceptance rates on the low end, so examine their tuning parameters and adjust them down. Smaller steps means more acceptance.
+The MH acceptance rate for `catMu` was slightly on the low side (use the "Active only" values), so the MH tuning parameter should be made smaller.
+The MH acceptance rate for `catSelectivity` was slightly high, so its MH tuning parameter should be made slightly larger.
+You can find the values of the tuning parameters that were used for an estimation run by examining `results$mhTuning`.
 
 ```{r}
-results$mhTuning$pMem_cond
-results$mhTuning$contSD
+results$mhTuning$catMu
+results$mhTuning$catSelectivity
 ```
+
+Then set new MH tuning values for the next parameter estimation run. These adjustments aren't really necessary in this case as the acceptance rates are already in the acceptable range, but it demonstrates the process.
 
 ```{r eval=FALSE}
 mhTuning = list() 
-mhTuning$pMem_cond = 0.12 #Set some new values that are lower than before.
-mhTuning$contSD = 1.6
+mhTuning$catMu = 4 # Decrease by 1 to increase acceptance rate.
+mhTuning$catSelectivity = 4 # Increase by 1 to decrease acceptance rate.
 
 results = runParameterEstimation(config, data, mhTuningOverrides=mhTuning)
 ```
+
 Note that it is not possible to tune the acceptance rate for the `catActive` parameters because they only take on the values 0 and 1. They tend to have a really low acceptance rate, but that's just how it is.
 
-For these new results, examine the MH acceptance rates and adjust the MH tuning values, and then rerun parameter estimation. Keep doing this until the MH acceptance rates are all in the acceptable range (0.4 to 0.6) before going on.
+For these new results, examine the MH acceptance rates and adjust the MH tuning values, and then rerun parameter estimation. Keep doing this until the MH acceptance rates are all in the acceptable range, which is about 0.4 to 0.6, before going on.
 
 ## Main Parameter Estimation
 
@@ -159,7 +173,7 @@ This is just a small sampling of parameters, you may want to check others as wel
 
 ### Removing Burn-In iterations
 
-Once you have examined convergence, you will almost certaintly have found that there are some pre-convergence iterations that should be removed as burn-in. This number is typically 500 to 1000 in my experience, but it depends on the convergence plots you get. You can remove burn-in iterations with the `removeBurnIn` function.
+Once you have examined convergence, you will almost certainty have found that there are some pre-convergence iterations that should be removed as burn-in. This number is typically 500 to 1000 in my experience, but it depends on the convergence plots you get. You can remove burn-in iterations with the `removeBurnIn` function.
 ```{r}
 results = removeBurnIn(results, burnIn=500)
 ```
@@ -179,7 +193,7 @@ pmat = mcmc(pmat) #convert to coda format
 With this parameter matrix, you can use the Geweke diagnostic from the `coda` package. The Geweke diagnostic calculates a z statistic for each parameter. Under the hypothesis that the chains have converged, the z statistics follow a standard normal distribution. We can examine how well the z statistics follow a standard normal by making a QQ plot.
 
 ```{r fig.width=3, fig.height=3}
-gr = geweke.diag(pmat, 0.3, 0.3)
+gr = geweke.diag(pmat, 0.4, 0.4)
 qqnorm(gr$z) # The z-scores should follow a standard normal distribution.
 abline(0,1)
 ```
@@ -287,10 +301,19 @@ You can use a vector of `pnum`s, which allows you to make plots that include dat
 posteriorPredictivePlot(results, pnums=1:length(results$pnums), alpha=0.1) 
 ```
 
+## Testing Main Effects and Interactions
 
-## Condition Effects
+If you have more than one condition in your data, one important question is whether the primary parameters of the model change as a function of conditions. In order to perform these tests for a parameter, that parameter must have been allowed to change as a function of task condition. See the [Constraining Parameter Estimation](#constrainingParameterEstimation) section for information how to control which parameters can change with task condition.
 
-If you have more than one condition in your data, one important question is whether the primary parameters of the model change as a function of conditions. You can examine results of hypothesis tests about whether conditions differ with the following function:
+The best way to examine questions about which parameters change is to perform ANOVA-like tests of main effects and interactions, which is discussed more in the [Hypothesis Tests of Main Effects and Interactions](#mei) section.
+
+
+## Pairwise Comparisons of Conditions
+
+In addition to tests of main effects and interactions, you can perform pairwise comparisons between individual conditions. (If you have a design with more than one factor, this is not the same as pairwise comparisons between factor levels, which is done with the `testMainEffectsAndInteractions` function with the `doPairwise` argument set to `TRUE`.)
+
+You can perform all pairwise tests with the `testConditionEffects` function as follows.
+
 ```{r include=FALSE, warning=FALSE, message=FALSE, error=FALSE}
 condEff = testConditionEffects(results)
 ```
@@ -300,8 +323,9 @@ condEff = testConditionEffects(results)
 ```{r warning=FALSE, message=FALSE, error=FALSE}
 condEff
 ```
-The null hypothesis in each test is that the listed conditions do not differ from one another. The `bfType` column indicates whether the Bayes factor is in favor of the null (`bf01`) or the alternative (`bf10`) hypothesis. Note that both values are provided for each test.
 
+The null hypothesis in each test is that the listed conditions do not differ from one another. The `param` column is the parameter being tested and the `cond` column indicates which conditions were compared.
+The `bfType` column indicates whether the Bayes factor is in favor of the null (`bf01`) or the alternative (`bf10`) hypothesis. Note that both values are provided for each test.
 
 
 ## Testing Categorical Responding
@@ -324,7 +348,7 @@ testMeanParameterValue(results, param = "pMem", cond = 1, H0_value = 0.5)
 
 ## Model Fit Statistics (WAIC) {#WAIC}
 
-Models are often compared to one another with model fit statistics like AIC and BIC. For the kinds of Bayesian hierarchical models fit with this package, an appropriate fit statistic is WAIC. WAIC is conceptually similar to AIC, but cannot be directly compared with AIC values (although they do often end up being fairly similar in magnitude). You can caluate WAIC for a fitted model as follows.
+Models are often compared to one another with model fit statistics like AIC and BIC. For the kinds of Bayesian hierarchical models fit with this package, an appropriate fit statistic is WAIC. WAIC is conceptually similar to AIC, but cannot be directly compared with AIC values (although they do often end up being fairly similar in magnitude). You can calculate WAIC for a fitted model as follows.
 
 ```{r cache=TRUE, include=FALSE}
 waic = calculateWAIC(results)
@@ -338,9 +362,49 @@ waic
 
 This can be used to compare model variants (e.g. the between-item and within-item variants). It can also be used to examine the effects of changing constraints (i.e. constant parameter values or priors) within a model variant.
 
-## Testing Main Effects and Interactions
+### Likelihood Calculation for Degrees and Radians
 
-See [this section](#mei) on testing main effects and interactions.
+If you want to calculate WAIC for a model that you made, i.e. one not from the CatContModel package, you should be aware that the magnitude of densities are different depending on whether you are working in degrees or radians. This affects the validity of comparing WAIC values between models that work in degrees vs radians. 
+
+The example below shows the difference between working in degrees of radians.
+
+```{r}
+# Input values in degrees
+x = 100
+mu = 80
+sigma = 20
+
+# Calculate density in terms of degrees
+deg = CatContModel::dvmd(x, mu, sigma)
+
+# Convert the input values to radians (and precision) and calculate density
+rad = CircStats::dvm(d2r(x), d2r(mu), sdDeg_to_precRad(sigma))
+
+deg
+rad
+```
+
+As you can see, the densities are different depending on whether degrees or radians were used. The reason for this is that a probability density function must satisfy the requirement that the area under the curve integrates to 1,
+
+$$
+\int_a^b f(x) ~dx = 1
+$$
+
+where $f(x)$ is the probability density function of the distribution.
+When working in degrees, the values of $x$ go from 0 to 360 ($a$ = 0, $b$ = 360). When working in radians, the values of $x$ go from 0 to $2\pi$ ($a$ = 0, $b = 2\pi$). Given that the $x$ values cover a larger range for degrees, the density at any given point can be lower but still have the distribution integrate to 1.
+
+Interestingly, the ratio of densities has a clear pattern, as shown below.
+
+```{r}
+rad / deg
+180 / pi
+```
+
+The models (at least the circular versions of the models) in this package are all parameterized in terms of degrees. If you calculate WAIC for your own model, make sure to either
+
+1. Calculate everything in terms of degrees. The CatContModel package contains the functions `d2r`, `r2d`, `sdDeg_to_precRad`, `precRad_to_sdDeg`, and `dvmd` to assist with this.
+2. Calculate everything in terms of radians and then multiply the resulting density by $\pi / 180$ to get the value that you would have gotten had you calculated everything in degrees. This is what this package does internally.
+
 
 # Advanced Use
 
@@ -431,7 +495,7 @@ pMem_cond = results$posteriors[["pMem_cond[3]"]] #step 2
 pMem_latent = pMem_part + pMem_cond #step 3: add the chains
 
 #step 4 in two parts: getting the transformation function, then doing the transformation
-transformationFunction = getParameterTransformation("pMem", results)
+transformationFunction = getParameterTransformation(results, "pMem")
 pMem_manifest = transformationFunction(pMem_latent)
 ```
 
@@ -512,14 +576,16 @@ There are two ways to control the number of categories used by participants: Set
 The simpler way to limit the number of parameters is to set the `maxCategories` setting in the configuration of the parameter estimation. Participants will not be able to have more categories than this number.
 
 ```{r eval=FALSE}
-#assume the config list is already partially made
-config$maxCategories = 12 #set the maximum number of catgeories.
+# Assume the config list is already partially made
+config$maxCategories = 12
 results = runParameterEstimation(config, data)
 ```
 
 There are a few guidelines to follow here.
-1. If you set `maxCategories` to a very large value (like 100), it will make the parameter estimation take a really long time. This is because every category has parameters that are estimated regardless of whether the category is active or not. Specifically, even for inactive categories, the `catActive` parameter is consistently checking whether the category should become active and the `catMu` parameter is wandering around.
+
+1. If you set `maxCategories` to a very large value (like 100), it will make the parameter estimation take a really long time. This is because every category has parameters that are estimated regardless of whether the category is active or not. Specifically, even for inactive categories, the `catActive` parameter is constantly checking whether the category should become active and the `catMu` parameter is wandering around.
 2. If you set `maxCategories` to the exact number of categories that you want to be the maximum, the effective maximum will be slightly lower than `maxCategories` because even categories in good locations will occasionally be deactivated.
+
 Thus, you should set `maxCategories` to a value slightly larger (maybe 20%) than the value you want as the effective maximum.
 
 ### Prior on Category Locations
@@ -567,7 +633,7 @@ Note that the `constantValueOverrides` must specify parameters for each particip
 
 Typically, you will set all parameter values for all participants to the same value, so there is a helper function called `setConstantParameterValue` for that purpose. In addition, setting the category parameters (`catMu` and `catActive`) to constant values is complex, so `setConstantCategoryParameters` helps with that.
 
-A simple usage of each of the helper funcions is shown below. See the documentation of those functions for more information on usage.
+A simple usage of each of the helper functions is shown below. See the documentation of those functions for more information on usage.
 
 ```{r eval=FALSE}
 #Set pMem to 0.8 for all participants
@@ -593,7 +659,7 @@ See also the [Constraining Parameter Estimation](#constrainingParameterEstimatio
 
 # Factorial Designs
 
-This package supports for contraining parameter estimation and performing hypothesis tests for factorial designs. Both fully-crossed and non-fully-crossed designs are supported. Nested designs can be worked with, but are not super easy to work with.
+This package supports for constraining parameter estimation and performing hypothesis tests for factorial designs. Both fully-crossed and non-fully-crossed designs are supported. Nested designs can be worked with, but are not super easy to work with.
 
 I will start by working with an example of a design with two fully-crossed factors, inventively named "letters" and "numbers". The letters factor has the levels "a" and "b" and the numbers factor has the levels "1", "2", and "3". Note that factor levels should not be numeric, so converting numbers to strings is a good idea.
 
@@ -616,7 +682,7 @@ Now that the model has this information about factors, you can start doing two t
 
 ## Constraining Parameter Estimation {#constrainingParameterEstimation}
 
-You can control which parameters of the models vary as a function of which factors. By default, the "primary" parameters of the models vary as a function of all factors. For example, for the Between-Item model variant, `pMem`, `contSD`, and `pContBetween` vary by task condition. The less critical parameters `catSD`, `catSelectivity`, and `pCatGuess` do not vary by condition, altough it is conceptually possible for them to do so and the model allows that. You can selectively control this behavior by creating a member of the `config` list given to the parameter estimation function, an example of which follows:
+You can control which parameters of the models vary as a function of which factors. By default, the "primary" parameters of the models vary as a function of all factors. For example, for the Between-Item model variant, `pMem`, `contSD`, and `pContBetween` vary by task condition. The less critical parameters `catSD`, `catSelectivity`, and `pCatGuess` do not vary by condition, although it is conceptually possible for them to do so and the model allows that. You can selectively control this behavior by creating a member of the `config` list given to the parameter estimation function, an example of which follows:
 
 ```{r eval=FALSE}
 #config being the configuration list given to runParameterEstimation()
@@ -630,7 +696,7 @@ config$conditionEffects = list(
 )
 ```
 
-This continues from the above example, where the two factors are called `numbers` and `letters`. As you can see, `conditionEffects` is a list that maps from the name of a parameter to a character vector (often with only 1 element) that gives the name(s) of the factor(s) to use. In addition, the special value `"all"` means to use all factors and the special value `"none"` means to use no factors. Note that this means that you can't have factors that are named `"all"` or `"none"` in the `config$factors` data frame. By default, all parameters that you do not explicity specify, like `pCatGuess` in this example, are set to `"none"`. Thus, it is not neccessary to state `catSelectivity = "none"`, but it is allowed.
+This continues from the above example, where the two factors are called `numbers` and `letters`. As you can see, `conditionEffects` is a list that maps from the name of a parameter to a character vector (often with only 1 element) that gives the name(s) of the factor(s) to use. In addition, the special value `"all"` means to use all factors and the special value `"none"` means to use no factors. Note that this means that you can't have factors that are named `"all"` or `"none"` in the `config$factors` data frame. By default, all parameters that you do not explicitly specify, like `pCatGuess` in this example, are set to `"none"`. Thus, it is not necessary to state `catSelectivity = "none"`, but it is allowed.
 
 To be clear about how this works, I will explain how the above code snippet affects the values of parameters. For `contSD` and `catSD`, for which both factors are used, each cell of the design (each condition) will have its own condition effect. Thus, `contSD` and `catSD` are allowed to freely vary. In contrast, `catSelectivity` and, implicitly, `pCatGuess` will not be allowed to vary with task condition at all, so each condition will have the same value for those parameters (with each participant having their own parameter value, of course). The last two parameters, `pMem` and `pContBetween`, each have an effect of one factor. What happens in that case is that the parameter will have the same value across all levels of the unused factor. In the case of `pMem`, that has an effect of the `numbers` factor, `pMem` will be different in each level of the `numbers` factor, but will be unaffected by the level of the `letters` factor. For a given condition, the value of `pMem` will only depend on which level of the `numbers` factor that condition is in, but the value will not depend on the level of the `letters` factor that condition is in.
 
@@ -638,7 +704,7 @@ Changing which parameters vary by task condition allow a researcher to decide wh
 
 Note that although this example is for factorial designs, you can use the same procedure with one factor designs. In that case, it is most simple if you just use `"all"` or `"none"` to specify which factors to use because there is only one factor.
 
-Contraining condition effects in this way works regardless of whether the design is fully-crossed or not.
+Constraining condition effects in this way works regardless of whether the design is fully-crossed or not.
 
 ## Hypothesis Tests of Main Effects and Interactions {#mei}
 
@@ -662,7 +728,7 @@ The result is a data frame with many columns, the meaning of most of which are e
 
 See the `factorial_betweenItem` example for more examples of using this function and playing with its output.
 
-Note that these hypothesis tests are sensitive to the choice of prior for the condition effect parameters. You can set the priors for a condition effect parameter as dicussed in the [Priors](#priors) section. Note, however, that you cannot directly set priors on main effects or interactions, only on the condition effects. The exact relationship is complex, but using tigher priors on condition effects has the effect of making the priors on main effects and interactions more tight as well. You can use the following function to see what the parameters of the marginal priors are.
+Note that these hypothesis tests are sensitive to the choice of prior for the condition effect parameters. You can set the priors for a condition effect parameter as discussed in the [Priors](#priors) section. Note, however, that you cannot directly set priors on main effects or interactions, only on the condition effects. The exact relationship is complex, but using tighter priors on condition effects has the effect of making the priors on main effects and interactions more tight as well. You can use the following function to see what the parameters of the marginal priors are.
 
 ```{r}
 calculateMarginalEffectParameterPriors(results, "pMem")
@@ -679,7 +745,7 @@ In brief, you have to make subjective choices. `testMainEffectsAndInteractions` 
 When working with non-fully-crossed designs, you have to choose what main effects or interactions to account for as it has implications for the results. 
 This is difficult to do with the function `testMainEffectsAndInteractions`. It only includes terms up to and including the tested effect. For example, if you are testing two-factor interaction, it will estimate that interaction and the two associated main effects. If there is a third factor, it will not estimate the main effect of that third factor or any interactions including that third factor.
 
-If you want more control over what effects are estimated, you can use the lower-level function `testSingleEffect`. Here is a minimal (and not run) usage example where the main effects of letters is tested in the context of a design matrix that includes the interaction between letters and numbers.
+If you want more control over what effects are estimated, you can use the lower-level function `testSingleEffect`. Here is a minimal (and not run) usage example where the main effect of letters is tested in the context of a design matrix that includes the interaction between letters and numbers.
 
 ```{r eval=FALSE}
 testSingleEffect(results, "contSD", 
@@ -687,12 +753,12 @@ testSingleEffect(results, "contSD",
 	contrastType = "contr.treatment")
 ```
 
-In addition, the `contrastType` argument allows you to select what contrasts to use. For an unbalanced design, `contr.treatment` or `contr.SAS` is what I would recommend.
+In addition, the `contrastType` argument allows you to select what contrasts to use. For an unbalanced design, I would recommend either `contr.treatment` or `contr.SAS` (`contr.treatment` is the default of CMBBHT for unbalanced designs).
 
 
 ## Nested Designs {#nestedDesigns}
 
-Sometimes you will have a nested design, where the levels of one factor are nested within the levels of another factor. One example of such a situation could come from a working memory experiment in which you have serial positions nested within set sizes. For example, you might have two set sizes of memoranda, such as lists of 2 or 4 colors. At the end of the presentation of a list, participants recall one of the items in the list to the best of their ability. The order of presentation of the items defines the serial position factor. For set size 2, there are serial positions 1 and 2. For set size 4, there are serial positions 1 through 4. This is a nested design because although set sizes 2 and 4 both have serial positions 1 and 2, the meaning of those serial positions is totally different within the context of the set size, due to (at least) primacy and recency effects. At set size 2, serial position 2 is the most recent item, so it would get a recency effect. At set size 4, however, serial position 2 is somewhere in the middle of the list, so it would get neither a primacy nor a recentcy effect. Thus, this is a nested design, where serial positions must be treated as dependent on the set size. I will explain here how to analyze such a design with this package.
+Sometimes you will have a nested design, where the levels of one factor are nested within the levels of another factor. One example of such a situation could come from a working memory experiment in which you have serial positions nested within set sizes. For example, you might have two set sizes of memoranda, such as lists of 2 or 4 colors. At the end of the presentation of a list, participants recall one of the items in the list to the best of their ability. The order of presentation of the items defines the serial position factor. For set size 2, there are serial positions 1 and 2. For set size 4, there are serial positions 1 through 4. This is a nested design because although set sizes 2 and 4 both have serial positions 1 and 2, the meaning of those serial positions is totally different within the context of the set size, due to (at least) primacy and recency effects. At set size 2, serial position 2 is the most recent item, so it would get a recency effect. At set size 4, however, serial position 2 is somewhere in the middle of the list, so it would get neither a primacy nor a recency effect. Thus, this is a nested design, where serial positions must be treated as dependent on the set size. I will explain here how to analyze such a design with this package.
 
 In the results of parameter estimation, there is a `data.frame` that can be found in `results$config$factors`. For a multi-factor design, you should have provided this `data.frame` in `config$factors` before starting parameter estimation. 
 
@@ -718,7 +784,7 @@ Imagine that we want to test a main effect of serial position, but only at one s
 
 ```{r eval=FALSE}
 
-resCopy = results # Copy results so you don't change the original
+resCopy = results # Copy results so you don't change the original!
 
 f = resCopy$config$factors # Copy factors for brevity
 
@@ -756,7 +822,7 @@ resCopy$config$factors = f
 Notes:
 
 1. Any time you have a factor with only 1 level, you must drop that factor by setting it to `NULL`.
-2. As shown in the example, you may drop rows (conditions) from factors. This is ok, it just means that you are ignoring some cells of your design for the given analysis.
+2. As shown in the example, you may drop rows (conditions) from `factors`. This is ok, it just means that you are ignoring some cells of your design for the given analysis.
 3. You must retain the `cond` column and you must not change it at all (other than by dropping rows). The names of the conditions cannot be changed as they are baked in to the names of the parameters.
 4. The two things that this is good for are tests of main effects and interactions and parameter summary plots, as shown in the first example.
 
@@ -772,8 +838,8 @@ For referencing ideas in the models, please cite @HardmanVergauweRicker2017. See
 If you use this package, please cite it:
 
 Hardman, K.O. (2016). CatContModel: Categorical and Continuous 
-Working Memory Models for Delayed Estimation Tasks (Version 0.7.4) [Computer software]. Retrieved from
-https://github.com/hardmanko/CatContModel/releases/tag/v0.7.4
+Working Memory Models for Delayed Estimation Tasks (Version 0.7.5) [Computer software]. Retrieved from
+https://github.com/hardmanko/CatContModel/releases/tag/v0.7.5
 
 Make sure to update the version number in both the name and the URL.
 
@@ -782,7 +848,7 @@ Make sure to update the version number in both the name and the URL.
 
 ### Between-Item
 
-This was the best model selected by @HardmanVergauweRicker2017. If you are going to use one categorical model from this package for color data, you should use this model. However, you could try fitting more than one model and [comparing the fit](#WAIC) of those models.
+This was the best model selected by @HardmanVergauweRicker2017. If you are going to use one categorical model from this package for color data, you should use this model. However, you could try fitting more than one model and comparing the fit of those models with [WAIC](#WAIC).
 
 #### Fully Categorical Model
 
@@ -799,16 +865,16 @@ results = runParameterEstimation(config, data, constantValueOverrides = pcbOverr
 
 ### Within-Item
 
-The within-item model has an issue, which is that if very few categories are active, `pContWithin` is essentially forced to be 1. Imagine the case in which there is only 1 active category at 180 degrees and that `pContWithin` is 0.5. This means that the model will predict that memory responses will be on a line essentially going from (0, 90) to (360, 270), passing through (180, 180). This line would provide terrible fit for the data, unless there was something really bizarre about the data. This forces `pContWithin` to 1 so that the line will go from (0, 0) to (360, 360) and capture the bulk of the data. With more active categories, it becomes less of an issue as there are multiple line segments, so no one part of a line segment is too far from the intercept 0, slope 1 line.
+The within-item model has an issue, which is that if very few categories are active, `pContWithin` is essentially forced to be 1. Imagine the case in which there is only 1 active category located at 180 degrees and that `pContWithin` is 0.5. This means that the model will predict that memory responses will be on a line essentially going from (0, 90) to (360, 270), passing through (180, 180). This line would provide terrible fit for the data, unless there was something really bizarre about the data. This forces `pContWithin` to 1 so that the line will go from (0, 0) to (360, 360) and capture the bulk of the data. With more active categories, it becomes less of an issue as there are multiple line segments, so no part of any line segment is too far from the intercept 0, slope 1 line.
 The between-item model doesn't have this issue because the categorical and continuous response are treated separately. One possible solution to this is to use constant parameter values overrides to force a few categories (maybe 4) to always be active, but that does have the effect of always having a few active categories.
 
-For estimation of `catSD` and `contSD`, the within-item model is much more fragile than the between-item model due to how those parameters are estimated. In the between-item model, `catSD` is estimated from to categorical memory responses and categorical guesses while `contSD` is estimated from continuous memory responses. For the within item model, `catSD` is estimated from categorical guessing and from a part of the mixed categorical and continuous responses, while `contSD` is estimated from a part of the mixed categorical and continuous responses. 
+For estimation of `catSD` and `contSD`, the within-item model is much more fragile than the between-item model due to how those parameters are estimated. In the between-item model, `catSD` is estimated from to categorical memory responses and categorical guesses while `contSD` is estimated from continuous memory responses. For the within item model, `catSD` is estimated from categorical guessing and from a part of the mixed categorical and continuous memory responses, while `contSD` is estimated from a part of the mixed categorical and continuous responses. 
 
 For more information, read the "Within-Item Model Variant" section of the Appendix of @HardmanVergauweRicker2017. In particular, notice how Equation 25 for $\sigma^{W}$ contains the two parameters of interest, `contSD` ($\sigma^{O}$) and `catSD` ($\sigma^{A}$). Then $\sigma^{W}$ gets plugged in to Equation 22, which contains data. Thus, $\sigma^{W}$ is straightforward to estimate because it is based on data directly, but `contSD` and `catSD` cannot be estimated directly: they could trade off perfectly without some other constraint. That other constraint comes from the estimation of `catSD` from categorical guesses.
 
-**Important**: From the above, if there is no categorical guessing, the within-item model _cannot estimate_ both `catSD` and `contSD`. In fact, it will likely be unable to estimate either of them as they will trade off horribly. If there is very little categorical guessing, like 10\% of guesses, you probably can't reasonably estimate `catSD` or `contSD` either.
+**Important**: From the above, if there is no categorical guessing, the within-item model _cannot estimate_ both `catSD` and `contSD`. In fact, it will likely be unable to estimate either of them as they will trade off horribly. If there is very little categorical guessing, like 10\% of guesses, you probably can't reasonably estimate either of `catSD` or `contSD`.
 
-If there is truly 0 categorical guessing, one partial solution would be to set $\sigma^A$ to the constant value 0 (and probably also set `pCatGuess` to 0 to be sure that no categorical guessing is estimated). In this case, you cannot estimate both $\sigma^O$ and $\sigma^A$, but you can estimate their mixture, $\sigma^W$. The model doesn't diectly estimate $\sigma^W$, but you can calculate it after the fact by using the following logic.
+If there is truly 0 categorical guessing, one partial solution would be to set `catSD` ($\sigma^A$) to the constant value 0 (and probably also set `pCatGuess` to 0 to be sure that no categorical guessing is estimated). In this case, you cannot estimate both $\sigma^O$ and $\sigma^A$, but you can estimate their mixture, $\sigma^W$. The model doesn't directly estimate $\sigma^W$, but you can calculate it after the fact by using the following logic.
 
 Start from Equation 25:
 
@@ -818,9 +884,11 @@ If $\sigma^A = 0$, then the above equation becomes,
 
 $\sigma^W = [ P^2 * (\sigma^O)^2 ]^{1/2} = P * \sigma^O$
 
-Note that you cannot interpret $\sigma^O$ as meaning anything in this context, because you don't know what $\sigma^A$ is (it is not actually 0). You can only interpret $\sigma^W$ as being the mixture of two unknown quantities. Given that, it may be useful to know that $\sigma^W \leq max(\sigma^O, \sigma^A)$.
+where $P$ is `pContWithin`.
 
-If you have some small but decidedly nonzero amount of categorical guessing, it may be a better solution to set `catSD` to a constant value (based on past research, maybe).
+Note that you cannot interpret $\sigma^O$ as meaning anything in this context, because you don't know what $\sigma^A$ is (it is not actually 0 even though the parameter was set to that value). You can only interpret $\sigma^W$ as being the mixture of two unknown quantities. Given that, it may be useful to know that $\sigma^W \leq max(\sigma^O, \sigma^A)$.
+
+If you have some small but decidedly nonzero amount of categorical guessing, it may be a better solution to set `catSD` to a constant value (based on past research you may be able to select a reasonable constant value).
 
 ### ZL (Zhang & Luck, 2008)
 

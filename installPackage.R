@@ -11,16 +11,19 @@ devtools::install_github("hardmanko/CMBBHT@v0.1.1", build_vignettes=TRUE)
 
 # Install this package.
 #
-# In the github repository, compiled versions of the package 
-# that are installable by R can be found in the "packaged" subfolder.
+# Installable versions of the package can be found in the "packaged" subfolder
+# of the git repository.
 #
-# If you downloaded the whole repository, change "%repoRoot%" to the root directory of the unzipped repository.
-# Then change "V.V.V" to the version you want to install (typically the latest).
+# Depending on what operating system you have, you should use different files.
 #
-# If you downloaded just one packaged version of the package, change the path below to point to that file.
+# On Windows, you can install precompiled versions of the package that end in ".zip".
+# The precompiled package will only work on Windows.
 #
-install.packages("%repoRoot%/packaged/CatContModel_V.V.V.zip", repos=NULL)
+# On Linux or OSx, you can install source versions of the package that end in ".tar.gz".
+# You may be able to install source packages on Windows, but you need extra stuff (RTools).
 #
-# P.S. The .zip extension indicates that it is a binary/compiled, version of the package.
-# This is almost certainly what you want, not .tar.gz, which are source versions of the package
-# that must be compiled with a C++ compiler.
+# Change PACKAGE_LOCATION to the location of the package file. 
+# Change "V.V.V" to the version you want to install (typically the latest).
+# Change the extension to the type of package you want to install.
+
+install.packages("PACKAGE_LOCATION/CatContModel_V.V.V.zip", repos=NULL)
