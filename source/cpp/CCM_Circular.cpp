@@ -131,11 +131,11 @@ namespace CatCont {
 			vector<double> likelihoods(data.study.size());
 
 			for (unsigned int i = 0; i < data.study.size(); i++) {
-
 				double memDens = par.pMem * vmLut.dVonMises(data.response[i], data.study[i], par.contSD);
 
 				likelihoods[i] = memDens + guessDens;
 
+				likelihoods[i] *= (PI / 180.0);
 			}
 			return likelihoods;
 		}
@@ -161,9 +161,7 @@ namespace CatCont {
 			bool calculateWithinComponent = (modelVariant == ModelVariant::BetweenAndWithin) || (modelVariant == ModelVariant::WithinItem);
 			bool calculateBetweenComponent = (modelVariant == ModelVariant::BetweenAndWithin) || (modelVariant == ModelVariant::BetweenItem);
 
-
 			const double unifDens = 1 / (2 * PI);
-
 
 			vector<double> weights(par.cat.mu.size());
 
@@ -229,23 +227,13 @@ namespace CatCont {
 				double betweenDensity = 0;
 
 				if (calculateBetweenComponent) {
-					//double betweenCatDensity = 0;
-					//for (unsigned int j = 0; j < weights.size(); j++) {
-					//	betweenCatDensity += weights[j] * allBetweenCatDens[j];
-					//}
-
 					double contDensity = vmLut.dVonMises(data.response[i], data.study[i], par.contSD);
-
 					betweenDensity = (par.pContBetween * contDensity) + ((1 - par.pContBetween) * betweenCatDensity);
 				}
 
 
-				//Guessing component
-				//double catGuessDens = 0;
+				//Guessing component (sort of). catGuessDens is calculated above.
 				if (par.cat.mu.size() > 0) {
-					//for (unsigned int j = 0; j < par.cat.mu.size(); j++) {
-					//	catGuessDens += allBetweenCatDens[j];
-					//}
 					catGuessDens /= par.cat.mu.size();
 				}
 
@@ -258,7 +246,7 @@ namespace CatCont {
 				double likelihood = par.pMem * memoryDensity + (1 - par.pMem) * guessingDensity;
 
 				//The PI / 180 scales the likelihood so that it would be correct if degrees had been used instead of radians
-				likelihoods[i] = likelihood * (PI / 180);
+				likelihoods[i] = likelihood * (PI / 180.0);
 
 			}
 

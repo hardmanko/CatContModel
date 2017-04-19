@@ -221,7 +221,6 @@ namespace CatCont {
 				//Between component
 				double betweenDensity = 0;
 				if (calculateBetweenComponent) {
-
 					double contDensity = dtnorm_noBoundCheck(data.response[i], data.study[i], par.contSD, lc.response.lower, lc.response.upper);
 
 					betweenDensity = (par.pContBetween * contDensity) + ((1 - par.pContBetween) * betweenCatDens);
