@@ -177,15 +177,20 @@ convertParameterListToDataFrame = function(paramList, maxCat) {
 compareTrueAndRecovered = function(results, trueParam) {
 	recPart = participantPosteriorSummary(results)
 	
+	recPart$pnum = as.character(recPart$pnum)
+	
 	trueParam$pnum = as.character(trueParam$pnum)
 	trueParam$cond = as.character(trueParam$cond)
 	trueParam$param = as.character(trueParam$param)
 	
-	trueParam = trueParam[ order(trueParam$pnum), ]
-	
 	trueParam$param[ trueParam$param == "nCat" ] = "catActive"
+	trueParam[ trueParam$param == "catActive", "cond" ] = "ALL_CONDS"
 	
 	trueParam = trueParam[ trueParam$param != "catMu", ]
+	
+	trueParam = trueParam[ order(trueParam$pnum), ]
+	recPart = recPart[ order(recPart$pnum), ]
+	
 	
 	df = NULL
 	

@@ -1,5 +1,5 @@
 
-setwd("~/../Programming/R/CatContModel/examples/betweenAndWithin")
+setwd("~/../Programming/R/CatContModel/examples/betweenAndWithin_constrained")
 
 source("../DataSimulatingFunctions.R")
 

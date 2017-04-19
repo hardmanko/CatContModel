@@ -1,24 +1,41 @@
 
+# This example is for a case when you have linear (non-circular) data.
+# Please see the Linear Data section in the manual. 
+#
+# In this example, the range of possible study angles is [110, 250] and the 
+# range of possible response angles is [90, 270]. It is usually a good idea
+# to allow participants to respond outside of the range of studied values.
+# Hard edges at the ends of the range of study values can result in a large
+# mass of responses right at the edge of the range.
+#
+# Although the values 90, 270, etc might look like degrees in a half circle, 
+# the model works by treating them as being linear (no wrap-around at 360).
+
 setwd("~/../Programming/R/CatContModel/examples/linear_betweenItem") #or wherever you are working
 
 library(CatContModel)
 
 data = read.delim("linear_BI_data.txt")
 
+# Set up a basic configuration. 
+# Note dataType = "linear" (defaults to "circular").
+config = list(iterations = 500, modelVariant = "betweenItem", 
+							dataType = "linear", maxCategories = 7)
 
-# Set up a basic configuration
-config = list(iterations = 500, modelVariant = "betweenItem", dataType = "linear", maxCategories = 7)
+# Optional: Specify the response range. If not specified, it is taken to be range(data$response).
+config$responseRange = c(90, 270)
 
 
 # MH tuning steps
 
 # 1. Override MH tuning defaults
 mhTuning = list()
-mhTuning$catSelectivity = 4
+mhTuning$catMu = 3
+mhTuning$catSelectivity = 6
 mhTuning$catSD = 1.6
 mhTuning$contSD = 2
 mhTuning$contSD_cond = 1.2
-mhTuning$pContBetween = 0.4
+mhTuning$pContBetween = 0.5
 mhTuning$pContBetween_cond = 0.2
 mhTuning$pMem_cond = 0.15
 
@@ -31,7 +48,7 @@ examineMHAcceptance(results)
 
 
 # Once the MH tuning is good, sample more iterations
-continueResults = continueSampling(results, 2500)
+continueResults = continueSampling(results, 3000)
 results = continueResults$combinedResults
 
 
@@ -71,13 +88,16 @@ abline(0,1)
 
 plotParameterSummary(results)
 
+mei = testMainEffectsAndInteractions(results)
+mei[ mei$bfType == "10", ]
+
 testConditionEffects(results)
 
 posteriorMeansAndCredibleIntervals(results)
 
+posteriorPredictivePlot(results, "8", alpha=0.4)
 posteriorPredictivePlot(results, results$pnums, alpha=0.1)
 
-testMainEffectsAndInteractions(results)
 
 
 # Examine the success of the parameter estimation
@@ -99,10 +119,10 @@ comp
 zlConfig = list(iterations=3000, modelVariant="ZL", dataType = "linear", iterationsPerStatusUpdate = 200)
 
 zlMh = list()
-zlMh$contSD = 1.5
-zlMh$contSD_cond = 0.7
-zlMh$pMem = 0.2
-zlMh$pMem_cond = 0.1
+zlMh$contSD = 2
+zlMh$contSD_cond = 1
+zlMh$pMem = 0.3
+zlMh$pMem_cond = 0.12
 
 zlResults = runParameterEstimation(zlConfig, data, mhTuningOverrides = zlMh)
 
@@ -111,8 +131,6 @@ examineMHAcceptance(zlResults)
 zlResults = removeBurnIn(zlResults, 500)
 
 plotParameterSummary(zlResults)
-
-posteriorMeansAndCredibleIntervals(zlResults)
 
 # You can compare the fit of the ZL and betweenItem models with WAIC
 # The data were generated under the betweenItem model, so you would expect it to win.

@@ -30,7 +30,7 @@ examineMHAcceptance(results)
 
 
 # Once the MH tuning is good, sample more iterations
-continueResults = continueSampling(results, 2500)
+continueResults = continueSampling(results, 3000)
 results = continueResults$combinedResults
 
 # And save the results
@@ -83,7 +83,8 @@ mei[ mei$bfType == "10", ]
 
 posteriorMeansAndCredibleIntervals(results)
 
-posteriorPredictivePlot(results, results$pnums, alpha=0.1)
+posteriorPredictivePlot(results, "1", alpha=0.3)
+posteriorPredictivePlot(results, "5", alpha=0.3)
 
 
 # Examine the success of the parameter estimation
@@ -101,7 +102,7 @@ comp
 # Fit the ZL model to this data that was generated from the betweenItem model.
 # We want to see that the ZL models fits the data poorly, which is done with WAIC.
 
-zlConfig = list(iterations=3000, modelVariant="ZL", iterationsPerStatusUpdate = 200)
+zlConfig = list(iterations=3500, modelVariant="ZL", iterationsPerStatusUpdate = 200)
 
 zlMh = list()
 zlMh$contSD = 1.5
@@ -117,12 +118,12 @@ zlResults = removeBurnIn(zlResults, 500)
 
 plotParameterSummary(zlResults)
 
-posteriorMeansAndCredibleIntervals(zlResults)
-
 # You can compare the fit of the ZL and betweenItem models with WAIC
 # The data were generated under the betweenItem model, so you would expect it to win, which it does.
 waic = calculateWAIC(results)
 zlWaic = calculateWAIC(zlResults)
 
-
+# The WAIC values of the betweenItem model should be lower than those of the ZL model
+waic
+zlWaic
 

@@ -1,4 +1,9 @@
 
+# Example of using the Zhang & Luck (2008) model. This model only
+# has continuous responding.
+# This model is really simple compared with the categorical
+# models, so it runs really really fast.
+
 setwd("~/../Programming/R/CatContModel/examples/ZL") #or wherever you are working
 
 library(CatContModel)
@@ -52,6 +57,8 @@ results = removeBurnIn(results, 500)
 
 plotParameterSummary(results)
 
+testMainEffectsAndInteractions(results)
+
 testConditionEffects(results)
 
 posteriorMeansAndCredibleIntervals(results)
@@ -64,7 +71,7 @@ posteriorPredictivePlot(results, results$pnums, alpha=0.1)
 source("../DataSimulatingFunctions.R")
 
 trueParam = read.delim("ZL_parameters.txt")
-trueParam = trueParam[ trueParam$param != "catActive", ]
+trueParam = trueParam[ trueParam$param != "nCat", ]
 
 compareTrueAndRecovered(results, trueParam)
 
