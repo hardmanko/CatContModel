@@ -32,16 +32,9 @@ participantPosteriorSummary = function(results, params=NULL, doCatActive=TRUE, c
 	
 	for (param in params) {
 		
-		#hasConditionEffect = (param %in% CatContModel:::getParametersWithConditionEffects(results$config$conditionEffects))
-		
-		conditions = results$config$factors$cond
-		#if (!hasConditionEffect) {
-		#	conditions = results$config$cornerstoneConditionName
-		#}
-		
 		for (pnum in results$pnums) {
 			
-			for (cond in conditions) {
+			for (cond in results$config$factors$cond) {
 				
 				partParam = getParameterPosterior(results, param, pnum=pnum, cond=cond, manifest=TRUE)
 				
@@ -49,10 +42,6 @@ participantPosteriorSummary = function(results, params=NULL, doCatActive=TRUE, c
 				
 				temp = data.frame(pnum=pnum, cond=cond, param=param, 
 													mean = mean(partParam), ciLower = qs[1], ciUpper = qs[2], stringsAsFactors = FALSE)
-				
-				#if (!hasConditionEffect) {
-				#	temp$cond = "all"
-				#}
 				
 				if (!is.null(fun)) {
 					temp$fun = fun(partParam)
@@ -140,7 +129,6 @@ posteriorMeansAndCredibleIntervals = function(results, params=NULL, credLevel=0.
 		
 		for (cond in results$config$factors$cond) {
 			
-			
 			condEff = results$posteriors[[ paste(param, "_cond[", cond, "]", sep="") ]]
 			
 			combined = trans(mu + condEff)
@@ -151,14 +139,12 @@ posteriorMeansAndCredibleIntervals = function(results, params=NULL, credLevel=0.
 			
 			paramWithConditionEffects = getParametersWithConditionEffects(results$config$conditionEffects)
 			if (!(param %in% paramWithConditionEffects)) {
-				temp$cond = "NA"
+				temp$cond = "ALL_CONDS"
 			}
 			
 			#For parameters without condition effects, only include one condition 
 			#(the cornerstone condition, but it doesn't matter)
-			if (param %in% paramWithConditionEffects || 
-					cond == results$config$cornerstoneConditionName) 
-			{
+			if (param %in% paramWithConditionEffects || cond == results$config$cornerstoneConditionName) {
 				rval = rbind(rval, temp)
 			}
 			
