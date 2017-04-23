@@ -122,11 +122,12 @@ verifyConfigurationList = function(config, data, immediateWarnings = FALSE) {
 	
 	######################
 	# maxCategories
+	if (config$modelVariant == "ZL") {
+		config$maxCategories = 0
+		cat("Note: config$maxCategories has been set to 0 because you are using the ZL modelVariant.")
+	}
 	if (is.null(config$maxCategories)) {
 		config$maxCategories = 16
-		if (config$modelVariant == "ZL") {
-			config$maxCategories = 0
-		}
 		cat(paste("Note: config$maxCategories not set. Set to ", config$maxCategories, ".\n", sep=""))
 	}
 	
