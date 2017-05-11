@@ -2,12 +2,12 @@
 # Install installation helpers
 install.packages(c("devtools", "R.rsp"))
 
-# Install dependencies from CRAN. 
+# Install other dependencies from CRAN. 
 install.packages(c("Rcpp", "polspline", "CircStats", "msm"))
 
 # Install the LineChart and CMBBHT packages from github.
 devtools::install_github("hardmanko/LineChart-package@v0.3.0", build_vignettes=TRUE)
-devtools::install_github("hardmanko/CMBBHT@v0.1.1", build_vignettes=TRUE)
+devtools::install_github("hardmanko/CMBBHT@v0.1.3", build_vignettes=TRUE)
 
 # Install this package.
 #

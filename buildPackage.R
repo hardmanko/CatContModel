@@ -7,7 +7,7 @@ library(Rcpp)
 library(devtools)
 library(roxygen2)
 
-CatContPackageVersion = "0.7.4"
+CatContPackageVersion = "0.7.5"
 addingDataSets = FALSE
 
 baseDir = "~/../Programming/R/CatContModel/"

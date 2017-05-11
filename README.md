@@ -68,20 +68,3 @@ If you want to develop/modify the package, you will need to rebuild the package 
 This package is released under the MIT license. See LICENSE.md for more information.
 
 
-# Versions
-
-0.7.4 - Bugfix in parameter estimation. See the release.
-
-0.7.3 - Bugfix. See the release.
-
-0.7.2 - Added support for non-fully-crossed designs. Additional documentation and bugfixes.
-
-0.7.1 - Bugfixes in examineMHAcceptance and posteriorPredictivePlot.
-
-0.7.0 - Support for factorial designs. Tests of main effects and interactions. See the "factorial_betweenItem" example.
-
-0.6.1 - Minor bugfix in a plotting function. Additional documentation for the linear dataType.
-
-0.6.0 - Added linear data type. Additional changes.
-
-0.5.0 - Initial release.
