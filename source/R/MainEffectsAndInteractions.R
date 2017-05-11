@@ -503,7 +503,8 @@ summarizeSubsampleResults = function(BFs, proportioniles = c(0, 0.025, 0.5, 0.97
 #all(x > 0)
 geoMean = function(x) {
 	if (any(x <= 0)) {
-		stop("All x must be > 0 to calculate the geometric mean.")
+		warning("All x must be > 0 to calculate the geometric mean.")
+		return(NA)
 	}
 	#prod(x)^(1 / length(x)) 
 	#which translates to
