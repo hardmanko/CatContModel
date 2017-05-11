@@ -134,7 +134,10 @@ testSingleEffect(subRes, "pMem", "numbers", usedFactorLevels = usedFactorLevels)
 # You can also do other hypothesis tests by working directly with CMBBHT
 # See the documentation for that package for more information about using it
 fact = results$config$factors
-fact$cond = NULL #The factors data.frame used by CMBBHT cannot have extra columns
+
+# The factors data.frame used by CMBBHT cannot have extra columns
+# beyond the factors of the design, so remove the cond column
+fact$cond = NULL 
 
 #Get prior and posterior condition effects
 pp = getConditionEffects(results, "contSD")
@@ -150,7 +153,7 @@ tf = function(prior, post) {
 		all(abs(eff) < 2)
 	}
 	
-	testFunction_encompassingPriors(prior, post, I_M0)
+	testFunction_EPA(prior, post, I_M0)
 }
 
 testHypothesis(pp$prior, pp$post, fact, "numbers", testFunction = tf)

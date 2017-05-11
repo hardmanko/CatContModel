@@ -6,6 +6,14 @@ In most cases, the data is simulated from the model that is then fit to that dat
 
 In some cases, in the example, a model other than the model that generated the data is fit to the data to test whether the incorrect model fits worse than the correct model.
 
+# Usage
+
+For each example, you should download at least the files with names ending "_analysis.R" and "_data.txt". You could just download the whole examples directory.
+
+The data are simulated with known parameter values. The parameter values and data are sampled in files with names ending in "_simulateData.R". Those files depend on "DataSimulatingFunctions.R".
+
+The true parameter values are stored in files ending in "_parameters.txt".
+
 # List of Examples
 
 betweenItem: Basic examples of fitting the between-item model variant, testing hypotheses, making plots, etc.
