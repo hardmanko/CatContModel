@@ -1,7 +1,7 @@
 ---
 title: "CatContModel Introduction"
 author: "Kyle Hardman"
-date: "Package version 0.7.5, April 2017"
+date: "Package version 0.7.5, May 2017"
 output: pdf_document
 linkcolor: blue
 csl: apa-single-spaced.csl
@@ -17,7 +17,7 @@ All of the models use Bayesian parameter estimation and model comparison methods
 
 There are two basic steps to using this package: 1) Running the parameter estimation and 2) analyzing the posterior distributions of the parameters. These steps each have many sub-steps, which are described in detail in the following sections.
 
-I do not hold you responsible for having read and comprehended the Appendix of @HardmanVergauweRicker2017. However, there is a great deal of information there that I do not repeat here, so it would likely be of benefit for you to read it if there is information about the specification of the model that you do not understand.
+I do not hold you responsible for having read and comprehended the Appendix of @HardmanVergauweRicker2017. However, there is a great deal of information there that I do not repeat here, so it would likely be of benefit for you to read it if there is anything about the specification of the model(s) that you do not understand.
 
 
 # Parameter Estimation
@@ -29,7 +29,7 @@ This package works with two kinds of data: circular and linear. Circular data co
 The data must be stored in a `data.frame` where each row of the data frame has the data for a single study/response pair, with information about which participant and condition the study/response pair are from. The data should have 4 columns, in no particular order:
 
 1. `pnum`: Character (or convertible to character). Participant number. You should have more than 1 participant, otherwise the hierarchical nature of the model will, at best, become dead weight and will, at worst, distort the results.
-2. `cond`: Character (or convertible to character). Condition name. If you only have 1 condition, just give any constant value here.
+2. `cond`: Character (or convertible to character). The name of a condition. If you only have 1 condition, just give any constant value here.
 3. `study`: Numeric. If the data are circular, the angle in degrees that the participant studied. If the data are linear, the studied value.
 4. `response`: Numeric. If the data are circular, the angle in degrees that the participant responded with. If the data are linear, the responded value.
 
@@ -95,7 +95,8 @@ Repeat steps 1 to 3 until the acceptance rates are in the acceptable range.
 
 ### Adjusting MH Tuning
 
-Tuning the MH acceptance rate is accomplished by adjusting the standard deviation of candidate distributions for the parameters. A larger standard deviation will result in fewer acceptances because more candidate values will be far from good parameter values. Thus, if the acceptance rate is too high, you need to increase the MH tuning standard deviation to get fewer good candidates. If the acceptance rate is too low, you need to decrease the MH tuning standard deviation to get more good candidates. 
+Tuning the MH acceptance rate is accomplished by adjusting the standard deviation of candidate distributions for the parameters. A candidate parameter value is sampled from a normal distribution centered on the current parameter value and then the candidate is accepted or rejected based on how good of a candidate it is. The acceptance rate is tuned by adjusting the standard deviation of the normal candidate distribtion.
+A larger standard deviation will result in fewer acceptances because more candidate values will be far from good parameter values. Thus, if the acceptance rate is too high, you need to increase the MH tuning standard deviation to get fewer good candidates. If the acceptance rate is too low, you need to decrease the MH tuning standard deviation to get more good candidates. 
 
 The MH acceptance rate for `catMu` was slightly on the low side (use the "Active only" values), so the MH tuning parameter should be made smaller.
 The MH acceptance rate for `catSelectivity` was slightly high, so its MH tuning parameter should be made slightly larger.
@@ -131,9 +132,7 @@ Once you have figured out the MH tuning, you can do something like this in each 
 ```{r eval=FALSE}
 config = list(iterations=3000, modelVariant="betweenItem")
 
-mhTuning = list() 
-mhTuning$pMem_cond = 0.12
-mhTuning$contSD_cond = 1.6
+mhTuning = list(catMu = 4, catSelectivity = 4)
 
 results = runParameterEstimation(config, data, mhTuningOverrides = mhTuning)
 
@@ -145,11 +144,11 @@ I will show you how to combine these parallel chains in the [Combining Results f
 
 ## Verifying Convergence
 
-It is important for the purposes of analysis that the posterior distribution of the parameters has converged. Many of the parameters in the model are estimated with the Metropolis-Hastings procedure, which are often somewhat slow to converge. As a result, it is important to find out when the posterior chains have converged so that the pre-convergence burn-in iterations can be removed.
+It is important for the purposes of analysis that the posterior distribution of the parameters has converged. Many of the parameters in the model are estimated with the Metropolis-Hastings procedure, which can be somewhat slow to converge. As a result, it is important to find out when the posterior chains have converged so that the pre-convergence burn-in iterations can be removed.
 
 ### Plotting Chains
 
-In order to know how many burn-in iterations to discard, it is necessary to examine parameter chains to verify that the Markov chain has converged. To start with, I usually just examine plots of chains to see when the mean of the chain becomes constant. For this model with categories, I have found that the average number of active categories across all participants is a reasonably good indicator of convergence, but I also examine other parameters.
+In order to know how many burn-in iterations to discard, it is necessary to examine posterior chains to verify that the Markov chain has converged. To start with, I usually just examine plots of chains to see when the mean of the chain becomes approximately constant. For this model with categories, I have found that the average number of active categories across all participants is a reasonably good indicator of convergence, but I also examine other parameters.
 
 ```{r fig.width=6, fig.height=6}
 par(mfrow=c(2,2))
@@ -166,7 +165,7 @@ plot(results$posteriors$pContBetween.var, type='l')
 
 ```
 
-You can see from all of there parameter chains that convergence was fairly quick in this case. It seems like the chains are basically converged past 200 iterations, although convergence doesn't seem to be totally complete at that point.
+You can see from all of the parameter chains that convergence was fairly quick in this case. It seems like the chains are basically converged past 200 iterations, although convergence doesn't seem to be totally complete at that point, converging nearer to 500 iterations.
 
 This is just a small sampling of parameters, you may want to check others as well. However, know that it is unlikely that one parameter will converge if another parameter has not converged because most of the parameters are at least a little correlated.
 
@@ -199,6 +198,8 @@ abline(0,1)
 ```
 
 Note that if a few participant-level parameters do not converge, that may not be a big deal. Inferences are generally based of estimates of the populations of participant-level parameters, which should be reasonably robust to the non-convergence of individual participant parameters. This means that you should focus on convergence of the condition effects and the population mean parameters (e.g. for `pMem`, `pMem_cond[2]` and `pMem.mu`; see the [Parameter Names](#parameterNames) section for more information). 
+
+You can examine specific z scores as follows.
 
 ```{r}
 gr$z[c("pMem_cond[2]", "pMem.mu")] 
@@ -271,19 +272,26 @@ Obviously, you should use a color generating function that is the same as what y
 
 ## Parameter Summary Plot
 
-You can make a plot that summarizes the parameters of the model with `plotParameterSummary`. This is a good place to start.
+A good place to start examining results is by plotting parameter values. You can make a plot that summarizes the parameters of the model with `plotParameterSummary`, an example of which is plotted below.
+
+I consider these plots to be publication quality (I used them in an article) and would recommend that you consider publishing such plots as well, rather than tables or omitting parameter estimates altogether.
+
+To plot individual panels of the larger figure, you can use some lower-level plotting functions, including `plotCatMu` for the `catMu` parameter, `plotHistWithMean` for histograms for parameters without condition effects, and `plotPosteriorLineChart` or `plotFactorialPosteriorLineChart` for single-factor or factorial designs for which there are condition effects.
 
 ```{r fig.width=6.5, fig.height=6.5}
 par(cex=0.75)
 plotParameterSummary(results)
 ```
 
+
 ## Posterior Means and Credible Intervals
 
 The posterior means and credible intervals for parameters with condition effects are plotted with `plotParameterSummary`. You can access the data used to make these plots by calling the `posteriorMeansAndCredibleIntervals`.
+
 ```{r}
 posteriorMeansAndCredibleIntervals(results)
 ```
+
 
 ## Posterior Predictive Distribution {#posteriorPredictive}
 
@@ -294,16 +302,19 @@ sampled = posteriorPredictivePlot(results, pnums=4, conditions=c(1,3))
 sampled[1:5,]
 ```
 
-You can use a vector of `pnum`s, which allows you to make plots that include data from any number of participants at once. The different participants are all included in the same plot, which can help you to see overall patterns of fit.
+You can use a vector of `pnum`s, which allows you to make plots that include data from any number of participants at once. The different participants are all included in the same plot, which can help you to see overall patterns of fit. 
+
+Omitting the `pnums` argument causes all participants to be used. Adjusting the `alpha` argument changes the transparency of the points, with high transparency (low alpha) helping to show the density of the data.
 
 ```{r eval=FALSE}
 # This example is not run
-posteriorPredictivePlot(results, pnums=1:length(results$pnums), alpha=0.1) 
+posteriorPredictivePlot(results, alpha=0.1) 
 ```
+
 
 ## Testing Main Effects and Interactions
 
-If you have more than one condition in your data, one important question is whether the primary parameters of the model change as a function of conditions. In order to perform these tests for a parameter, that parameter must have been allowed to change as a function of task condition. See the [Constraining Parameter Estimation](#constrainingParameterEstimation) section for information how to control which parameters can change with task condition.
+If you have more than one condition in your data, one important question is whether the primary parameters of the model change as a function of conditions. In order to perform these tests for a parameter, that parameter must have been allowed to change as a function of task condition (i.e. it must have had condition effects estimated). See the [Constraining Parameter Estimation](#constrainingParameterEstimation) section for information how to control which parameters can change with task condition.
 
 The best way to examine questions about which parameters change is to perform ANOVA-like tests of main effects and interactions, which is discussed more in the [Hypothesis Tests of Main Effects and Interactions](#mei) section.
 
@@ -336,15 +347,16 @@ One research question is whether there is any categorical responding present in 
 testCategoricalResponding(results)
 ```
 
-Note that the test is done in each condition individually. The null hypothesis for each test is that the parameter value is equal to the null hypothesized value, `H0_value`.
+Note that the test is done in each condition individually. The null hypothesis for each test is that the parameter value is equal to the null hypothesized values, `pContBetween_test` and `pCatGuess_test`.
 
 ## Testing Parameter Means
 
-The test of categorical responding uses a more general function that can test hypotheses about the means of any model parameters (other than `catActive` and `catMu`). The test that is performed is on the population mean in a condition of the experiment.
+The test of categorical responding uses a more general function that can test hypotheses about the means of any model parameters (other than `catActive` and `catMu`). The test that is performed is on the population mean in a particular condition of the experiment.
 
 ```{r}
 testMeanParameterValue(results, param = "pMem", cond = 1, H0_value = 0.5)
 ```
+
 
 ## Model Fit Statistics (WAIC) {#WAIC}
 
@@ -362,9 +374,10 @@ waic
 
 This can be used to compare model variants (e.g. the between-item and within-item variants). It can also be used to examine the effects of changing constraints (i.e. constant parameter values or priors) within a model variant.
 
+
 ### Likelihood Calculation for Degrees and Radians
 
-If you want to calculate WAIC for a model that you made, i.e. one not from the CatContModel package, you should be aware that the magnitude of densities are different depending on whether you are working in degrees or radians. This affects the validity of comparing WAIC values between models that work in degrees vs radians. 
+If you want to calculate WAIC for a model that you made, i.e. one not from the `CatContModel` package, you should be aware that the magnitude of densities, and WAIC, are different depending on whether you are working in degrees or radians. This affects the validity of comparing WAIC values between models that work in degrees vs radians. 
 
 The example below shows the difference between working in degrees of radians.
 
@@ -412,26 +425,26 @@ The models (at least the circular versions of the models) in this package are al
 
 ### Parameter Names {#parameterNames}
 
-The parameters are named as follows:
+The parameters are named as follows. The symbol for the parameter from the Appendix of @HardmanVergauweRicker2017 is included in parentheses following the `CatContModel` name for the parameter.
 
 1. Probability parameters:
 
-+ `pMem`: The probability that the tested item is in memory.
-+ `pBetween`: The probability that a memory response is a between-item response.
-+ `pContBetween`: The probability that a between-item memory response is continuous in nature.
-+ `pContWithin`: The proportion of a within-item memory response that is continuous in nature.
-+ `pCatGuess`: The probability that a guess is from one of the color categories (rather than from a uniform distribution).
++ `pMem` ($P^M$): The probability that the tested item is in memory.
++ `pBetween` ($P^B$): The probability that a memory response is a between-item response. This wasn't actually in the article.
++ `pContBetween` ($P^O$): The probability that a between-item memory response is continuous in nature.
++ `pContWithin` (also $P^O$): The proportion of a within-item memory response that is continuous in nature. In future articles, I would probably use $P^{OW}$ for `pContWithin` and $P^{OB}$ for `pContBetween`.
++ `pCatGuess` ($P^{AG}$): The probability that a guess is from one of the color categories (rather than from a uniform distribution).
 
 2. Standard deviation parameters:
 
-+ `contSD`: The standard deviation in degrees of continuous memory responses.
-+ `catSD`: The standard deviation in degrees of categorical memory responses and of categorical guesses.
-+ `catSelectivity`: A standard deviation in degrees related to how the probability that a study item is assigned to different categories. See the article.
++ `contSD` ($\sigma^O$): The standard deviation in degrees of continuous memory responses.
++ `catSD` ($\sigma^A$): The standard deviation in degrees of categorical memory responses and of categorical guesses.
++ `catSelectivity` ($\sigma^S$): A standard deviation in degrees related to how the probability that a study item is assigned to different categories. See the article for more information.
 
 3. Additional category parameters:
 
-+ `catMu`: The location of a color category. Each participant has several of these parameters.
-+ `catActive`: Whether a color category is active. Each participant has several of these parameters.
++ `catMu` ($\mu$): The location of a color category. Each participant has several of these parameters.
++ `catActive` ($\nu$): Whether a color category is active. Each participant has several of these parameters.
 
 
 Each participant has 1 of each of the probability and standard deviation parameters. They have several of the additional category parameters, the number of which is controlled by the `maxCategories` setting of the configuration that is used for parameter estimation. The number of category parameters is constant, but the number of categories actually used by participants is controlled by the `catActive` parameters.
@@ -445,11 +458,11 @@ Different model variants have different parameters. Parameters that are not used
 
 The names of the participant level parameters are formatted as follows: `parameter[pnum]`, where `pnum` is the participant number of the participant associated with that parameter. For example, for the participant with `pnum` 7, the `pMem` parameter is named `pMem[7]`.
 
-Each participant has several `catMu` and `catActive` parameters. Their names are formatted as follows: `catMu[pnum,catIndex]`, where `catIndex` is 0-indexed. For example, the first (i.e. 0-th) `catMu` parameter for the participant with `pnum` 7 would be `catMu[7,0]`.
+Each participant has several `catMu` and `catActive` parameters. Their names are formatted as follows: `catMu[pnum,catIndex]`, where `catIndex` is 0-indexed. For example, the first (i.e. 0-th) `catMu` parameter for the participant with `pnum` 7 would be `catMu[7,0]`. Note that there are no spaces near the comma (or anywhere).
 
 Population level (hierarchical) parameters have `.mu` or `.var` appended to them. For example, `pMem.mu` is the mean of the participant-level `pMem` parameters.
 
-The condition effects names have `_cond[c]` appended to them, where `c` is replaced with the name of a condition. For example, the `pMem` condition effect for the condition named "ss0" would be `pMem_cond[ss0]`.
+The condition effects names have `_cond[c]` appended to them, where `c` is replaced with the name of a condition. For example, the `pMem` condition effect for the condition named `ss0` would be `pMem_cond[ss0]`.
 
 
 ### Parameter Chains
@@ -516,11 +529,18 @@ param = getTransformedParameters(results, pnum=2, cond=1, iteration=7)
 param
 ```
 
-Note that inactive categories have already been removed from `param` which is why it does not include the `catActive` parameters (but see the `removeInactiveCategories` argument to control this behavior).
+Note that inactive categories have already been removed from `param` which is why it does not include the `catActive` parameters. See the `removeInactiveCategories` argument to control this behavior.
 
 ## Priors {#priors}
 
-See the Priors section of the appendix of @HardmanVergauweRicker2017 for a conceptual overview of the priors used by the model. All parameters have default priors that are basically fine to use.
+```{r shortPriorRun, include=FALSE}
+# Search for shortPriorRun to find where this is included.
+config = list(iterations = 1, modelVariant = "betweenItem")
+oneRes = runParameterEstimation(config, data)
+pr = oneRes$priors
+```
+
+See the Priors section of the appendix of @HardmanVergauweRicker2017 for a conceptual overview of the priors used by the model. All parameters have default priors that are basically fine to use for cirular data. If using linear data, you may need to change the priors, depending on your data. See the [Linear Data]{#linearData} section for more information.
 
 You can change the priors on various parameters in the model with the `priorOverrides` argument of `runParameterEstimation`. It should be a list mapping from the name of the prior parameter to the value of that parameter. The only real complexity here is the naming of the parameters, which I will get to.
 
@@ -528,22 +548,36 @@ All of the parameters have default priors. The values for the default priors can
 
 ### Hierarchical Priors
 
-All participant-level parameters have a hierarchical prior such that the mean and variance of those parameters is estimated. The priors for the participant-level parameters that you can control are thus the priors on the mean and variance of the participant-level parameters. The naming of these parameters is as follows:
+All participant-level parameters have a hierarchical prior such that the mean and variance of those parameters is estimated. The priors for the participant-level parameters that you can control are thus the priors on the mean and variance of the participant-level parameters. 
+
+The prior on the mean of each participant-level parameter is a normal with a mean and variance. The prior on the variance of each participant-level parameter is an inverse gamma with a shape and rate. See the Appendix of @HardmanVergauweRicker2017 for more information.
+
+The naming of these parameters is as follows:
 
 + `P.mu.mu` - The prior mean of the participant mean.
 + `P.mu.var` - The prior variance of the participant mean.
 + `P.var.a` - The prior shape ($\alpha$) of the participant variance.
 + `P.var.b` - The prior rate ($\beta$) of the participant variance.
 
-Where "P" is the name of the participant-level parameter (e.g. "pMem"). These priors default to fairly uninformative values. Changing them will probably not have much of an effect unless you use highly-informative values.
+Where `P` is the name of the participant-level parameter (e.g. "pMem"). These priors default to moderately informative values. Changing them will probably not have much of an effect on parameter estimation unless you use highly-informative values. There is no benefit to using uninformative priors, you just have to not use highly-informative priors.
+
+The default priors are given in the table below for the probability parameters (Prob.) and the standard deviation parameters (SD).
+
+Parameter | Prob.              | SD                   |
+----------|--------------------|----------------------|
+`mu.mu`   | `r pr$pMem.mu.mu`  | `r pr$contSD.mu.mu`  |
+`mu.var`  | `r pr$pMem.mu.var` | `r pr$contSD.mu.var` |
+`var.a`   | `r pr$pMem.var.a`  | `r pr$contSD.var.a`  |
+`var.b`   | `r pr$pMem.var.b`  | `r pr$contSD.var.b`  |
+
 
 ### Condition Effects
 
-The condition effect parameters account for differences in participant-level parameters between task conditions. The priors on the condition effect parameters are Cauchy distributions with location 0 and some scale value. In particular, the default scales are 2 for the probability parameters (e.g. `pMem`, `pContBetween`) and 5 for the standard deviation parameters (e.g. `contSD`, `catSelectivity`). Note that the scale of the parameters should be thought of with respect to the untransformed space (see the Condition Effects section of the Appendix of @HardmanVergauweRicker2017 for information about the transformation).
+The condition effect parameters account for differences in participant-level parameters between task conditions. The priors on the condition effect parameters are Cauchy distributions with location 0 and some scale value. In particular, the default scales are `r pr$pMem_cond.scale` for the probability parameters (e.g. `pMem`, `pContBetween`) and `r pr$contSD_cond.scale` for the standard deviation parameters (e.g. `contSD`, `catSelectivity`). Note that the scale of the parameters should be thought of with respect to the untransformed space. see the Condition Effects section of the Appendix of @HardmanVergauweRicker2017 for information about the transformation.
 
-The naming of these priors is formatted like `P_cond.loc` and `P_cond.scale`, where `.loc` is the location and `.scale` is the scale. NB: The software allows you to set the prior location of condition parameters to a non-zero value, but I would strongly recommend against doing this. Leave the prior location at 0.
+The naming of these priors is formatted like `P_cond.loc` and `P_cond.scale`, where `.loc` is the location and `.scale` is the scale. NB: The package allows you to set the prior location of condition parameters to a non-zero value, but I would strongly recommend against doing this. Leave the prior location at 0 unless you think you are really clever.
 
-For a given parameter (e.g. `pMem`), you would change the prior scale depending on your prior beliefs about the magnitude of the differences between conditions for that parameter. For example, if you expect there to be very small differences in `pMem` between conditions of your experiment, you would set `pMem_cond.scale` to a small value, like `0.5`.
+For a given parameter (e.g. `pMem`), you would change the prior scale depending on your prior beliefs about the magnitude of the differences between conditions for that parameter. For example, if you expect there to be very small differences in `pMem` between conditions of your experiment, you would set `pMem_cond.scale` to a small value, like `0.5`. See the [Choosing Priors](#choosingPriors) section
 
 Note that the cornerstone parameterization of the condition effects means that the condition effect for the cornerstone condition is set to 0. This can be thought of as setting the prior scale to 0 for that condition effect. This cannot be modified.
 
@@ -563,6 +597,166 @@ priorOverrides[["pMem_cond.scale"]] = 0.2
 
 results = runParameterEstimation(config, data, priorOverrides = priorOverrides)
 ```
+
+### Choosing Priors {#choosingPriors}
+
+For the models in this package, choosing priors is not particularly straightforward, in large part because the priors are on latent parameters rather than manifest parameters. This section is intended to provide information on what the default priors really mean and to give users enough information to choose reasonable values for the priors.
+
+The next code block below defines some functions. The only complex function is `sampleParticipantPrior` which samples from the participant parameter priors. This is a two step process because of the hierarchical nature of the model. For a generic participant parameter $P_i$, the prior structure is as follows.
+
+$$
+\begin{aligned}
+P_i &\sim \text{Normal}(\mu, \sigma^2) \\
+\mu &\sim \text{Normal}(\mu_\mu, \sigma^2_\mu) \\
+\sigma^2 &\sim \text{Inverse Gamma}(\alpha_{\sigma^2}, \beta_{\sigma^2})
+\end{aligned}
+$$
+
+The parameters $\mu$ and $\sigma^2$ of the prior on $P_i$ are estimated. The priors on $\mu$ and $\sigma^2$ have constant parameter values that can be set by the user. Thus, the prior $P_i$ is not set directly, but set indirectly by setting the priors on $\mu$ and $\sigma^2$. To find the prior on $P_i$, you must first sample from the priors on $\mu$ and $\sigma^2$. Second, given the sampled values of $\mu$ and $\sigma^2$, sample the prior values of $P_i$. 
+
+This process is done by `sampleParticipantPrior`. The first four arguments to that function are $\mu_\mu$, $\sigma^2_\mu$, $\alpha_{\sigma^2}$, and $\beta_{\sigma^2}$, respectively.
+
+```{r}
+# Convenience function to sample from an inverse gamma distribution
+rinvgamma = function(n, a, b) {
+	1 / rgamma(n, a, b)
+}
+
+# Sample from participant parameter priors given the hierarchical parameters
+sampleParticipantPrior = function(mu.mu, mu.var, var.a, var.b, n = 1e6, type = NULL) {
+	
+	# Sample from the priors with fixed values
+	mu = rnorm(n, mu.mu, sqrt(mu.var))
+	var = rinvgamma(n, var.a, var.b)
+	
+	# Using those samples, sample from the prior on P_i
+	P = rnorm(n, mu, sqrt(var))
+	
+	# Transform the parameter to the manifest space.
+	if (!is.null(type)) {
+		if (type == "prob") {
+			P = plogis(P)
+		} else if (type == "sd") {
+			P = pmax(P, 1) # The cutoff point is based on config$minSD (default 1)
+		}
+	}
+	P
+}
+
+# Make a histogram of sampled P_i parameters
+ppHist = function(mu.mu, mu.var, var.a, var.b, n = 1e6, type = NULL, lpos = "bottom") {
+	p = sampleParticipantPrior(mu.mu, mu.var, var.a, var.b, n, type)
+	if (type == "sd") {
+		p = p[ p < 80 ] # Cut off the values above a point
+	}
+	hist(p, main="", prob=TRUE)
+	leg = paste(c("mu.mu", "mu.var", "var.a", "var.b"), 
+							c(mu.mu, mu.var, var.a, var.b), sep = " = ")
+	legend(lpos, legend=leg, cex=0.8)
+}
+
+```
+
+Find the default prior values by running a (very) short parameter estimation. It will provide the values for all priors, even if the corresponding parameters are not in the `modelVariant`.
+
+```{r shortPriorRun, eval=FALSE}
+```
+
+Probability parameters (`pMem`, `pBetween`, `pContBetween`, `pContWithin`, and `pCatGuess`). Note that the default priors are plotted in the top left panel.
+
+```{r dev='png', dpi=200}
+par(mfrow=c(2,2), mar=c(3,3,1,1))
+ppHist(pr$pMem.mu.mu, pr$pMem.mu.var, pr$pMem.var.a, pr$pMem.var.b, type = "prob", lpos = "bottom")
+ppHist(0, 1^2,   0.5, 0.5, type = "prob", lpos = "top")
+ppHist(0, 1.1^2, 1.5, 1.5, type = "prob", lpos = "bottom")
+ppHist(0, 0.8^2, 2,   2,   type = "prob", lpos = "bottom")
+```
+
+Standard deviation parameters (`catSD`, `contSD`, `catSelectivity`). Again, default priors are in the top left.
+
+```{r dev='png', dpi=200}
+par(mfrow=c(2,2), mar=c(3,3,1,1))
+ppHist(pr$catSD.mu.mu, pr$catSD.mu.var, pr$catSD.var.a, pr$catSD.var.b, type = "sd", lpos = "topright")
+ppHist(25, 15^2, 0.75, 0.75, type = "sd", lpos = "topright")
+ppHist(20, 10^2, 1.2,  1.2,  type = "sd", lpos = "topright")
+ppHist(25, 20^2, 2,    2,    type = "sd", lpos = "topright")
+```
+
+Condition effect parameters are relatively easy to choose priors for. Choosing priors on probability parameter condition effects is more difficult than for SD parameter condition effects.
+
+The difficulty is due to the fact that the condition effects are in the latent space, but you really want to know what the prior is in the manifest space. Unfortunately, due to the logit transformation, the magnitude of the condition effect in the manifest space depends on the magnitude of the participant parameters that the condition effects are added to.
+
+In the following chunk, I define a function that calculates the manifest condition effect given the latent condition effect and the latent participant parameter that the condition effect is added to. Then I use a latent condition effect of 1 with with manifest participant parameter values of 0.5 and 0.7.
+
+```{r}
+probParamManifestConditionEffect = function(p_lat, ce_lat) {
+	noCE = logitInverse(p_lat)
+	withCE = logitInverse(p_lat + ce_lat)
+	
+	withCE - noCE
+}
+
+probParamManifestConditionEffect(logit(0.5), 1)
+probParamManifestConditionEffect(logit(0.7), 1)
+```
+
+As you can see, the manifest condition effect is larger when the participant parameter is 0.5 than when it is 0.7. In general, the manifest condition effects become smaller as the participant paramter gets farther from 0.5. This is due to the particular nonlinear behavior of the logistic transformation
+
+To examine the prior distribution of condition effects, pick a participant parameter value and a condition effect scale, and use the `probParamManifestConditionEffect` function below. 
+
+```{r fig.height=6}
+
+probParameterManifestConditionEffectPlot = function(p_lat, ce_scale, n=1e6) {
+	ce = rcauchy(n, 0, ce_scale)
+	p = probParamManifestConditionEffect(p_lat, ce)
+	hist(p, prob=TRUE, xlab="Manifest CE",
+			 main = paste0("p = ", round(p_lat, 2), ", scale = ", ce_scale))
+}
+
+par(mfrow=c(2,2))
+
+probParameterManifestConditionEffectPlot(qlogis(0.5), pr$pMem_cond.scale)
+probParameterManifestConditionEffectPlot(qlogis(0.9), pr$pMem_cond.scale)
+probParameterManifestConditionEffectPlot(qlogis(0.5), 3)
+probParameterManifestConditionEffectPlot(qlogis(0.9), 3)
+```
+
+Turning to the SD parameters, the process works similarly but is a little more straightforward. In particular, as you can see from the code below, a latent condition effect of 3 results in a manifest condition effect of 3 for a participant parameter of 10 or 15. This is true except when the latent condition effect is negative and results in a combined latent value of less than the cutoff (which is 1 by default; set by `config$minSD`).
+
+```{r}
+sdParamManifestConditionEffect = function(p_lat, ce_lat) {
+	trans = function(x) {
+		pmax(x, 1)
+	}
+	noCE = trans(p_lat)
+	withCE = trans(p_lat + ce_lat)
+	
+	withCE - noCE
+}
+
+sdParamManifestConditionEffect(10, 3)
+sdParamManifestConditionEffect(15, 3)
+```
+
+To examine distributions, we can use the same process as with probability parameters. The one modification is to cut off the plots above 50 so that we can see the lower part of the distribution better.
+
+```{r fig.height=3}
+sdParameterManifestConditionEffectPlot = function(sd_lat, ce_scale, n=1e6) {
+	ce = rcauchy(n, 0, ce_scale)
+	p = sdParamManifestConditionEffect(sd_lat, ce)
+	hist(p[ p < 50 ], breaks=30, prob=TRUE, xlab="Manifest CE",
+			 main = paste0("sd = ", round(sd_lat, 2), ", scale = ", ce_scale))
+}
+
+par(mfrow=c(1,2))
+
+sdParameterManifestConditionEffectPlot(20, pr$contSD_cond.scale)
+sdParameterManifestConditionEffectPlot(10, 5)
+
+```
+
+The spikes at the left side of the distributions are due to the transformation of SD parameters cutting off the distribution below a point and pushing all of the mass below that point up to that point.
+
 
 
 ## Controlling the Number of Categories
@@ -605,9 +799,9 @@ catMus = c(60, 110, 150, 180, 300, 320)
 plotCatMuPrior(12, catMus)
 ```
 
-This function can be thought of as the prior density for a new category that is trying to be added to the existing categories. In the vicinity of existing categories, the prior density for the new category is quite low, which makes it less likely that the new category will go in that location. However, far from any existing category, such as near 240 degrees, the prior density is relatively high and locally uniform, which makes it relatively easy for a new category to be placed there.
+This function can be thought of as the prior density for a new category that is trying to be added to the existing categories. In the vicinity of existing categories, the prior density for the new category is quite low, which makes it less likely that the new category will go in that location. However, far from any existing category, such as near 240 degrees, the prior density is relatively high and locally approximately uniform, which makes it relatively easy for a new category to be placed there.
 
-Note that this prior is on both `catMu` and `catActive`. The effect it has on `catActive` is to make it more likely that an active category that has moved too near another category will be deactivated, if active, along with making it less likely that an inactive category would become active when it is near an active category. The effect it has on `catMu` is that it makes it less likely that an active category would move nearer to another active category. It has no effect on inactive `catMu`s (inactive `catMu` parameters move around with a random walk, looking for a good place to become active).
+Note that this prior is on both `catMu` and `catActive`. The effect it has on `catActive` is to make it more likely that an active category that has moved too near another active category will be deactivated, along with making it less likely that an inactive category would become active when it is near an active category. The effect it has on `catMu` is that it makes it less likely that an active category would move nearer to another active category. It has no effect on inactive `catMu`s (inactive `catMu` parameters move around with a random walk, looking for a good place to become active).
 
 
 ## Setting Parameters to Constant Values
@@ -659,24 +853,25 @@ See also the [Constraining Parameter Estimation](#constrainingParameterEstimatio
 
 # Factorial Designs
 
-This package supports for constraining parameter estimation and performing hypothesis tests for factorial designs. Both fully-crossed and non-fully-crossed designs are supported. Nested designs can be worked with, but are not super easy to work with.
+This package supports constraining parameter estimation and performing hypothesis tests for factorial designs. Both fully-crossed and non-fully-crossed designs are supported. Nested designs can be worked with as well.
 
-I will start by working with an example of a design with two fully-crossed factors, inventively named "letters" and "numbers". The letters factor has the levels "a" and "b" and the numbers factor has the levels "1", "2", and "3". Note that factor levels should not be numeric, so converting numbers to strings is a good idea.
+I will work with an example of a design with two fully-crossed factors, inventively named `letters` and `numbers`. The letters factor has the levels `a` and `b` and the numbers factor has the levels `1`, `2`, and `3`. Note that factor levels should not be numeric, so converting numbers to strings is a good idea.
 
-With factorial designs, before running parameter estimation, you will need to add additional information to the `config` list: A `data.frame` called `factors` and (optionally) a `list` called `conditionEffects`. The `factors` data frame specifies the factor levels for the experimental conditions.
+With factorial designs, before running parameter estimation, you will need to add additional information to the `config` list: A `data.frame` called `factors` and (optionally) a `list` called `conditionEffects` (see [Constraining Parameter Estimation](#constrainingParameterEstimation) below). 
+
+The `factors` data frame specifies the factor levels for the experimental conditions.
 
 ```{r eval=FALSE}
-#config being the configuration list given to runParameterEstimation()
+# config being the configuration list given to runParameterEstimation()
 
-config$factors = data.frame(letters = c('a',  'a',  'a',  'b',  'b',  'b'),
+config$factors = data.frame(
+	letters = c('a',  'a',  'a',  'b',  'b',  'b'),
 	numbers = c('1',  '2',  '3',  '1',  '2',  '3'),
 	cond =    c('a1', 'a2', 'a3', 'b1', 'b2', 'b3'),
 	stringsAsFactors = FALSE) #I like everything to be strings, not factors.
-
-config$factors[3,]
 ```
 
-As can be seen in this example, condition "a3" is associated with level "a" of the letters factor and level "3" of the numbers factor. This information is needed by the package so it can know what conditions in the data go with what factor levels. If you have only one factor, you do not need to provide the factors data frame, but you may. It is not necessary to include the factors in the data set: You still only need the `cond` column in the data.
+For example, condition `a3` is associated with level `a` of the letters factor and level `3` of the numbers factor. This information is needed by the package so it can know what conditions in the data go with what factor levels. If you have only one factor, you do not need to provide the factors data frame, but you may. It is not necessary to include the factors in the data set: You still only need the `cond` column in the data.
 
 Now that the model has this information about factors, you can start doing two things: constraining parameter estimation and performing hypothesis tests. Note that the discussion of factors naturally lends itself to factorial designs, the following subsections also apply to one-factor designs.
 
@@ -685,7 +880,7 @@ Now that the model has this information about factors, you can start doing two t
 You can control which parameters of the models vary as a function of which factors. By default, the "primary" parameters of the models vary as a function of all factors. For example, for the Between-Item model variant, `pMem`, `contSD`, and `pContBetween` vary by task condition. The less critical parameters `catSD`, `catSelectivity`, and `pCatGuess` do not vary by condition, although it is conceptually possible for them to do so and the model allows that. You can selectively control this behavior by creating a member of the `config` list given to the parameter estimation function, an example of which follows:
 
 ```{r eval=FALSE}
-#config being the configuration list given to runParameterEstimation()
+# config being the configuration list given to runParameterEstimation()
 
 config$conditionEffects = list(
 	pMem = "numbers",                 # only use effect of numbers, not letters
@@ -712,19 +907,18 @@ It is possible to perform hypothesis tests related to main effects and, if you h
 
 These tests work with fully-crossed designs (all combinations of factor levels contain data; also called balanced designs in R lingo) and non-fully-crossed designs (some combinations of factor levels do not contain data; also called unbalanced designs). Note an important caveat which is that non-fully-crossed designs have complex interpretation issues, even of main effects, and have choices that you can make about how to perform the tests that affect their interpretation. Fully-crossed designs do not have these issues. If you have a fully-crossed design, everything is easy. If you have a non-fully-crossed design, see the [Unbalanced Designs](#unbalancedDesigns) section.
 
-The main function is `testMainEffectsAndInteractions` which does most of everything you need to do (as long as you have a balanced design). It has several arguments that you can read about in the documentation for that function. Usage with default arguments is straightforward.
+The main function is `testMainEffectsAndInteractions` which does most of everything you need to do (as long as you have a balanced design). It has several arguments that you can read about in the documentation for that function. Usage with default arguments is straightforward. Note that this example works with a single factor design in which the factor has the default name "Factor".
 
-```{r cache=TRUE, include=FALSE}
+```{r meiTestExample1, cache=TRUE, include=FALSE}
 mei = testMainEffectsAndInteractions(results)
 ```
-```{r eval=FALSE}
-mei = testMainEffectsAndInteractions(results)
+```{r meiTestExample1, eval=FALSE}
 ```
 ```{r}
 mei[ mei$bfType == "10", ] #Only look at the Bayes factors in favor of there being an effect
 ```
 
-The result is a data frame with many columns, the meaning of most of which are explained in the documentation for `summarizeSubsampleResults`. The first two columns give the parameter for which the test was performed (`param`) and the factor of the design for which the test was performed (`factor`). Interactions between factors are indicated by putting a colon (":") between two or more factors. For example, the interaction between the `letters` and `numbers` factors would be indicated with `letters:numbers`. The `levels` column indicates which levels of the effect were used for the test. If `Omnibus`, that means that all levels were used and it is an omnibus test. All of the values in the `levels` column will be `Omnibus` unless you specify that pairwise comparisons should be done, which you can do by setting the `doPairwise` argument of `testMainEffectsAndInteractions` to `TRUE`.
+The result is a data frame with many columns, the meaning of which are explained in the documentation for `summarizeSubsampleResults`. The first two columns give the parameter for which the test was performed (`param`) and the factor of the design for which the test was performed (`factor`). Interactions between factors are indicated by putting a colon (":") between two or more factors. For example, the interaction between the `letters` and `numbers` factors would be indicated with `letters:numbers`. The `levels` column indicates which levels of the effect were used for the test. If `Omnibus`, that means that all levels were used and it is an omnibus test. All of the values in the `levels` column will be `Omnibus` unless you specify that pairwise comparisons should be done, which you can do by setting the `doPairwise` argument of `testMainEffectsAndInteractions` to `TRUE`.
 
 See the `factorial_betweenItem` example for more examples of using this function and playing with its output.
 
@@ -844,6 +1038,13 @@ https://github.com/hardmanko/CatContModel/releases/tag/v0.7.5
 Make sure to update the version number in both the name and the URL.
 
 
+## Examples
+
+In addition to the code examples included in this document, there are many code-based examples of package usage in the `examples` directory in the GitHub repository for this package: [Direct link](https://github.com/hardmanko/CatContModel/tree/master/examples). The readme file there gives more information on the contents of the examples and how to use them.
+
+The code is commented and goes through many of the basic steps needed to analyze the design. The data are simulated from a number of different experimental designs and different model variants are used. 
+
+
 ## Models
 
 ### Between-Item
@@ -930,7 +1131,7 @@ Note that the default priors assume that the data are circular in degrees, which
 # standard deviations will likely be small-ish. 
 # Use continuous SD with mean 5 and variance 225 (15^2).
 # Set condition effect scale to 2 to reflect that you are expecting small-ish effects.
-priorOverrides = list(contSD.mu = 5, contSD.var = 225, contSD_cond.scale = 2)
+priorOverrides = list(contSD.mu = 5, contSD.var = 15^2, contSD_cond.scale = 2)
 
 # If the contSD values are small, they don't need to jump as far in the MH steps.
 # Use small-ish MH tuning values.
