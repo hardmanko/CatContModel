@@ -35,6 +35,9 @@ Different package types are identified by their file extension:
 
 Once you have an installable version of the package, the file [installPackage.R](https://github.com/hardmanko/CatContModel/blob/master/installPackage.R) contains code for installing this package and package dependencies. Comments in that file indicate how to use it.
 
+Always be sure to run the whole installation script to update the dependencies to the latest versions, or at least the correct versions.
+
+
 # Usage
 
 ## Manual
