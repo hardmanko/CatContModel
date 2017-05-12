@@ -7,7 +7,7 @@ library(Rcpp)
 library(devtools)
 library(roxygen2)
 
-CatContPackageVersion = "0.7.5"
+CatContPackageVersion = "0.7.6"
 addingDataSets = FALSE
 
 baseDir = "~/../Programming/R/CatContModel/"
@@ -140,7 +140,7 @@ devtools::build(packageLocation, path=paste(baseDir, "packaged/", sep=""), binar
 
 
 
-#Test installations
-install.packages( paste0(packagePath, "/packaged/CatContModel_0.7.4.zip"), repos=NULL)
+#Test installation
+install.packages( paste0(packagePath, "/packaged/CatContModel_0.7.6.zip"), repos=NULL)
 
 

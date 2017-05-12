@@ -11,19 +11,21 @@ devtools::install_github("hardmanko/CMBBHT@v0.1.3", build_vignettes=TRUE)
 
 # Install this package.
 #
-# Installable versions of the package can be found in the "packaged" subfolder
-# of the git repository.
+# Installable versions of the package are attached to releases of the package.
+# Their filenames are formatted as follows
 #
-# Depending on what operating system you have, you should use different files.
+# CatContModel_V.V.V.EXT
 #
-# On Windows, you can install precompiled versions of the package that end in ".zip".
-# The precompiled package will only work on Windows.
+# where V.V.V is the version number and EXT is the file extension.
 #
-# On Linux or OSx, you can install source versions of the package that end in ".tar.gz".
-# You may be able to install source packages on Windows, but you need extra stuff (RTools).
+# The file extension of the file indicates what operating system it is for.
+#
+# Windows binary: .zip
+# OSx binary:     .tgz
+# Source:         .tar.gz (Any OS, but requires C++ compiler)
 #
 # Change PACKAGE_LOCATION to the location of the package file. 
-# Change "V.V.V" to the version you want to install (typically the latest).
-# Change the extension to the type of package you want to install.
+# Change "V.V.V" to the version you want to install.
+# Change the file extension (EXT) to the type of package you want to install.
 
-install.packages("PACKAGE_LOCATION/CatContModel_V.V.V.zip", repos=NULL)
+install.packages("PACKAGE_LOCATION/CatContModel_V.V.V.EXT", repos=NULL)
