@@ -8,55 +8,8 @@ CatContModelManual = function() {
 	utils::vignette("Introduction", "CatContModel")
 }
 
-#' Factor Levels from Condition Names
-#' 
-#' @param factors A \code{data.frame} formatted like \code{results$config$factors}.
-#' @param conds A character vector of condition names like those in \code{factors$cond}.
-#' 
-#' @return A \code{data.frame} with one row for each element in \code{conds}. The return value will have columns for each factor plus a column named \code{cond}.
-#' 
-#' @export
-getFactorsLevelsFromConds = function(factors, conds) {
-	res = NULL
-	for (i in 1:length(conds)) {
-		thisRows = which(factors$cond == conds[i])
-		
-		if (length(thisRows) > 0) {
-			
-			res = rbind(res, factors[ thisRows, ])
-		} else {
-			#make NA factor levels
-			temp = factors[ 1, ]
-			temp[ , names(temp) ] = NA
-			temp$cond = conds[i]
-			res = rbind(res, temp)
-		}
-		
-	}
-	
-	res
-}
 
-#' Add Factor Levels to Data Frame
-#' 
-#' @param df A \code{data.frame} with a column named \code{cond} with condition names like those in \code{factors$cond}. \code{df} should not have any columns with the names of the factors.
-#' @param factors A \code{data.frame} formatted like \code{results$config$factors}.
-#' 
-#' @return A \code{data.frame} the same as \code{df} except with additional columns with factor levels.
-#' 
-#' @export
-addFactorsToDataFrame = function(df, factors) {
-	
-	tf = getFactorsLevelsFromConds(factors, df$cond)
-	tf$cond = NULL
-	
-	cbind(df, tf)
-}
 
-guessFactorNames = function(factors) {
-	n = names(factors)
-	n[ n != "cond" ]
-}
 
 substituteValues = function(x, xvals, subvals) {
 	y = rep(subvals[1], length(x)) #to get the type right
@@ -116,45 +69,6 @@ getParameterSymbols = function(modelVariant) {
 }
 
 
-
-#' Get Vectors of Parameter Names
-#' 
-#' `getProbParams` gets the names of "probability parameters" (e.g. `pMem`). `getSdParams` gets the names of "SD parameters" (e.g. `contSD`).
-#' 
-#' @param results The results from the \code{\link{runParameterEstimation}} function.
-#' @param modelVariant Rather than providing `results`, you may provide this.
-#' @param filter Filter out parameters not in the current model variant. If `FALSE`, the `results` and `modelVariant` arguments can be NULL.
-#' 
-#' @return A character vector of the names of parameters used by the model variant.
-#' 
-#' @md
-#' @export
-getProbParams = function(results, modelVariant = results$config$modelVariant, filter=FALSE) {
-	pp = c("pMem", "pBetween", "pContBetween", "pContWithin", "pCatGuess")
-	if (filter) {
-		if (modelVariant == "betweenItem") {
-			pp = c("pMem", "pContBetween", "pCatGuess")
-		} else if (modelVariant == "withinItem") {
-			pp = c("pMem", "pContWithin", "pCatGuess")
-		} else if (modelVariant == "ZL") {
-			pp = c("pMem")
-		}
-	}
-	pp
-}
-
-#' @rdname getProbParams
-#' @export
-getSdParams = function(results, modelVariant = results$config$modelVariant, filter=FALSE) {
-	pp = c("contSD", "catSelectivity", "catSD")
-	if (filter) {
-		if (modelVariant == "ZL") {
-			pp = c("contSD")
-		}
-	}
-	pp
-}
-
 #' Logit Transformations
 #' 
 #' The logit transformation is \code{log(p/(1 - p))}.
@@ -166,8 +80,9 @@ getSdParams = function(results, modelVariant = results$config$modelVariant, filt
 #' 
 #' @return The transformed value.
 #' 
-#' @seealso \link{logitInverse}
+#' @seealso The `stats` functions `qlogis` and `plogis`.
 #' 
+#' @md
 #' @export
 logit = function(p) {
 	stats::qlogis(p)
@@ -204,8 +119,8 @@ r2d = function(rad) {
 #' 
 #' These functions are little wrappers that parameterize the Von Mises
 #' distribution in terms of degrees. Instead of precision, the von Mises
-#' distribution is parameterized in terms of standard deviation (approximately),
-#' which is defined as the square root of the inverse of precision.
+#' distribution is parameterized in terms of "standard deviation",
+#' the square root of the inverse of precision.
 #' 
 #' @param n The number of realizations to draw.
 #' @param x A quantile.
@@ -228,8 +143,7 @@ dvmd = function(x, mu, sdDeg) {
 
 #' Convert Between Precision in Radians and Standard Deviation in Degrees
 #' 
-#' This model is parameterized in terms of standard deviation (square root of the inverse of precision) in degrees.
-#' The density functions are all in terms of precision in radians. These functions go back and forth between them.
+#' The Von Mises density function is parameterized in terms of precision in radians. The models in this package are isntead parameterized in terms of standard deviation (square root of the inverse of precision) in degrees. These functions go back and forth between the two representations of precision.
 #' 
 #' @param sdDeg A standard deviation in degrees.
 #' @param precRad A precision in radians.
@@ -286,8 +200,9 @@ circMean = function(angles, weights=1, degrees=TRUE) {
 #' 
 #' @param x Vector of values in degrees or radians.
 #' @param y Vector of values in degrees or radians.
-#' @param degrees If TRUE, x and y are treated as though they are in degrees. If FALSE, x and y are treated as being in radians.
+#' @param degrees If `TRUE`, x and y are treated as though they are in degrees. If `FALSE`, x and y are treated as being in radians.
 #' 
+#' @md
 #' @export
 circAbsDist = function(x, y, degrees=TRUE) {
 	offset = 2 * pi
@@ -306,54 +221,10 @@ circAbsDist = function(x, y, degrees=TRUE) {
 }
 
 
-#' Get Parameter Transformation Function
-#' 
-#' Returns a function that will take parameter values in the latent space and convert them to the manifest space, or vice versa if \code{inverse} is TRUE. For probability parameters, the transformation is the inverse logit transformation. For standard deviation parameters, the transformation forces the parameter to be greater than some value, given by \code{results$config$minSD}.
-#' 
-#' @param results The results from the \code{\link{runParameterEstimation}} function.
-#' @param param Name of a parameter, e.g. \code{"pMem"}.
-#' @param inverse If TRUE, the inverse transformation is returned, if possible. Some transformations do not have an inverse.
-#' 
-#' @return A function of one argument that transforms the argument.
-#' 
-#' @export
-getParameterTransformation = function(results, param, inverse=FALSE) {
-	probParams = c("pMem", "pBetween", "pContBetween", "pContWithin", "pCatGuess", "pCatActive")
-	sdParams = c("contSD", "catSelectivity", "catSD")
-	
-	if (param %in% probParams) {
-		
-		if (inverse) {
-			transformation = function(x) { logit(x) }
-		} else {
-			transformation = function(x) { logitInverse(x) }
-		}
-		
-		
-	} else if (param %in% sdParams) {
-		
-		if (inverse) {
-			transformation = function(x) { x } #Give warning if x == minSd? Say that you don't know the inverse?
-		} else {
-			minSd = results$config$minSD
-			
-			transformation = local( function(x) { pmax(x, minSd); })
-		}
-		
-	} else if (param %in% c("catMu", "catActive")) {
-		transformation = function(x) { x }
-		
-	}	else {
-		warning( paste("Transformation not found for parameter: ", param, ".", sep="") )
-		transformation = function(x) { x }
-	}
-	
-	transformation
-}
 
 #' Calculate Probabilities of Assignment to Categories
 #' 
-#' This function is the weights function, given in Equation 5 of the Appendix of Hardman, Vergauwe, and Ricker (2016).
+#' This function is the weights function, given in Equation 5 of the Appendix of Hardman, Vergauwe, and Ricker (2017).
 #' 
 #' @param study A scalar study angle, in degrees.
 #' @param catMu A vector of category means, in degrees.
@@ -384,7 +255,7 @@ categoryWeightsFunction = function(study, catMu, catSelectivity, dataType = "cir
 
 #' Plot the Category Weights Function
 #' 
-#' Makes a plot of the weights function, given in Equation 5 of the Appendix of Hardman, Vergauwe, and Ricker (2016).
+#' Makes a plot of the weights function, given in Equation 5 of the Appendix of Hardman, Vergauwe, and Ricker (2017).
 #' 
 #' @param catMu A vector of category means, in degrees.
 #' @param catSelectivity The categorical selectivity parameter, as standard deviation in degrees.
@@ -399,6 +270,11 @@ categoryWeightsFunction = function(study, catMu, catSelectivity, dataType = "cir
 #'  
 #' @seealso \link{categoryWeightsFunction} to get the vector of probabilities for a single study angle.
 #' @export
+#' 
+#' @examples
+#' \dontrun{
+#' plotWeightsFunction(c(30, 90, 120, 200, 210, 220, 300), 15)
+#' }
 plotWeightsFunction = function(catMu, catSelectivity, dataType = "circular",
 															 colors=grDevices::rainbow(length(catMu)), lty=1:length(catMu),
 															 lwd=rep(1, length(catMu)), study = NULL, axes=TRUE) 
@@ -436,8 +312,8 @@ plotWeightsFunction = function(catMu, catSelectivity, dataType = "circular",
 
 
 
-
-#These equations numbers correspond to the Appendix of Hardman, Vergauwe, and Ricker (2017)
+# For the following functions, the equation numbers correspond 
+# to equations in the Appendix of Hardman, Vergauwe, and Ricker (2017).
 h_eq20 = function(mu_k, nu_k, mu_kp, nu_kp, catMuPriorSD, dataType) {
 	
 	if (dataType == "circular") {
@@ -504,7 +380,7 @@ f_eq18 = function(mus, nus, k, catMuPriorSD, dataType, muRange = NULL) {
 #' @param catMu A vector of category locations, in degrees.
 #' @param dataType One of \code{"circular"} or \code{"linear"}.
 #' @param catActive A vector of category active parameters. By default, all of the provided catMus are active.
-#' @param muRange Required only if \code{dataType == "linear"}. A length 2 vector giving the lower and upper bounds of the catMu parameters. This should generally be the same as the range of the data.
+#' @param muRange Required only if \code{dataType == "linear"}. A length 2 vector giving the lower and upper bounds of the catMu parameters. This should usually be the same as the range of the data.
 #' 
 #' @return Invisibly, a data frame containing the densities in the plot.
 #' 
@@ -535,23 +411,21 @@ plotCatMuPrior = function(catMuPriorSD, catMu, dataType = "circular", catActive 
 }
 
 
-
-
 #' Produce Colors from a Warped HSV Color Space
 #' 
-#' This function provides one way of producing colors from variants of the HSV color space by converting an input angle into an output angle using a linear transformation. See the equations related to producing colors in the Method section for Experiment 1.
+#' This function provides one way of producing colors from variants of the HSV color space by converting an input angle into an output angle using a linear transformation. See the equations related to producing colors in the Method section for Experiment 1 in Hardman, Vergauwe, and Ricker (2017).
 #' 
 #' @param angle An angle in degrees for which a color should be produced.
 #' @param inPoints See description.
 #' @param outPoints See description.
 #' 
-#' @return A color.
+#' @return A color value.
 #' 
 #' @export
 #' 
 #' @examples
 #' #Make a curried function that uses warpedHSVColorGeneratingFunction
-#' #to produce colors like those used in Experiment 1 of Hardman, Vergauwe, and Ricker (2016).
+#' #to produce colors like those used in Experiment 1 of Hardman, Vergauwe, and Ricker (2017).
 #' exp1_colorGeneratingFunction = function(angle) {
 #' 	inPoints = c(0, 180, 270, 360)
 #' 	outPoints = c(0, 90, 230, 360)
@@ -579,20 +453,21 @@ warpedHSVColorGeneratingFunction = function(angle, inPoints, outPoints) {
 #' 
 #' For given parameter values, a set of data, and a model variant, this calculates the likelihood for each observation in the data set.
 #' 
-#' Note that if you don't want to provide any catMu parameters, do not set catMu to NULL. Rather, set it to a zero-length vector with \code{vector(length = 0)}. Do not provide catActive parameters. Rather, do not include inactive catMus.
+#' Note that if you don't want to provide any `catMu` parameters, do not set `catMu` to `NULL`. Rather, set it to a zero-length vector with `vector(length = 0)`. Do not provide `catActive` parameters. Rather, do not include inactive `catMu`s.
 #' 
-#' If \code{dataType} is \code{"circular"}, you should provide a value for the minSD argument. 
-#' If \code{dataType} is \code{"linear"}, you should provide a value for \code{responseRange}
+#' If `dataType` is `"circular"`, you should provide a value for `minSD`. 
+#' If `dataType` is `"linear"`, you should provide a value for `responseRange`.
 #' 
-#' @param param A list of parameters just like that returned by \code{\link{getTransformedParameters}}.
-#' @param data A data.frame of the data for which you want to calculate the likelihood. Only the \code{study} and \code{response} columns are required, but the \code{pnum} and \code{cond} columns may be included.
-#' @param modelVariant One of \code{"betweenItem"}, \code{"withinItem"}, and \code{"ZL"}.
-#' @param dataType One of \code{"circular"} or \code{"linear"}.
-#' @param responseRange A length 2 vector giving the theoretical minimum and maximum values of a response. Should be provided if \code{dataType} is \code{"linear"}.
+#' @param param A list of parameters just like that returned by [`getSingleIterationParameters`].
+#' @param data A data.frame of the data for which you want to calculate the likelihood. Only the `study` and `response` columns are required, but the `pnum` and `cond` columns may be included.
+#' @param modelVariant One of `"betweenItem"`, `"withinItem"`, and `"ZL"`.
+#' @param dataType One of `"circular"` or `"linear"`.
+#' @param responseRange A length 2 vector giving the theoretical minimum and maximum values of a response. Should be provided if `dataType` is `"linear"`.
 #' @param minSD The minimum standard deviation of the Von Mises or normal distributions.
 #' 
-#' @return The provided \code{data} data.frame with an additional column named \code{likelihood} giving the likelihood for each observation.
+#' @return The provided `data` `data.frame` with an additional column named `likelihood` giving the likelihood for each observation.
 #' 
+#' @md
 #' @export
 likelihood = function(param, data, modelVariant, dataType = "circular", 
 											responseRange=NULL, minSD=NULL) 
@@ -600,8 +475,7 @@ likelihood = function(param, data, modelVariant, dataType = "circular",
 	
 	tr = list(config = list(modelVariant = modelVariant))
 	
-	allParam = c(getSdParams(tr, filter=TRUE), 
-							 getProbParams(tr, filter=TRUE))
+	allParam = getAllParams(tr, filter=TRUE)
 	if (modelVariant != "ZL") {
 		allParam = c(allParam, "catMu")
 	}
@@ -638,6 +512,262 @@ likelihood = function(param, data, modelVariant, dataType = "circular",
 }
 
 
+valueIfNull = function(x, value) {
+	if (is.null(x)) {
+		x = value
+	}
+	x
+}
+
+getDefaultParametersWithConditionEffects = function(modelVariant) {
+	pce = c("pMem", "contSD") #ZL and all other models
+	
+	if (modelVariant == "betweenAndWithin") {
+		pce = c(pce, "pBetween", "pContBetween", "pContWithin")
+		
+	} else if (modelVariant == "betweenItem") {
+		pce = c(pce, "pContBetween")
+		
+	} else if (modelVariant == "withinItem") {
+		pce = c(pce, "pContWithin")
+	}
+	
+	pce
+}
 
 
 
+
+
+#' Convert Posterior Distributions to a Single Matrix
+#' 
+#' This converts raw posteriors into a single matrix. This matrix can then be used with the boa or coda packages for assessing convergence. Some of the convergence diagnostics require you to make separate matrices for separate runs of the Gibbs sampler.
+#' 
+#' @param results The results from the \code{\link{runParameterEstimation}} function.
+#' @param stripConstantParameters Remove all parameters with a constant value. Constant parameters cannot converge.
+#' @param stripCatActive Remove all of the cat active parameters. It is difficult to assess convergence for indicator parameters that are either 0 or 1.
+#' @param stripCatMu Remove all of the category mean parameters. It is difficult to assess convergence for these parameters because they have multi-modal posterior distributions.
+#' 
+#' @return A matrix containing all of the posterior distributions for the selected parameters. Each column is one parameter.
+#' 
+#' @export
+convertPosteriorsToMatrix = function(results, stripConstantParameters=TRUE, stripCatActive=TRUE, stripCatMu=TRUE) {
+	
+	rawPost = results$posteriors
+	
+	iterations = 0
+	constantPar = NULL
+	catActivePar = NULL
+	catMuPar = NULL
+	participantLLPar = NULL
+	
+	for (n in names(rawPost)) {
+		iterations = max(c(iterations, length(rawPost[[n]])))
+		
+		if (all(rawPost[[n]] == rawPost[[n]][1])) {
+			constantPar = c(constantPar, n)
+		}
+		
+		if (grepl("catActive", n, fixed=TRUE)) {
+			catActivePar = c(catActivePar, n)
+		}
+		
+		if (grepl("catMu", n, fixed=TRUE)) {
+			catMuPar = c(catMuPar, n)
+		}
+		
+		if (grepl("participantLL", n, fixed=TRUE)) {
+			participantLLPar = c(participantLLPar, n)
+		}
+		
+	}
+	
+	excludedPar = participantLLPar
+	if (stripConstantParameters) {
+		excludedPar = c(excludedPar, constantPar)
+	}
+	if (stripCatActive) {
+		excludedPar = c(excludedPar, catActivePar)
+	}
+	if (stripCatMu) {
+		excludedPar = c(excludedPar, catMuPar)
+	}
+	
+	usedParam = names(rawPost)
+	usedParam = usedParam[ !(usedParam %in% excludedPar) ]
+	
+	np = length(usedParam)
+	
+	m = matrix(0, nrow=iterations, ncol=np)
+	colnames(m) = usedParam
+	
+	for (i in 1:np) {
+		
+		temp = rawPost[[usedParam[i]]]
+		
+		if (length(temp) == 1) {
+			temp = rep(temp, iterations)
+		} else if (length(temp) != iterations) {
+			warning(paste("Data vector for parameter ", usedParam[i], " of incorrect length.", sep=""))
+		}
+		
+		m[,i] = temp
+		
+	}
+	
+	m
+}
+
+
+
+#' Sample Data from Model with Specific Parameter Values
+#' 
+#' Samples data from the model given the provided parameter values. This is useful for observing the patterns of data generated by the model and for sampling from the posterior predictive distribution of the data.
+#' 
+#' @param study A vector of study angles in degrees.
+#' @param param A list of parameter values. The values to include are \code{pMem}, \code{pBetween}, \code{pContBetween}, \code{pContWithin}, \code{pCatGuess}, \code{contSD}, \code{catMu}, \code{catSelectivity}, \code{catSD}. \code{catMu} should be a vector. If there are no categories, \code{catMu} should be \code{NULL}.
+#' @param modelVariant The model variant, as a string. Should be one of "betweenItem", "withinItem", and "ZL".
+#' @param dataType One of \code{"circular"} or \code{"linear"}.
+#' @param responseRange A length 2 vector giving the theoretical minimum and maximum values of a response. Should be provided if \code{dataType} is \code{"linear"}.
+#' 
+#' @return A data frame containing the \code{study} angles, the sampled \code{response} angles, the response \code{type} (e.g. continuous memory response), and, if the response was categorical in nature, the category it was from (\code{cat}).
+#'  
+#' @export
+sampleDataFromModel = function(study, param, modelVariant, dataType = "circular", responseRange = NULL) {
+	
+	trials = length(study)
+	
+	if (modelVariant == "betweenItem") {
+		param$pBetween = 1
+	} else if (modelVariant == "withinItem") {
+		param$pBetween = 0
+	} else if (modelVariant == "ZL") {
+		param$pBetween = 1
+		param$pContBetween = 1
+		param$pCatGuess = 0
+		param$catMu = NULL
+	}
+	
+	realzationFunction = NULL
+	unifGuessFunction = NULL
+	if (dataType == "circular") {
+		
+		realzationFunction = function(mu, sd) {
+			CatContModel::rvmd(1, mu, sd)
+		}
+		unifGuessFunction = function() {
+			stats::runif(1, 0, 360)
+		}
+		
+	} else if (dataType == "linear") {
+		
+		realzationFunction = function(mu, sd) {
+			msm::rtnorm(1, mu, sd, responseRange[1], responseRange[2])
+		}
+		unifGuessFunction = function() {
+			stats::runif(1, responseRange[1], responseRange[2])
+		}
+	}
+	
+	
+	catCount = length(param$catMu)
+	
+	
+	response = rep(0, trials)
+	
+	cat = rep(0, trials)
+	type = rep("none", trials)
+	
+	for (i in 1:trials) {
+		
+		inMemory = (stats::rbinom(1, 1, param$pMem) == 1)
+		
+		if (!inMemory) {
+			
+			isCatGuess = (stats::rbinom(1, 1, param$pCatGuess) == 1)
+			
+			if (isCatGuess && (catCount > 0)) {
+				cat[i] = sample(1:catCount, size=1)
+				
+				response[i] = realzationFunction(param$catMu[cat[i]], param$catSD)
+				type[i] = "catGuess"
+			} else {
+				response[i] = unifGuessFunction()
+				type[i] = "unifGuess"
+			}
+			
+		} else {
+			
+			
+			# Pick an error for the continuous representation
+			
+			contLocation = realzationFunction(study[i], param$contSD)
+			
+			if (dataType == "circular") {
+				contLocation = contLocation %% 360
+			}
+			
+			if (catCount == 0) {
+				response[i] = contLocation
+				type[i] = "continuous"
+				
+			} else {
+				
+				# Pick a category for the color
+				catWeights = categoryWeightsFunction(study[i], param$catMu, param$catSelectivity, dataType = dataType)
+				catEgory = sample(1:catCount, size=1, prob=catWeights)
+				cat[i] = catEgory
+				
+				
+				# Get the categorical response location
+				catLocation = realzationFunction(param$catMu[catEgory], param$catSD)
+				if (dataType == "circular") {
+					catLocation = catLocation %% 360
+				}
+				
+				isBetween = (stats::rbinom(1, 1, param$pBetween) == 1)
+				
+				if (isBetween) {
+					# This is a between response
+					isContinuous = (stats::rbinom(1, 1, param$pContBetween) == 1)
+					
+					if (isContinuous) {
+						response[i] = contLocation
+						type[i] = "continuous"
+					} else {
+						response[i] = catLocation
+						type[i] = "categorical"
+					}
+				} else {
+					# This is a within response
+					
+					locMix = NA
+					if (dataType == "circular") {
+						locMix = circMean(c(contLocation, catLocation), c(param$pContWithin, 1 - param$pContWithin))
+						locMix = locMix %% 360
+					} else if (dataType == "linear") {
+						locMix = param$pContWithin * contLocation + (1 - param$pContWithin) * catLocation
+					}
+					
+					response[i] = locMix
+					
+					type[i] = "within"
+				}
+			}
+		}
+		
+	}
+	data.frame(study=study, response=response, type=type, cat=cat)
+}
+
+
+# each column of mat corresponds to one row of design.
+# designCols controls which columns of design are kept.
+reshapeMatrixToDF = function(mat, design, designCols = names(design)) {
+	# stringsAsFactors = FALSE is in case mat is character
+	df = data.frame(x = as.vector(mat), stringsAsFactors = FALSE)
+	for (n in designCols) {
+		df[ , n ] = rep(design[ , n ], each=nrow(mat))
+	}
+	df
+}

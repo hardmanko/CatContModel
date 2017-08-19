@@ -3,7 +3,7 @@
 install.packages(c("devtools", "R.rsp"))
 
 # Install other dependencies from CRAN. 
-install.packages(c("Rcpp", "polspline", "CircStats", "msm"))
+install.packages(c("Rcpp", "polspline", "CircStats", "msm", "abind"))
 
 # Install the LineChart and CMBBHT packages from github.
 devtools::install_github("hardmanko/LineChart-package@v0.3.0", build_vignettes=TRUE)
@@ -27,5 +27,5 @@ devtools::install_github("hardmanko/CMBBHT@v0.1.3", build_vignettes=TRUE)
 # Change PACKAGE_LOCATION to the location of the package file. 
 # Change "V.V.V" to the version you want to install.
 # Change the file extension (EXT) to the type of package you want to install.
-
+#
 install.packages("PACKAGE_LOCATION/CatContModel_V.V.V.EXT", repos=NULL)

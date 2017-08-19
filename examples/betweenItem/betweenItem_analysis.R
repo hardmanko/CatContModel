@@ -54,6 +54,7 @@ plot(results$posteriors[[ "pContBetween_cond[2]" ]], type='l')
 results = removeBurnIn(results, 500)
 
 
+
 # Then double-check convergence with the Geweke diagnostic.
 library(coda)
 
@@ -78,7 +79,7 @@ plotParameterSummary(results)
 
 testConditionEffects(results)
 
-mei = testMainEffectsAndInteractions(results)
+mei = testMainEffectsAndInteractions(results, subsamples = 20)
 mei[ mei$bfType == "10", ]
 
 posteriorMeansAndCredibleIntervals(results)

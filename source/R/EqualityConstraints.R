@@ -1,11 +1,16 @@
 
+# Equality constraints are fundamentally a WP concept, so there are no BP functions
+# related to equality constraints.
+
+
+
 getConstrainedConditionEffects = function(config) {
 
 	cec = NULL
 	
 	for (param in names(config$conditionEffects)) {
 		
-		thisFactors = getFactorsForConditionEffect(config, param)
+		thisFactors = getFactorsForConditionEffect.WP(config, param)
 
 		thisCEC = getConstrainedConditionEffectList(config=config, param=param, usedFactors=thisFactors)
 		cec = rbind(cec, thisCEC)
@@ -111,22 +116,6 @@ getConstrainedConditionEffectList = function(config, param, usedFactors) {
 }
 
 
-
-getFactorsForConditionEffect = function(config, param) {
-	thisFactors = config$conditionEffects[[param]]
-	if (length(thisFactors) == 1) {
-		if (thisFactors == "all") {
-			thisFactors = guessFactorNames(config$factors)
-		} else if (thisFactors == "none") {
-			thisFactors = character(0)
-		}
-	}
-	
-	thisFactors = thisFactors[ thisFactors %in% guessFactorNames(config$factors) ]
-	
-	thisFactors
-}
-
 getConditionParameterParts = function(param) {
 	
 	if (!grepl("_cond[", param, fixed=TRUE)) {
@@ -142,6 +131,7 @@ getConditionParameterParts = function(param) {
 	
 	rval
 }
+
 
 getRootSourceConditionParameter = function(results, param, cond, fullParam = NULL) {
 	
@@ -168,6 +158,7 @@ getRootSourceConditionParameter = function(results, param, cond, fullParam = NUL
 	rval
 	
 }
+
 
 getEqualConditionParameters = function(results, param) {
 	
@@ -200,7 +191,8 @@ getEqualConditionParameters = function(results, param) {
 	fcopy[ , c("cond", "group") ]
 }
 
-#accounting for equality constraints
+
+# This function accounts for equality constraints
 getConditionParameterPrior = function(results, param, cond, fullParam = NULL) {
 	
 	target = paste(param, "_cond[", cond, "]", sep="")

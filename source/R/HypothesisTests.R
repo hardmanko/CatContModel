@@ -1,19 +1,5 @@
 
-# Resulting parameters for a Cauchy RV that is a linear combination of other Cauchy RVs.
-# The general form of the combinations is
-# y = sum_i x_i * c_i
-# where y is the resulting Cauchy random variable,
-# x are the input CRVs, and c are coefficients.
-# For example, if subtracting two Cauchys, c = c(1, -1) (note that order matters).
-# For example, if taking the mean of many RVs, each weight is 1 / number of RVs.
-cauchyRvLinearCombination = function(locations, scales, coefs) {
-	
-	location = sum(coefs * locations)
-	
-	scale = sum(abs(coefs) * scales)
-	
-	list(location=location, scale=scale)
-}
+
 
 
 #postVect: vector of the posterior distribution of the parameter you want to test
@@ -38,6 +24,56 @@ savageDickey = function(postVect, h0_val, priorDensAtH0) {
 	}
 	
 	list(bf01 = 1 / bf10, bf10 = bf10, success = success)
+}
+
+convolveFuns = function(f, g, t, range=c(-Inf, Inf)) {
+	
+	#all of the ways to get to t.
+	h = function(tau) {
+		f(tau) * g(t - tau)
+	}
+	
+	dens = stats::integrate(h, lower=range[1], upper=range[2])
+	
+	dens$value
+}
+
+getSubsampleIterationsToRemove = function(totalIterations, subsamples, subsampleProportion) {
+	if (subsamples < 1) {
+		stop("You need to use at least one subsample.")
+	}
+	
+	independentSubsamples = FALSE
+	if (is.null(subsampleProportion)) {
+		independentSubsamples = TRUE
+		subsampleProportion = 1 / subsamples
+	}
+	
+	subsampleProportion = min( max(subsampleProportion, 0), 1 )
+	
+	subsampleIterationsToRemove = list()
+	
+	if (independentSubsamples) {
+		
+		shuffledIterations = sample(1:totalIterations, totalIterations, replace=FALSE)
+		
+		for (sub in 1:subsamples) {
+			
+			iterationsToUse = floor(subsampleProportion * totalIterations)
+			indicesToUse = ((sub - 1) * iterationsToUse + 1):(sub * iterationsToUse)
+			subsampleIterationsToRemove[[sub]] = shuffledIterations[-indicesToUse]
+			
+		}
+	} else {
+		
+		for (sub in 1:subsamples) {
+			iterationsToRemove = round((1 - subsampleProportion) * totalIterations, 0)
+			subsampleIterationsToRemove[[sub]] = sample(1:totalIterations, iterationsToRemove, replace = FALSE)
+		}
+		
+	}
+	
+	subsampleIterationsToRemove
 }
 
 
@@ -72,20 +108,6 @@ testCategoricalResponding = function(results, pContBetween_test = 0.99, pCatGues
 	
 	rval
 }
-
-
-convolveFuns = function(f, g, t, range=c(-Inf, Inf)) {
-	
-	#all of the ways to get to t.
-	h = function(tau) {
-		f(tau) * g(t - tau)
-	}
-	
-	dens = stats::integrate(h, lower=range[1], upper=range[2])
-	
-	dens$value
-}
-
 
 #' Test the Mean Value for a Parameter in a Condition
 #' 
@@ -147,43 +169,9 @@ testMeanParameterValue = function(results, param, cond, H0_value) {
 }
 
 
-getSubsampleIterationsToRemove = function(totalIterations, subsamples, subsampleProportion) {
-	if (subsamples < 1) {
-		stop("You need to use at least one subsample.")
-	}
-	
-	independentSubsamples = FALSE
-	if (is.null(subsampleProportion)) {
-		independentSubsamples = TRUE
-		subsampleProportion = 1 / subsamples
-	}
-	
-	subsampleProportion = min( max(subsampleProportion, 0), 1 )
-	
-	subsampleIterationsToRemove = list()
-	
-	if (independentSubsamples) {
-		
-		shuffledIterations = sample(1:totalIterations, totalIterations, replace=FALSE)
-		
-		for (sub in 1:subsamples) {
-			
-			iterationsToUse = floor(subsampleProportion * totalIterations)
-			indicesToUse = ((sub - 1) * iterationsToUse + 1):(sub * iterationsToUse)
-			subsampleIterationsToRemove[[sub]] = shuffledIterations[-indicesToUse]
-			
-		}
-	} else {
-		
-		for (sub in 1:subsamples) {
-			iterationsToRemove = round((1 - subsampleProportion) * totalIterations, 0)
-			subsampleIterationsToRemove[[sub]] = sample(1:totalIterations, iterationsToRemove, replace = FALSE)
-		}
-		
-	}
-	
-	subsampleIterationsToRemove
-}
+
+
+
 
 
 #' Test Differences Between Conditions
@@ -210,7 +198,7 @@ getSubsampleIterationsToRemove = function(totalIterations, subsamples, subsample
 #' }
 #'
 #' @export
-testConditionEffects = function(results, param = NULL, subsamples = 1, subsampleProportion = 1, summarize=TRUE) {
+testConditionEffects.Old = function(results, param = NULL, subsamples = 1, subsampleProportion = 1, summarize=TRUE) {
 
 	#TODO: Rename to pairwiseComparisonsOfConditions?
 	#or conditionPairwiseComparisons?
@@ -222,11 +210,6 @@ testConditionEffects = function(results, param = NULL, subsamples = 1, subsample
 		param = getParametersWithConditionEffects(results$config$conditionEffects)
 	}
 	
-	condNames = results$config$factors$cond
-	csName = results$config$cornerstoneConditionName
-	nonCsNames = condNames[ condNames != csName ]
-
-	
 	pb = utils::txtProgressBar(0, 1, 0, style=3)
 	currentStep = 1
 	lastStep = length(subsampleIterationsToRemove) * length(param)
@@ -236,14 +219,14 @@ testConditionEffects = function(results, param = NULL, subsamples = 1, subsample
 	for (sub in 1:length(subsampleIterationsToRemove)) {
 		
 		if (length(subsampleIterationsToRemove[[sub]]) > 0) {
-			resultSubsample = removeBurnIn(results, subsampleIterationsToRemove[[sub]])
+			resSub = removeBurnIn(results, subsampleIterationsToRemove[[sub]])
 		} else {
-			resultSubsample = results
+			resSub = results
 		}
 		
 		for (p in param) {
 		
-			equalConds = getEqualConditionParameters(results, p)
+			equalConds = getEqualConditionParameters(resSub, p)
 			uniqueGroups = unique(equalConds$group)
 			
 			pairs = expand.grid(i = 1:length(uniqueGroups), j = 1:length(uniqueGroups) )
@@ -254,11 +237,11 @@ testConditionEffects = function(results, param = NULL, subsamples = 1, subsample
 				g1conds = equalConds$cond[ equalConds$group == uniqueGroups[ pairs$i[r] ] ]
 				g2conds = equalConds$cond[ equalConds$group == uniqueGroups[ pairs$j[r] ] ]
 				
-				prior1 = getConditionParameterPrior(results, p, g1conds[1])
-				prior2 = getConditionParameterPrior(results, p, g2conds[1])
+				prior1 = getConditionParameterPrior(resSub, p, g1conds[1])
+				prior2 = getConditionParameterPrior(resSub, p, g2conds[1])
 				
-				post1 = resultSubsample$posteriors[[ paste0(p, "_cond[", g1conds[1], "]") ]]
-				post2 = resultSubsample$posteriors[[ paste0(p, "_cond[", g2conds[1], "]") ]]
+				post1 = resSub$posteriors[[ paste0(p, "_cond[", g1conds[1], "]") ]]
+				post2 = resSub$posteriors[[ paste0(p, "_cond[", g2conds[1], "]") ]]
 				
 				priorDensAtH0 = stats::dcauchy(0, prior1$location - prior2$location, prior1$scale + prior2$scale)
 				
@@ -287,215 +270,5 @@ testConditionEffects = function(results, param = NULL, subsamples = 1, subsample
 }
 
 
-
-#' Calculate Whole Model WAIC
-#' 
-#' WAIC is a whole-model fit statistic, like AIC. However, WAIC cannot be directly compared with AIC, but it is conceptually very similar.
-#' 
-#' WAIC is an appropriate fit statistic for these models because
-#' 1) it can be calculated without using posterior means, which some parameters do not have (specifically catMu and catActive). 
-#' 2) it estimates the effective number of free parameters, which is wildly different from the actual number of free parameters.
-#' See the documentation for \code{\link{calculateInappropriateFitStatistics}} for more information on the number of parameters.
-#' 
-#' There are two ways to estimate the effective number of free parameters for WAIC and results from both are reported.
-#'  
-#' WAIC is a whole-model fit statistic. These models have shared parameters that are shared by participants (the hierarchical parameters and condition effects). This means that the participants are not independent, so examining WAIC for individual participants is unprincipled and may give inaccurate results. Thus, you should leave \code{onlyTotal} at the default value of TRUE.
-#' 
-#' Note that you can use WAIC to compare model variants, like the between-item and within-item variants. You can also compare models that differ in other ways, such as which parameters have condition effects, the maximum number of categories, reduced models with some parameters set to constant values, more or less restrictive priors, etc.
-#' 
-#' You can estimate how much the variability in the posterior chains affects WAIC by using the \code{subsamples} and \code{subsampleProportion} arguments. If \code{subsamples} is greater than 1, multiple subsamples from the posterior chains will be taken and the standard deviation of WAIC (et al.) across the subsamples will be calculated. The number of iterations used in each subsample is a proportion of the total number of iterations and is set by \code{subsampleProportion}. Note that this is not the standard deviation of WAIC over repeated samples of data sets, so it tells you nothing about what would happen if you had different data. It essentially tells you whether or not you ran enough iterations to have a stable WAIC estimate. The closer \code{subsampleProportion} is to 1, the less independent the subsamples will be, so you should use a reasonably low value of \code{subsampleProportion}. The degree to which the subsamples are independent influences to what extent the standard deviation is underestimated: The less independent, the larger the underestimate will be. If you want fully independent subsamples, you can set \code{subsampleProportion} to NULL. However, this means that the number of subsamples and the proportion of iterations in each subsample to be inversely related, which means that you have to choose between a low number of subsamples or a low number of iterations per subsample.
-#' 
-#' @param results The results from the \code{\link{runParameterEstimation}} function.
-#' @param subsamples Number of subsamples of the posterior chains to take. If greater than 1, subsampleProportion should be set to a value between 0 and 1 (exclusive).
-#' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should probably only be less than 1 if \code{subsamples} is greater than 1. If \code{NULL}, \code{subsampleProportion} will be set to \code{1 / subsamples} and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
-#' @param onlyTotal If \code{TRUE}, exclude participant-level WAIC values (which aren't really valid because of the fact that participants are not independent). I recommend you leave this at TRUE.
-#' 
-#' @return A data.frame containing WAIC values, estimates of the effective number of free parameters, and LPPD.
-#' \tabular{ll}{
-#'  \code{pnum} \tab If \code{onlyTotal == FALSE}, the participant related to the statistic. \cr
-#' 	\code{stat} \tab The name of the fit statistic.\cr
-#' 	\code{value} \tab The statistic value. If \code{subsamples > 1}, the mean statistic value across all subsamples. \cr
-#' 	\code{sd} \tab The standard deviation of the statistic. \cr
-#' 	\code{min, median, max} \tab The minimum, median, and maximum of the statistic. \cr
-#' 	\code{p2.5, p97.5} \tab The 2.5 and 97.5 percentiles of the statistic. 	
-#' }
-#' 
-#' @export
-calculateWAIC = function(results, subsamples=1, subsampleProportion=1, onlyTotal=TRUE) {
-	
-	subsampleIterationsToRemove = getSubsampleIterationsToRemove(results$config$iterations, subsamples, subsampleProportion)
-	
-	
-	#??? This should not be necessary
-	#results$config = verifyConfigurationList(config=results$config, data=results$data)
-	
-	#Convert catMu from degrees to radians if circular. This should really be done in C++
-	if (results$config$dataType == "circular" && results$config$maxCategories > 0) {
-		for (p in unique(results$data$pnum)) {
-			for (i in 1:results$config$maxCategories) {
-				cmName = paste("catMu[", p, ",", i-1, "]", sep="")
-				results$posteriors[[ cmName ]] = CatContModel::d2r(results$posteriors[[ cmName ]])
-			}
-		}
-	}
-	
-	allWAIC = NULL
-	
-	pb = utils::txtProgressBar(0, 1, 0, style=3)
-	for (sub in 1:length(subsampleIterationsToRemove)) {
-		if (length(subsampleIterationsToRemove[[sub]]) > 0) {
-			noBurnIn = removeBurnIn(results, subsampleIterationsToRemove[[sub]])
-		} else {
-			noBurnIn = results
-		}
-		
-		waic = CCM_CPP_calculateWAIC(noBurnIn)
-		waic$subsample = sub
-		
-		allWAIC = rbind(allWAIC, waic)
-
-		utils::setTxtProgressBar(pb, sub / length(subsampleIterationsToRemove))
-	}
-	close(pb)
-
-	summaryWAIC = NULL
-	
-	for (p in unique(allWAIC$pnum)) {
-		
-		stats = c("WAIC_1", "WAIC_2", "P_1", "P_2", "LPPD")
-		
-		for (s in stats) {
-			x = allWAIC[allWAIC$pnum == p, s]
-
-			qs = as.numeric(stats::quantile(x, c(0, 0.025, 0.5, 0.975, 1)))
-			
-			if (subsamples > 1) {
-				temp = data.frame(pnum = p, stat = s, value = mean(x), sd = stats::sd(x), 
-													min=qs[1], p2.5=qs[2], median=qs[3], p97.5=qs[4], max=qs[5],
-													stringsAsFactors=FALSE)
-			} else {
-				temp = data.frame(pnum = p, stat = s, value = mean(x), stringsAsFactors=FALSE)
-			}
-			
-			summaryWAIC = rbind(summaryWAIC, temp)
-			
-		}
-	}
-	
-	if (onlyTotal) {
-		summaryWAIC = summaryWAIC[ summaryWAIC$pnum == "Total", ]
-		summaryWAIC$pnum = NULL
-	}
-	
-	summaryWAIC
-}
-
-
-#' Calculate Standard Fit Statistics that are Inappropriate for these Models
-#' 
-#' AIC and BIC are commonly used to compare models, but they are inappropriate for the
-#' models fit by this package (with the possible exception of the ZL model). The reason
-#' is that both AIC and BIC use the number of free parameters in the model as a penalty
-#' term. However, the actual number of free parameters and the effective number of free
-#' parameters are very different for these models. Part of the reason is that the 
-#' catActive parameters don't provide very much flexibility. In addition, catMu does
-#' nothing if the category is inactive, which is common. Finally, the hierarchical nature
-#' of the model means that the population level parameters actually constrain the participant
-#' level parameters, reducing the effective number of free parameters, but AIC and BIC count 
-#' them as free parameters. All of this combined, the effective number of free parameters
-#' is far less than the actual number of free parameters.
-#' 
-#' An appropriate fit statistc for these models is WAIC, which estimates the effective 
-#' number of free parameters. See the \code{\link{calculateWAIC}} function of this package.
-#' WAIC is relatively straightforward to calculate for models for which Bayesian parameter 
-#' estimation was done.
-#' 
-#' The way that this function calculates the fit statistics is by evenly dividing the number
-#' of free parameters in the whole between the participants, so each participant has the same
-#' penalty term. For each iteration of the Gibbs sampler, the likelihoods of the model are
-#' calculated for each participant. Thus, for each iteration, it is possible to calculate
-#' AIC and BIC, which allows for an estimate of the uncertainty in the fit statistics.
-#' For each fit statistic, both mean and standard deviation are reported.
-#' 
-#' @param results The results from the \code{\link{runParameterEstimation}} function. Note that you must set \code{config$calculateParticipantLikelihoods} to \code{TRUE} in order to use this function.
-#' @param onlyTotal If TRUE, exclude participant-level values (which aren't valid because of the fact that participants are not independent).
-#' 
-#' @return A data.frame containing several fit statistics.
-#' 
-#' @seealso \code{\link{calculateWAIC}} for an appropriate fit statistic.
-#' 
-#' @export
-calculateInappropriateFitStatistics = function(results, onlyTotal = TRUE) {
-	
-	if (!results$config$calculateParticipantLikelihoods) {
-		stop("In order to calculate the inappropriate fit statistics, you need to have calculated the participant likelihoods. Set 'calculateParticipantLikelihoods' to TRUE in the config and rerun the parameter estimation.")
-	}
-	
-	warning("AIC and BIC fit summaries are inappropriate for these models because the actual number of free parameters and the effective number of free parameters are very different. You should use WAIC instead. See the calculateWAIC function.")
-	
-	
-	calcFits = function(pnum, ll, nParam, nObs) {
-		aic_p = -2 * (ll - nParam)
-		
-		bic_p = -2 * ll + log(nObs) * nParam
-		
-		data.frame(pnum = pnum, nParam = nParam, nObs = nObs,
-							ll_mean = mean(ll), ll_sd = stats::sd(ll),
-							aic_mean = mean(aic_p), aic_sd = stats::sd(aic_p),
-							bic_mean = mean(bic_p), bic_sd = stats::sd(bic_p))
-	}
-	
-	post = convertPosteriorsToMatrices(results, "catActive")
-	
-	#count free parameters
-	anyCatActiveChanged = any( apply(post$catActive, c(1,2), function(x) {any(x != x[1])}) )
-	nFreeParam = 0
-	for (n in names(results$posteriors)) {
-		x = results$posteriors[[n]]
-		
-		isConstant = all(x == x[1]) || all(is.na(x))
-
-		isLL = startsWith(n, "participantLL")
-		isCatActive = startsWith(n, "catActive")
-		
-		if (isCatActive) {
-			isConstant = !anyCatActiveChanged
-		}
-		
-		if (!isConstant && !isLL) {
-			nFreeParam = nFreeParam + 1
-		}
-	}
-	
-	nParticipants = length(results$pnums)
-	
-	nFreeParamPerParticipant = nFreeParam / nParticipants #may be fractional
-	
-	totalLL = 0
-	fitSummary = NULL
-	
-	for (n in results$pnums) {
-		
-		nObs = sum(results$data$pnum == n)
-		
-		ll = results$posteriors[[ paste("participantLL[", n, "]", sep="") ]]
-		totalLL = totalLL + ll
-		
-		temp = calcFits(n, ll, nParam = nFreeParamPerParticipant, nObs=nObs)
-
-		fitSummary = rbind(fitSummary, temp)
-		
-	}
-
-	temp = calcFits("Total", totalLL, nParam = nFreeParam, nObs = nrow(results$data))
-	
-	fitSummary = rbind(fitSummary, temp)
-	
-	if (onlyTotal) {
-		fitSummary = fitSummary[ fitSummary$pnum == "Total", ]
-	}
-	
-	fitSummary
-}
 
 

@@ -17,7 +17,7 @@ config$factors = data.frame(letters = c('a',  'a',  'a',  'b',  'b',  'b'),
 														stringsAsFactors = FALSE)
 
 
-# The names of the cond (conditions) in factors must match those in the data.
+# The names of the cond (conditions) in factors should match those in the data.
 all(sort(unique(data$cond)) == sort(config$factors$cond))
 
 
@@ -80,9 +80,7 @@ results = removeBurnIn(results, 500)
 # Examine the results
 
 # Because of figure legends, you need a large plotting surface, so plot to a pdf.
-pdf("parameterSummary.pdf", 10, 10)
-plotParameterSummary(results)
-dev.off()
+plotParameterSummary(results, asPdf = TRUE)
 
 
 # There are many, many pairs of comparisons, so it's better to look at main effects
@@ -91,7 +89,7 @@ testConditionEffects(results)
 
 
 # Test main effects and interactions
-mei = testMainEffectsAndInteractions(results)
+mei = testMainEffectsAndInteractions(results, subsamples = 20)
 
 # Examine bayes factors in favor of the effect.
 mei[ mei$bfType == "10", ]
@@ -108,7 +106,7 @@ subRes = results # Copy the results so you can freely modify it.
 
 # Pick a level of numbers to use
 newFactors = subRes$config$factors
-newFactors = newFactors[ newFactors$numbers == 2, ] # <<< pick a level
+newFactors = newFactors[ newFactors$numbers == 3, ] # <<< pick a level
 subRes$config$factors = newFactors
 
 # Run a test of letters for contSD.
