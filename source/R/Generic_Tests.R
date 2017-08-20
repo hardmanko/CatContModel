@@ -259,6 +259,8 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 #' 
 #' @param res A generic results object (see [`Glossary`]).
 #' @param param A vector of basic parameter names for which to perform condition tests (e.g. "pMem"). If NULL (the default), tests are performed for all parameters with condition effects.
+#' @param addMu Passed to same argument of [`getConditionEffects`].
+#' @param manifest Passed to same argument of [`getConditionEffects`].
 #' @param subsamples Number of subsamples of the posterior chains to take. If greater than 1, subsampleProportion should be set to a value between 0 and 1 (exclusive).
 #' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should probably only be less than 1 if \code{subsamples} is greater than 1. If \code{NULL}, \code{subsampleProportion} will be set to \code{1 / subsamples} and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
 #' @param summarize Boolean. Should the results be summarized with \code{\link{summarizeSubsampleResults}}?
@@ -302,7 +304,8 @@ testConditionEffects = function(res, param = NULL, addMu = TRUE, manifest = TRUE
 		}
 		
 		if (resultIsType(resSub, "WP")) {
-			groups = list(default = resSub)
+			groups = list()
+			groups[[ defaultGroupName() ]] = resSub
 		} else if (resultIsType(resSub, "BP")) {
 			groups = resSub$groups
 		}
@@ -374,7 +377,7 @@ testConditionEffects = function(res, param = NULL, addMu = TRUE, manifest = TRUE
 		allSubsamples$key = gsub(paste0(defaultGroupName(), ":"), "", allSubsamples$key)
 	}
 	
-	rval = CatContModel:::cleanAndSummarizeMEIResults(allSubsamples, summarize = summarize, aggregateBy = c("param", "key"))
+	rval = cleanAndSummarizeMEIResults(allSubsamples, summarize = summarize, aggregateBy = c("param", "key"))
 	rval
 }
 

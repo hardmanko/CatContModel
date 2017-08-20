@@ -96,11 +96,12 @@ removeBurnIn.WP = function(results, burnIn) {
 
 ###############################################################################
 
-# type is either "WP" or "BP"
-#' @param res A generic results object (see [`Glossary`]).
-#' @param type One of `"WP"` or `"BP"`.
-#' @family generic functions
-#' @export
+# Check Type of Results Object
+#
+# @param res A generic results object (see [`Glossary`]).
+# @param type One of `"WP"` (within-participants) or `"BP"` (between-participants).
+# @family generic functions
+# @export
 resultIsType = function(res, type) {
 	conversion = list(WP = "CCM_WP", BP = "CCM_BP")
 	
@@ -216,10 +217,14 @@ getCategoryParams = function(res, modelVariant = res$config$modelVariant, filter
 
 ###############################################################################
 
-
+#' Names of Factors with which a Parameter Varies
+#' 
 #' @param res A generic results object (see [`Glossary`]).
 #' @param param A parameter name.
 #' 
+#' @return A character vector of factor names.
+#' 
+#' @md
 #' @export
 getFactorsForConditionEffect = function(res, param) {
 	

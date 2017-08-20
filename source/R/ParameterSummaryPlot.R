@@ -144,18 +144,24 @@ mergeCells = function(cells, i1, i2) {
 #' @family plotting functions
 #' @md
 #' @export
-plotParameterSummary = function(bpRes, paramSymbols = NULL, catMuPrec = 2, factorOrder = NULL, parameterConfiguration = NULL, asPdf = FALSE, pdfScale = 1.5, pdfDir = tempdir()) {
+plotParameterSummary = function(res, paramSymbols = NULL, catMuPrec = 2, factorOrder = NULL, parameterConfiguration = NULL, asPdf = FALSE, pdfScale = 1.5, pdfDir = tempdir()) {
 	
 	resultWasWP = FALSE
 	wpResults = NULL
 	
 	# Note that this function can take single group results (so it could just be renamed to plotParameterSummary)
-	if (resultIsType(bpRes, "WP")) {
+	if (resultIsType(res, "WP")) {
 		resultWasWP = TRUE
-		wpResults = bpRes
+		wpResults = res
 		
-		bpRes = mergeGroupResults.BP(list(default = bpRes))
+		groups = list()
+		groups[[ defaultGroupName() ]] = res
+		
+		bpRes = mergeGroupResults.BP(groups)
 		bpRes$config$factors$BP_Factor = NULL # remove default extra factor
+		
+	} else if (resultIsType(res, "BP")) {
+		bpRes = res
 	}
 	
 	
@@ -254,7 +260,7 @@ plotParameterSummary = function(bpRes, paramSymbols = NULL, catMuPrec = 2, facto
 	graphics::close.screen(all.screens=TRUE)
 	
 	if (asPdf) {
-		dev.off()
+		grDevices::dev.off()
 		
 		os = Sys.info()[['sysname']]
 		if (os == "Windows") {
@@ -398,107 +404,8 @@ plotFactorialLineChart = function(res, param, factorOrder = NULL,
 	cce = collapseConditionEffects(condEff, factors, usedFactors = factorOrder, aggFun = mean)
 	condEff = cce$condEff
 	
-	allPost = CatContModel:::reshapeMatrixToDF(cce$condEff$post, cce$uniqueFL)
+	allPost = reshapeMatrixToDF(cce$condEff$post, cce$uniqueFL)
 
-	ebf = function(x) {
-		CatContModel:::credIntErrBarFun_Base(x, alpha=0.05)
-	}
-	
-	form = stats::as.formula( paste0("x ~ ", paste0(factorOrder, collapse = " * ")) )
-	
-	plotDf = LineChart::lineChart(form, allPost, errBarType = ebf, settings = plotSettings, legendPosition = legendPosition, xlab = xlab, ylab = ylab)
-	axis(4, labels = FALSE)
-	
-	invisible(plotDf)
-	
-	
-
-	
-	
-	#rval = CatContModel:::plotFactorialLineChart_Matrix(condEff$post, factors, factorOrder = factorOrder,
-	#																		 xlab = xlab, ylab = ylab,
-	#																		 legendPosition = legendPosition, plotSettings = plotSettings)
-	
-	#invisible(rval)
-	
-	
-	#if (resultIsType(res, "WP")) {
-	#	plotFun = plotFactorialLineChart.WP
-	#} else if (resultIsType(res, "BP")) {
-	#	plotFun = plotFactorialLineChart.BP
-	#}
-	
-	#rval = plotFun(res, param = param, factors = factors, factorOrder = factorOrder,
-	#				xlab = xlab, ylab = ylab,
-	#				legendPosition = legendPosition, plotSettings = plotSettings)
-	
-	#invisible(rval)
-}
-
-
-
-plotFactorialLineChart.WP = function(results, param, factors = results$config$factors, 
-																		 factorOrder = NULL, xlab = NULL, ylab = "Parameter", 
-																		 legendPosition = "CHOOSE_BEST", plotSettings = NULL)
-{
-
-	factors = normalizeFactors(factors)
-	
-	condEff = getConditionEffects.WP(results, param, addMu = TRUE, manifest=TRUE)
-	
-	rval = plotFactorialLineChart_Matrix(condEff$post, factors, factorOrder = factorOrder,
-																xlab = xlab, ylab = ylab,
-																legendPosition = legendPosition, plotSettings = plotSettings)
-	
-	invisible(rval)
-}
-
-plotFactorialLineChart.BP = function(bpRes, param, factors = bpRes$config$factors, 
-																		 factorOrder = NULL, xlab = NULL, ylab = "Parameter", 
-																		 legendPosition = "CHOOSE_BEST", plotSettings = NULL)
-{
-	
-	condEff = getConditionEffects.BP(bpRes, param, addMu = TRUE, manifest=TRUE)
-	
-	rval = plotFactorialLineChart_Matrix(condEff$post, factors, factorOrder = factorOrder,
-																xlab = xlab, ylab = ylab,
-																legendPosition = legendPosition, plotSettings = plotSettings)
-	
-	invisible(rval)
-}
-
-#depreciated
-plotFactorialLineChart_Matrix = function(postCondEff, factors, factorOrder = NULL, 
-																				 xlab = NULL, ylab = "Parameter", 
-																				 legendPosition = "CHOOSE_BEST", plotSettings = NULL) 
-{
-	
-	if (is.null(factorOrder)) {
-		factorOrder = getAllFactorNames(factors)
-	}
-	
-	if (is.null(xlab)) {
-		xlab = factorOrder[1]
-	}
-	
-	foFactors = subset(factors, select=c(factorOrder, "key"))
-	uniqueFL = unique(subset(factors, select=factorOrder))
-	
-	uflKeys = CatContModel:::getMatchingKeysForUniqueFL(foFactors, uniqueFL)
-	
-	allPost = NULL
-	for (i in 1:nrow(uniqueFL)) {
-		
-		pp = CatContModel:::getMultiConditionPosterior_Matrix(postCondEff, uflKeys[[i]])
-		
-		temp = data.frame(x = pp)
-		for (n in names(uniqueFL)) {
-			temp[,n] = uniqueFL[i,n]
-		}
-		allPost = rbind(allPost, temp)
-		
-	}
-	
 	ebf = function(x) {
 		credIntErrBarFun_Base(x, alpha=0.05)
 	}
@@ -506,11 +413,10 @@ plotFactorialLineChart_Matrix = function(postCondEff, factors, factorOrder = NUL
 	form = stats::as.formula( paste0("x ~ ", paste0(factorOrder, collapse = " * ")) )
 	
 	plotDf = LineChart::lineChart(form, allPost, errBarType = ebf, settings = plotSettings, legendPosition = legendPosition, xlab = xlab, ylab = ylab)
-	axis(4, labels = FALSE)
+	graphics::axis(4, labels = FALSE)
 	
 	invisible(plotDf)
 }
-
 
 #############
 # catActive #
@@ -540,7 +446,7 @@ factorialCatActivePlot.BP = function(bpRes, factorOrder = NULL) {
 	
 	formula = formula(paste0("x ~ ", paste(factorOrder, collapse=" * ")))
 	plotDf = LineChart::lineChart(formula, agg, errBarType = ebf, ylab = "Number of Categories")
-	axis(4, labels = FALSE)
+	graphics::axis(4, labels = FALSE)
 
 	rval = list(raw = df, plotted = agg)
 	invisible(rval)

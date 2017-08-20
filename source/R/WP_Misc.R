@@ -21,6 +21,7 @@
 #' }
 #' 
 #' @family WP functions
+#' @md
 #' @export
 participantPosteriorSummary = function(results, params=NULL, doCatActive=TRUE, credLevel = 0.95, fun=NULL) {
 	
@@ -94,64 +95,76 @@ participantPosteriorSummary = function(results, params=NULL, doCatActive=TRUE, c
 
 
 
-# STOP! You cannot aggregate across participants to get means! You must do mu + condition effect
-singleParamPMCI = function(res, param, aggregateBy = c("group", "cond", "pnum"), credLevel = 0.95, manifest = TRUE) {
-	
-	credIntFun = function(x) {
-		qs = stats::quantile(x, c((1 - credLevel) / 2, (1 + credLevel) / 2))
-		rval = c(base::mean(x), qs)
-		names(rval) = c("mean", "lower", "upper")
-		rval
-	}
-	
-	if (resultIsType(res, "WP")) {
-		aggregateBy = aggregateBy[ aggregateBy != "group" ]
-	}
-	
-	df = getAllParameterPosteriors(res, param, manifest = manifest, format = "data.frame")
-	
-	
-	lostAgg = aggregateBy[ !(aggregateBy %in% names(df)) ]
-	if (length(lostAgg) > 0) {
-		warning(paste0("Could not aggregate by the following variables because they were not available in the data: ", paste(lostAgg, collapse = ", ")))
-		aggregateBy = aggregateBy[ aggregateBy %in% names(df) ]
-	}
 
+#' Population/Condition Posterior Means and Credible Intervals
+#' 
+#' Calculates posterior means and credible intervals for the population means in each condition for the
+#' given parameters. For each condition, condition effects are added to population means, the result is 
+#' transformed to the manifest space, and the mean and credible interval for the manifest value is calculated.
+#' Note that this is different from adding condition effects to participant-level parameters, tranforming 
+#' the result, calculating on each iteration the mean of the transformed participant parameters, and 
+#' calculating the posterior mean and credible interval of the iteration means. 
+#' Using iteration means rather than population means will generally result in less than the true
+#' amount of variability, which is why population means are used. Note, however, that this is a little strange,
+#' because in the model, condition effects are not added to population means, but participant means.
+#' 
+#' In the return value of this function, the lower and upper columns give the endpoints of the credible interval.
+#' 
+#' Note that parameters without condition effects do not have values specific to conditions, so the `cond` will be `NA` for those parameters.
+#'
+#' @param results The results from the \code{\link{runParameterEstimation}} function.
+#' @param params A vector of parameter names. If `NULL`, the default, all valid parameters are used.
+#' @param credLevel The credibility level of the credible intervals. Defaults to 0.95.
+#' 
+#' @return A `data.frame` containing the results.
+#' 
+#' @family WP functions
+#' @md
+#' @export
+posteriorMeansAndCredibleIntervals = function(results, params=NULL, credLevel=0.95) {
 	
-	form = formula( paste0("x ~ ", paste(aggregateBy, collapse = " * ")) )
-	agg = aggregate(form, df, credIntFun)
-	agg$param = param
-	agg = cbind(agg[ , c("param", aggregateBy) ], agg$x)
-	
-	agg
-}
-
-multiParamPMCI = function(res, param = NULL, aggregateBy = c("group", "cond", "pnum"), credLevel = 0.95, manifest = TRUE) {
-	
-	if (is.null(param)) {
-		param = getAllParams(res, filter=TRUE)
+	if (is.null(params)) {
+		params = getAllParams(results, filter=TRUE)
 	}
 	
-	allCI = NULL
-	for (pp in param) {
-		thisCI = singleParamPMCI(res, pp, aggregateBy = aggregateBy, credLevel = credLevel, manifest = manifest)
+	rval = NULL
+	
+	halfa = (1 - credLevel) / 2
+	
+	for (param in params) {
 		
-		allCI = rbind(allCI, thisCI)
+		trans = getParameterTransformation(results, param)
+		
+		mu = results$posteriors[[ paste(param, ".mu", sep="") ]]
+		
+		for (cond in results$config$factors$cond) {
+			
+			condEff = results$posteriors[[ paste(param, "_cond[", cond, "]", sep="") ]]
+			
+			combined = trans(mu + condEff)
+			
+			quants = as.vector(stats::quantile(combined, c(halfa, 1 - halfa)))
+			
+			temp = data.frame(param=param, cond=cond, mean=mean(combined), lower=quants[1], upper=quants[2], stringsAsFactors=FALSE)
+			
+			paramWithConditionEffects = getParametersWithConditionEffects(results$config$conditionEffects)
+			if (!(param %in% paramWithConditionEffects)) {
+				temp$cond = "ALL_CONDS"
+			}
+			
+			#For parameters without condition effects, only include one condition 
+			#(the cornerstone condition, but it doesn't matter)
+			if (param %in% paramWithConditionEffects || cond == results$config$cornerstoneConditionName) {
+				rval = rbind(rval, temp)
+			}
+			
+		}
 	}
-
-	allCI
+	
+	rval = rval[ order(rval$param, rval$cond), ]
+	
+	rval
 }
 
-#partPMCI_1 = participantPosteriorSummary(res, c("pMem", "contSD"), doCatActive = FALSE)
-#partPMCI_1 = partPMCI_1[ partPMCI_1$param != "catActive", ]
-
-#partPMCI_2 = multiParamPMCI(res, c("pMem", "contSD"))
-
-#pmci1 = posteriorMeansAndCredibleIntervals(res, c("pMem", "contSD"))
-
-
-#participantPosteriorSummary = function(res, params=NULL, doCatActive=TRUE, credLevel = 0.95, fun=NULL) {
-	
-#}
 
 

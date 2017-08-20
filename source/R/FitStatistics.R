@@ -128,9 +128,9 @@ calculateWAIC_aggregate = function(res, allWAIC, onlyTotal, summarize = TRUE) {
 	summaryFuns = list(mean = mean, 
 										 sd = stats::sd, 
 										 min = min, 
-										 p2.5 = function(x) { quantile(x, 0.025) },
-										 median = median, 
-										 p97.5 = function(x) { quantile(x, 0.975) },
+										 p2.5 = function(x) { stats::quantile(x, 0.025) },
+										 median = stats::median, 
+										 p97.5 = function(x) { stats::quantile(x, 0.975) },
 										 max = max)
 	if (!summarize) {
 		summaryFuns = list(value = function(x) { x })
@@ -140,16 +140,16 @@ calculateWAIC_aggregate = function(res, allWAIC, onlyTotal, summarize = TRUE) {
 	totalWAIC = allWAIC[ allWAIC$pnum == "Total", ]
 	totalWAIC$group = "all"
 	
-	summedTotal = aggregate(value ~ subsample * group * pnum * stat, totalWAIC, sum)
+	summedTotal = stats::aggregate(value ~ subsample * group * pnum * stat, totalWAIC, sum)
 
 	allWAIC = rbind(allWAIC, summedTotal)
 
 	# Aggregate, collapsing across subsamples
-	summaryValues = aggregate(value ~ stat * group * pnum, allWAIC, function(x) { NA })
+	summaryValues = stats::aggregate(value ~ stat * group * pnum, allWAIC, function(x) { NA })
 	summaryValues$value = NULL
 	
 	for (fn in names(summaryFuns)) {
-		summaryValues[ , fn ] = aggregate(value ~ stat * group * pnum, allWAIC, summaryFuns[[ fn ]])$value
+		summaryValues[ , fn ] = stats::aggregate(value ~ stat * group * pnum, allWAIC, summaryFuns[[ fn ]])$value
 	}
 	
 	if (onlyTotal) {
@@ -279,114 +279,4 @@ calculateInappropriateFitStatistics = function(results, onlyTotal = TRUE) {
 }
 
 
-########################################################
-# older stuff, all depreciated
-
-calculateWAIC.Generic = function(res, subsamples = 1, subsampleProportion = 1, onlyTotal = TRUE) {
-	
-	if (resultIsType(res, "WP")) {
-		rval = calculateWAIC.WP(res, subsamples = subsamples, subsampleProportion = subsampleProportion, onlyTotal = onlyTotal)
-	} else if (resultIsType(res, "BP")) {
-		if (subsamples != 1 || subsampleProportion != 1 || onlyTotal != TRUE) {
-			message("Note that for BP designs, calculateWAIC ignores the subsamples, subsampleProportion, and onlyTotal arguments.")
-		}
-		
-		rval = calculateWAIC.BP(res)
-	}
-	
-	rval
-}
-
-calculateWAIC.WP = function(results, subsamples = 1, subsampleProportion = 1, onlyTotal = TRUE) {
-	
-	subsampleIterationsToRemove = getSubsampleIterationsToRemove(results$config$iterations, subsamples, subsampleProportion)
-	
-	#Convert catMu from degrees to radians if circular. This should really be done in C++
-	if (results$config$dataType == "circular" && results$config$maxCategories > 0) {
-		for (p in unique(results$data$pnum)) {
-			for (i in 1:results$config$maxCategories) {
-				cmName = paste("catMu[", p, ",", i-1, "]", sep="")
-				results$posteriors[[ cmName ]] = CatContModel::d2r(results$posteriors[[ cmName ]])
-			}
-		}
-	}
-	
-	allWAIC = NULL
-	
-	pb = utils::txtProgressBar(0, 1, 0, style=3)
-	for (sub in 1:length(subsampleIterationsToRemove)) {
-		if (length(subsampleIterationsToRemove[[sub]]) > 0) {
-			noBurnIn = removeBurnIn(results, subsampleIterationsToRemove[[sub]])
-		} else {
-			noBurnIn = results
-		}
-		
-		waic = CCM_CPP_calculateWAIC(noBurnIn)
-		waic$subsample = sub
-		
-		allWAIC = rbind(allWAIC, waic)
-		
-		utils::setTxtProgressBar(pb, sub / length(subsampleIterationsToRemove))
-	}
-	close(pb)
-	
-	summaryWAIC = NULL
-	
-	for (p in unique(allWAIC$pnum)) {
-		
-		stats = c("WAIC_1", "WAIC_2", "P_1", "P_2", "LPPD")
-		
-		for (s in stats) {
-			x = allWAIC[allWAIC$pnum == p, s]
-			
-			qs = as.numeric(stats::quantile(x, c(0, 0.025, 0.5, 0.975, 1)))
-			
-			if (subsamples > 1) {
-				temp = data.frame(pnum = p, stat = s, value = mean(x), sd = stats::sd(x), 
-													min=qs[1], p2.5=qs[2], median=qs[3], p97.5=qs[4], max=qs[5],
-													stringsAsFactors=FALSE)
-			} else {
-				temp = data.frame(pnum = p, stat = s, value = mean(x), stringsAsFactors=FALSE)
-			}
-			
-			summaryWAIC = rbind(summaryWAIC, temp)
-			
-		}
-	}
-	
-	if (onlyTotal) {
-		summaryWAIC = summaryWAIC[ summaryWAIC$pnum == "Total", ]
-		summaryWAIC$pnum = NULL
-	}
-	
-	summaryWAIC
-}
-
-
-calculateWAIC.BP = function(bpRes) {
-	
-	waics = NULL
-	for (n in names(bpRes$groups)) {
-		waic = calculateWAIC(bpRes$groups[[ n ]], subsamples = 1, 
-												 subsampleProportion = 1, onlyTotal = TRUE)
-		
-		nn = names(waic)
-		waic$group = n
-		waic = waic[ , c("group", nn) ]
-		
-		waics = rbind(waics, waic)
-	}
-	
-	sums = aggregate(value ~ stat, waics, sum)
-	sums$group = "Sum"
-	sums = sums[ , names(waics) ]
-	
-	rval = rbind(waics, sums)
-	rval = rval[ order(rval$stat), ]
-	
-	rval
-}
-
-# older stuff, all depreciated
-########################################################
 

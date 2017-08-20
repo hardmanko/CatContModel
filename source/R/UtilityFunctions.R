@@ -71,16 +71,16 @@ getParameterSymbols = function(modelVariant) {
 
 #' Logit Transformations
 #' 
-#' The logit transformation is \code{log(p/(1 - p))}.
+#' The logit transformation is `log(p/(1 - p))`.
 #' 
-#' The inverse logit transformation is \code{exp(f)/(1 + exp(f)))}.
+#' The inverse logit transformation is `exp(f)/(1 + exp(f)))`.
 #' 
-#' @param p A probability (value in the interval [0,1]) to transform to (-Inf, Inf).
-#' @param f A value in the interval \code{(-Inf, Inf)} to transform to [0, 1].
+#' @param p A probability (value in the interval `[0,1]`) to transform to `(-Inf, Inf)`.
+#' @param f A value in the interval `(-Inf, Inf)` to transform to `[0,1]`.
 #' 
 #' @return The transformed value.
 #' 
-#' @seealso The `stats` functions `qlogis` and `plogis`.
+#' @seealso The functions `qlogis` and `plogis` in the `stats` namespace..
 #' 
 #' @md
 #' @export
@@ -770,4 +770,43 @@ reshapeMatrixToDF = function(mat, design, designCols = names(design)) {
 		df[ , n ] = rep(design[ , n ], each=nrow(mat))
 	}
 	df
+}
+
+
+getSubsampleIterationsToRemove = function(totalIterations, subsamples, subsampleProportion) {
+	if (subsamples < 1) {
+		stop("You need to use at least one subsample.")
+	}
+	
+	independentSubsamples = FALSE
+	if (is.null(subsampleProportion)) {
+		independentSubsamples = TRUE
+		subsampleProportion = 1 / subsamples
+	}
+	
+	subsampleProportion = min( max(subsampleProportion, 0), 1 )
+	
+	subsampleIterationsToRemove = list()
+	
+	if (independentSubsamples) {
+		
+		shuffledIterations = sample(1:totalIterations, totalIterations, replace=FALSE)
+		
+		for (sub in 1:subsamples) {
+			
+			iterationsToUse = floor(subsampleProportion * totalIterations)
+			indicesToUse = ((sub - 1) * iterationsToUse + 1):(sub * iterationsToUse)
+			subsampleIterationsToRemove[[sub]] = shuffledIterations[-indicesToUse]
+			
+		}
+	} else {
+		
+		for (sub in 1:subsamples) {
+			iterationsToRemove = round((1 - subsampleProportion) * totalIterations, 0)
+			subsampleIterationsToRemove[[sub]] = sample(1:totalIterations, iterationsToRemove, replace = FALSE)
+		}
+		
+	}
+	
+	subsampleIterationsToRemove
 }

@@ -15,13 +15,15 @@
 #' @param priorSamples The number of samples to take from the priors on the condition effects. Defaults to the number of posterior iterations, which is usually appropriate.
 #' @param addMu If `TRUE`, the grand mean of the parameter is added to the condition effects. If `FALSE`, nothing is added.
 #' @param manifest If `TRUE`, the resulting parameter will be in the manifest space. If `FALSE`, the resulting parameter will be in the latent space. (See [`Glossary`].)
+#' @param prior If `TRUE`, the prior condition effects are returned. Otherwise, no priors are returned.
+#' @param posterior If `TRUE`, the posterior condition effects are returned. Otherwise, no posteriors are returned.
 #' 
 #' @return A list with two matrices, `prior` and `post`. Each column is one condition effect and each row is one sample from the prior or posterior.
 #' 
 #' @md
 #' @family generic functions
 #' @export
-getConditionEffects = function(res, param, priorSamples = res$config$iterations, addMu = FALSE, manifest = FALSE) 
+getConditionEffects = function(res, param, priorSamples = res$config$iterations, addMu = FALSE, manifest = FALSE, prior = TRUE, posterior = TRUE) 
 {
 	
 	if (resultIsType(res, "WP")) {
@@ -30,7 +32,7 @@ getConditionEffects = function(res, param, priorSamples = res$config$iterations,
 		fun = getConditionEffects.BP
 	}
 	
-	fun(res, param, priorSamples = priorSamples, addMu = addMu, manifest = manifest)
+	fun(res, param, priorSamples = priorSamples, addMu = addMu, manifest = manifest, prior = prior, posterior = posterior)
 	
 }
 
@@ -40,7 +42,6 @@ getPriorConditionEffects = function(results, param, priorSamples, addMu = FALSE,
 	if (!addMu && manifest) {
 		stop("A manifest parameter is the transformation of the sum of the latent condition effect and the grand mean. Thus addMu == FALSE && manifest == TRUE is disallowed.")
 	}
-	
 	
 	factors = results$config$factors
 	
@@ -107,7 +108,6 @@ getPosteriorConditionEffects = function(results, param, addMu = FALSE, manifest 
 		stop("A manifest parameter is the transformation of the sum of the latent condition effect and the grand mean. Thus addMu == FALSE && manifest == TRUE is disallowed.")
 	}
 	
-	
 	factors = results$config$factors
 	
 	mu = 0
@@ -132,39 +132,45 @@ getPosteriorConditionEffects = function(results, param, addMu = FALSE, manifest 
 	postDs
 }
 
-
-
-getConditionEffects.WP = function(results, param, priorSamples = results$config$iterations, addMu = FALSE, manifest = FALSE) {
-	prior = getPriorConditionEffects(results, param, priorSamples, addMu, manifest)
-	post = getPosteriorConditionEffects(results, param, addMu, manifest)
+getConditionEffects.WP = function(results, param, priorSamples, addMu, manifest, prior = TRUE, posterior = TRUE) {
 	
 	colKeys = data.frame(cond = results$config$factors$cond)
 	colKeys = normalizeFactors(colKeys)
 	
-	colnames(prior) = colKeys$key
-	colnames(post) = colKeys$key
+	rval = list(prior = NULL, post = NULL, colKeys = colKeys)
 	
-	list(prior=prior, post=post, colKeys = colKeys)
+	if (prior) {
+		rval$prior = getPriorConditionEffects(results, param, priorSamples, addMu, manifest)
+		colnames(rval$prior) = colKeys$key
+	}
+	
+	if (posterior) {
+		rval$post = getPosteriorConditionEffects(results, param, addMu, manifest)
+		colnames(rval$post) = colKeys$key
+	}
+	
+	rval
 }
 
 
-getConditionEffects.BP = function(bpRes, param, priorSamples = bpRes$config$iterations, addMu = FALSE, manifest = FALSE) {
+getConditionEffects.BP = function(bpRes, param, priorSamples = bpRes$config$iterations, addMu = FALSE, manifest = FALSE, prior = TRUE, posterior = TRUE) {
 	
 	# TODO: Special case for catActive? (since it is BP, catActive can differ)
 	
 	cems = list(prior = NULL, post = NULL, colKeys = NULL)
 	for (grp in names(bpRes$groups)) {
 		
-		ceff = CatContModel:::getConditionEffects.WP(bpRes$groups[[grp]], param=param, priorSamples = priorSamples, addMu = addMu, manifest = manifest)
+		ceff = getConditionEffects.WP(bpRes$groups[[grp]], param=param, priorSamples = priorSamples, addMu = addMu, manifest = manifest, prior = prior, posterior = posterior)
 		
 		tempCK = data.frame(group = grp, 
-												cond = ceff$colKeys$cond)
+												cond = ceff$colKeys$cond, stringsAsFactors = FALSE)
 		tempCK = normalizeFactors(tempCK) # to create key and order columns
 		#tempCK$key = paste0(tempCK$group, ":", tempCK$cond)
 		
 		cems$colKeys = rbind(cems$colKeys, tempCK)
 		
-		for (pp in c("prior", "post")) {
+		ppNames = c("prior", "post")[ c(prior, posterior) ]
+		for (pp in  ppNames) {
 			colnames(ceff[[pp]]) = tempCK$key
 			cems[[pp]] = cbind(cems[[pp]], ceff[[pp]])
 		}
@@ -191,14 +197,21 @@ collapseConditionEffects = function(condEff, factors, usedFactors, uniqueFL = NU
 		usedFactors = names(uniqueFL)
 	}
 	
-	keys = CatContModel:::getMatchingKeysForUniqueFL(factors, uniqueFL)
-
-	updatedCE = list(prior = matrix(nrow = nrow(condEff$prior), ncol = length(keys)), 
-									 post = matrix(nrow = nrow(condEff$post), ncol = length(keys))
-									 )
+	keys = getMatchingKeysForUniqueFL(factors, uniqueFL)
 	
+	ppNames = c("prior", "post")
+	ppNames = ppNames[ ppNames %in% names(condEff) ]
+
+	updatedCE = list()
+	if ("prior" %in% ppNames) {
+		updatedCE$prior = matrix(nrow = nrow(condEff$prior), ncol = length(keys))
+	}
+	if ("post" %in% ppNames) {
+		updatedCE$post = matrix(nrow = nrow(condEff$post), ncol = length(keys))
+	}
+
 	for (i in 1:length(keys)) {
-		for (ppi in c("prior", "post")) {
+		for (ppi in ppNames) {
 			
 			pp = condEff[[ ppi ]]
 			pp = subset(pp, select = keys[[ i ]])
@@ -209,4 +222,41 @@ collapseConditionEffects = function(condEff, factors, usedFactors, uniqueFL = NU
 	
 	list(condEff = updatedCE, uniqueFL = uniqueFL, keys = keys)
 	
+}
+
+
+
+#' Prior and/or Posterior Distributions of Main Effect and Interaction Parameters
+#' 
+#' 
+#' 
+#' @param res A generic results object (see [`Glossary`]).
+#' @param param The name of a parameter.
+#' @param testedFactors See \code{\link[CMBBHT]{testHypothesis}}. Passed directly to \code{\link[CMBBHT]{getEffectParameters}}. A character vector giving the names of factors for which a hypothesis test could be performed. If there is only one factor, the main effect will be used. If there is more than one factor, the interaction of the factors will be the effect that is used. 
+#' @param dmFactors See \code{\link[CMBBHT]{testHypothesis}}. Passed directly to \code{\link[CMBBHT]{getEffectParameters}}.
+#' @param contrastType See \code{\link[CMBBHT]{testHypothesis}}. Passed directly to \code{\link[CMBBHT]{getEffectParameters}}.
+#' @param addMu Passed to same argument of [`getConditionEffects`].
+#' @param manifest Passed to same argument of [`getConditionEffects`].
+#' @param prior Passed to same argument of [`getConditionEffects`].
+#' @param posterior Passed to same argument of [`getConditionEffects`].
+#' 
+#' @return A list of prior and posterior matrices (depending on the `prior` and `posterior` arguments). Each of the matrices have iterations in rows and effect parameters in columns. The columns are named with the following scheme: "F1.L1:F2.L2" where "Fn" is the name of a factor and "Ln" is the level of that factor and ":" indicates the combinations of factor levels.
+#' 
+#' @family generic functions
+#' @md
+#' @export
+getEffectParameters = function(res, param, testedFactors, dmFactors = testedFactors, contrastType = NULL, addMu = FALSE, manifest = FALSE, prior = TRUE, posterior = TRUE) {
+	
+	cef = getConditionEffects(res, param, addMu = addMu, manifest = manifest, prior = prior, posterior = posterior)
+	
+	gmeihtf = res$config$factors
+	gmeihtf[ , c("key", "group", "cond") ] = NULL #NO EXTRA COLUMNS
+	
+	ppNames = c("prior", "post")[ c(prior, posterior) ]
+	efp = list()
+	for (pp in  ppNames) {
+		efp[[ pp ]] = CMBBHT::getEffectParameters(cellMeans = cef[[ pp ]], factors = gmeihtf, testedFactors = testedFactors, dmFactors = dmFactors, contrastType = contrastType)
+	}
+	
+	efp
 }

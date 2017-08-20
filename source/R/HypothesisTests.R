@@ -38,44 +38,6 @@ convolveFuns = function(f, g, t, range=c(-Inf, Inf)) {
 	dens$value
 }
 
-getSubsampleIterationsToRemove = function(totalIterations, subsamples, subsampleProportion) {
-	if (subsamples < 1) {
-		stop("You need to use at least one subsample.")
-	}
-	
-	independentSubsamples = FALSE
-	if (is.null(subsampleProportion)) {
-		independentSubsamples = TRUE
-		subsampleProportion = 1 / subsamples
-	}
-	
-	subsampleProportion = min( max(subsampleProportion, 0), 1 )
-	
-	subsampleIterationsToRemove = list()
-	
-	if (independentSubsamples) {
-		
-		shuffledIterations = sample(1:totalIterations, totalIterations, replace=FALSE)
-		
-		for (sub in 1:subsamples) {
-			
-			iterationsToUse = floor(subsampleProportion * totalIterations)
-			indicesToUse = ((sub - 1) * iterationsToUse + 1):(sub * iterationsToUse)
-			subsampleIterationsToRemove[[sub]] = shuffledIterations[-indicesToUse]
-			
-		}
-	} else {
-		
-		for (sub in 1:subsamples) {
-			iterationsToRemove = round((1 - subsampleProportion) * totalIterations, 0)
-			subsampleIterationsToRemove[[sub]] = sample(1:totalIterations, iterationsToRemove, replace = FALSE)
-		}
-		
-	}
-	
-	subsampleIterationsToRemove
-}
-
 
 #' Test the Amount of Categorical Responding Present in the Data
 #' 
