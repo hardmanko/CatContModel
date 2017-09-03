@@ -158,9 +158,9 @@ void conditionalConfigureVMLut(double maxValue, double stepSize, bool message = 
 }
 
 
-
 // [[Rcpp::export]]
-Rcpp::List CCM_CPP_runParameterEstimation(Rcpp::List generalConfig,
+Rcpp::List CCM_CPP_runParameterEstimation(
+	Rcpp::List generalConfig,
 	Rcpp::DataFrame data,
 	Rcpp::List mhTuningOverrides,
 	Rcpp::List priorOverrides,

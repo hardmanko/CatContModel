@@ -535,6 +535,11 @@ void GibbsSampler::run(unsigned int samplesToCollect, bool clearExistingSamples)
 #endif
 
 			lapStartTime = std::chrono::high_resolution_clock::now();
+
+#if COMPILING_WITH_RCPP
+			//Check for interrupts whenever a status update happens.
+			Rcpp::checkUserInterrupt();
+#endif
 		}
 	}
 
