@@ -50,8 +50,9 @@ convolveFuns = function(f, g, t, range=c(-Inf, Inf)) {
 #' 
 #' @return A data.frame with the results of the tests.
 #' 
-#' @seealso \code{\link{testMeanParameterValue}} for a more general way to do these kinds of hypothesis tests.
+#' @seealso [`testMeanParameterValue`] for a more general way to do these kinds of hypothesis tests.
 #' 
+#' @md
 #' @export
 testCategoricalResponding = function(results, pContBetween_test = 0.99, pCatGuess_test = 0.01) {
 

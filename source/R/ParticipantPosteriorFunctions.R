@@ -66,7 +66,7 @@ getParameterPosterior.WP = function(results, param, pnum, cond, manifest=TRUE) {
 }
 
 getParameterPosterior.BP = function(bpRes, param, pnum, cond, group, manifest=TRUE) {
-	getParameterPosterior.WP(bpRes$groups[[ group ]], param, pnum, cond, manifest = manifest)
+	getParameterPosterior.WP(bpRes$groups[[ group ]], param=param, pnum=pnum, cond=cond, manifest = manifest)
 }
 
 ###############################################################################
@@ -75,7 +75,14 @@ getParameterPosterior.BP = function(bpRes, param, pnum, cond, group, manifest=TR
 #' 
 #' The results of this function are essentially those of [`getParameterPosterior`], but for all participants, conditions, and groups.
 #' 
+#' @param res A generic results object (see [`Glossary`]).
+#' @param param A parameter name.
+#' @param manifest Whether the parameters should be converted to the manifest space (see [`Glossary`]).
+#' @param format One of `"data.frame"` or `"matrix"`.
+#' 
 #' @family generic functions
+#' 
+#' @md
 #' @export
 getAllParameterPosteriors = function(res, param, manifest, format = "data.frame") {
 	
@@ -214,7 +221,7 @@ getSingleIterationParameters.WP = function(results, pnum, cond, iteration, remov
 }
 
 getSingleIterationParameters.BP = function(bpRes, pnum, cond, group, iteration, removeInactiveCategories = TRUE) {
-	getSingleIterationParameters.WP(bpRes$groups[[ group ]], pnum, cond, group, iteration, removeInactiveCategories = removeInactiveCategories)
+	getSingleIterationParameters.WP(bpRes$groups[[ group ]], pnum = pnum, cond = cond, iteration = iteration, removeInactiveCategories = removeInactiveCategories)
 }
 
 ###############################################################################
@@ -334,3 +341,102 @@ convertPosteriorsToMatrices.BP = function(bpRes, param=NULL) {
 	post
 }
 
+###############################################################################
+
+
+#' Posterior Means and Credible Intervals for Manifest Participant Parameters
+#' 
+#' For each group X participant X condition cell (for which there is data; see `removeNoDataCells` argument), the participant parameter value is added to the condition effect and then converted to the manifest space.
+#' 
+#' For `catActive`, the reported values are the sum of the individual `catActive` parameters (i.e. the number of active categories). The credible intervals for `catActive` should be interpreted in the context of them only taking on integer values.
+#' 
+#' @param res A generic results object (see [`Glossary`]).
+#' @param params A vector of parameter names. If `NULL`, all valid parameters are used. `"catActive"` is a valid parameter for this function.
+#' @param cip The credible interval proportion of the credible intervals.
+#' @param fun A user provided function that will be passed a vector of group X participant X condition posterior values to summarize (i.e. the kind of function you would pass to `stats::aggregate()`).
+#' @param removeNoDataCells Remove parameter summaries for group X participant X condition cells of the design for which there is no data.
+#' 
+#' @return A data frame with several columns:
+#' \tabular{ll}{
+#'	`pnum` \tab The participant number.\cr
+#' 	`cond` \tab The zero-indexed condition index.\cr
+#' 	`param` \tab The parameter name.\cr
+#' 	`mean` \tab The posterior mean.\cr
+#' 	`lower`,`upper` \tab The lower and upper bounds of the credible interval.\cr
+#' 	`fun` \tab If `fun` was provided, the results of that function call.
+#' }
+#' 
+#' @family generic functions
+#' 
+#' @export
+participantPosteriorSummary = function(res, params=NULL, cip = 0.95, fun=NULL, removeNoDataCells = TRUE) {
+	
+	aggFuns = list(mean = mean,
+								 lower = function(x) { stats::quantile(x, (1 - cip) / 2) },
+								 upper = function(x) { stats::quantile(x, (1 + cip) / 2) })
+	if (!is.null(fun)) {
+		aggFuns$fun = fun
+	}
+	
+	if (is.null(params)) {
+		params = c(getAllParams(res, filter=TRUE), "catActive")
+	}
+	
+	baseFormula = stats::formula(x ~ pnum * cond * group)
+	
+	allSummary = NULL
+	
+	for (param in params) {
+		
+		pp = NULL
+		if (param == "catActive") {
+			pp = CatContModel:::getIterationCatActive(res, drop=NULL)
+			pp$cond = "ALL_CONDS"
+		} else {
+			pp = getAllParameterPosteriors(res, param, manifest = TRUE)
+			if (resultIsType(res, "WP")) {
+				pp$group = defaultGroupName()
+			}
+		}
+		
+		baseAgg = stats::aggregate(baseFormula, pp, function(x) {NA})
+		baseAgg$x = NULL
+		baseAgg$param = param
+		
+		for (fn in names(aggFuns)) {
+			agg = stats::aggregate(baseFormula, pp, aggFuns[[ fn ]])
+			baseAgg[ , fn ] = agg$x
+		}
+		
+		allSummary = rbind(allSummary, baseAgg)
+	}
+	
+	# Remove participant X condition cells with no data
+	if (removeNoDataCells) {
+		design = NULL
+		if (resultIsType(res, "WP")) {
+			design = unique(res$data[ , c("pnum", "cond") ])
+			design$group = defaultGroupName()
+		} else if (resultIsType(res, "BP")) {
+			for (grp in names(res$groups)) {
+				temp = unique(res$groups[[grp]]$data[ , c("pnum", "cond") ])
+				temp$group = grp
+				design = rbind(design, temp)
+			}
+		}
+		for (n in names(design)) {
+			design[ , n ] = as.character(design[ , n ])
+		}
+		
+		keep = rep(FALSE, nrow(allSummary))
+		for (i in 1:nrow(design)) {
+			keep = keep | (allSummary$group == design$group[i] & allSummary$pnum == design$pnum[i] &
+										 	(allSummary$cond == design$cond[i] | allSummary$cond == "ALL_CONDS"))
+		}
+		allSummary = allSummary[ keep, ]
+	}
+	
+	ns = c("param", "group", "pnum", "cond", names(aggFuns))
+	allSummary[ , ns ]
+	
+}

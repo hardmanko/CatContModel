@@ -15,28 +15,28 @@
 #' Let L and S be vectors of Locations and Scales of the Cauchy distributions in X. 
 #' Then the location and scale parameters of Y are 
 #' 
-#' \code{L_Y = sum(L * W)}
-#' \code{S_Y = sum(S * abs(W))}
+#' `L_Y = sum(L * W)`
+#' `S_Y = sum(S * abs(W))`
 #' 
 #' I haven't found a citation for this anywhere, but have confirmed it to several significant digits in simulations.
 #' 
 #' The results of these calculations depend on a lot of information, which is most easily 
 #' provided in the results of parameter estimation. To examine the effects of changing the
-#' priors, you can test "new" priors with the \code{priorLoc} and \code{priorScale} arguments.
+#' priors, you can test "new" priors with the `priorLoc` and `priorScale` arguments.
 #' Note, however, that the typical proscription on nonzero prior locations holds here as well,
 #' in the sense that it works mathematically, but nonzero prior locations are kind of bizarre
 #' for condition effect parameters.
 #' 
 #' 
-#' @param results The results from the \code{\link{runParameterEstimation}} function. Note that you can run 1 iteration and still have all the information you need.
+#' @param results The results from the [`runParameterEstimation`] function. Note that you can run only 1 iteration and still have all the information you need.
 #' @param param The name of the parameter for which to calculate MEI effect parameter priors.
 #' @param testedFactors Character vector. The factors for which to perform the hypothesis test as a vector of factor names. A single factor name results in the test of the main effect of the factor. Multiple factor names result in the test of the interaction of all of those factors.
-#' @param dmFactors Character vector. The factors to use to construct the design matrix. For a fully-crossed (balanced) design, this can always be equal to \code{testFactors} (the default). For non-fully-crossed designs, you may sometimes want to create a design matrix using some factors, but perform a hypothesis test with only some of those factors (\code{testedFactors} must be a subset of \code{dmFactors}).
-#' @param contrastType Character (or function). The contrast to use to create the design matrix. Can be any of the function names on the documentation page for \code{contr.sum}. For a non-fully-crossed (unbalanced) design, you should use either "contr.treatment" or "contr.SAS". For a balanced design, you can use anything, but psychologists are most used to "contr.sum", which uses sums-to-zero constraints.
+#' @param dmFactors Character vector. The factors to use to construct the design matrix. For a fully-crossed (balanced) design, this can always be equal to `testFactors` (the default). For non-fully-crossed designs, you may sometimes want to create a design matrix using some factors, but perform a hypothesis test with only some of those factors (`testedFactors` must be a subset of `dmFactors`).
+#' @param contrastType Character (or function). The contrast to use to create the design matrix. Can be any of the function names on the documentation page for `contr.sum`. For a non-fully-crossed (unbalanced) design, you should use either "contr.treatment" or "contr.SAS". For a balanced design, you can use anything, but psychologists are most used to "contr.sum", which uses sums-to-zero constraints.
 #' @param priorLoc A new prior location to try, overriding the value in results$priors.
 #' @param priorScale A new prior scale to try, overriding the value in results$priors.
 #' 
-#' @return A \code{data.frame} with four columns: the \code{factor} being used, the \code{effect} parameter, the prior `location`, and the prior `scale`.
+#' @return A `data.frame` with four columns: the `factor` being used, the `effect` parameter, the prior `location`, and the prior `scale`.
 #' 
 #' @family WP functions
 #' @md

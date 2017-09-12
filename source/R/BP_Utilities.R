@@ -11,10 +11,10 @@
 mergeGroupResults.BP = function(groups) {
 	
 	if (length(names(groups)) != length(groups)) {
-		stop("groups must be a *named* list.")
+		stop('"groups" must be a *named* list.')
 	}
 	
-	CatContModel:::checkResults.BP(groups)
+	checkResults.BP(groups)
 	
 	# This needs a bunch of careful thought still, 
 	# but might actually be good enough to work.
@@ -95,6 +95,13 @@ backPropogateBPFactorsToWPFactors = function(bpRes) {
 	bpRes
 }
 
+backPropogateFactorsToConditionEffects = function(factors) {
+	
+	# This function is not possible because factors is for the whole design,
+	# but each parameter can have different condition effects.
+	
+}
+
 #TODO: Also check priors
 checkResults.BP = function(groups, iterations = TRUE, modelVariant = TRUE, dataType = TRUE) {
 	
@@ -130,7 +137,6 @@ makeDefaultFactors.BP = function(groups) {
 	for (grp in names(groups)) {
 		f = groups[[grp]]$config$factors
 		f$group = grp
-		f$BP_Factor = grp
 		
 		f$key = paste(f$group, f$cond, sep=":")
 		
@@ -152,7 +158,13 @@ makeDefaultFactors.BP = function(groups) {
 	}
 	
 	if (any(is.na(factors))) {
-		warning("Factor names appear to be inconsistent between the groups. Did you set up the factors correctly before running parameter estimation? That is the best approach to use. You must manually examine and correct the factors data frame to correctly represent the design, possibly also doing so for each group individually.")
+		warning("Factor names appear to be inconsistent between the groups. Did you set up the factors correctly before running parameter estimation? You should examine and correct the factors data frames for the individual groups and rerunning parameter estimation. This is not something that can be reliably fixed after running parameter estimation.")
+	}
+	
+	type2name = getFactorTypeToName(factors)
+	if (length(groups) > 1 && length(type2name$bp) == 0) {
+		factors$BP_Group = factors$group
+		message("No between-participants factors found. A default between-participants factor named BP_Group has been created.")
 	}
 	
 	allFn = getAllFactorNames(factors)
@@ -207,27 +219,29 @@ splitKeyVector = function(keys) {
 	rval
 }
 
-getMatchingKeysForUniqueFL_row = function(foFactors, uniqueFL_row) {
+
+
+getMatchingKeysForUniqueFL_row = function(factors, uniqueFL_row) {
 	theseKeys = NULL
 	
-	for (i in 1:nrow(foFactors)) {
-		
-		thisFO = subset(foFactors, select = names(uniqueFL_row), subset = i == 1:nrow(foFactors))
+	for (i in 1:nrow(factors)) {
+
+		thisFO = subset(factors, select = names(uniqueFL_row), subset = i == 1:nrow(factors))
 		
 		if (all(thisFO == uniqueFL_row)) {
-			theseKeys = c(theseKeys, foFactors$key[i])
+			theseKeys = c(theseKeys, factors$key[i])
 		}
 	}
 	
 	theseKeys
 }
 
-# foFactors contains only the factors of interest and "key"
+# factors should be normalized
 # uniqueFL contains only the factors of interest
-getMatchingKeysForUniqueFL = function(foFactors, uniqueFL) {
+getMatchingKeysForUniqueFL = function(factors, uniqueFL) {
 	
 	#Force only wanted columns
-	foFactors = foFactors[ , c(names(uniqueFL), "key") ]
+	factors = factors[ , c(names(uniqueFL), "key") ]
 	
 	allKeys = list()
 	
@@ -235,11 +249,39 @@ getMatchingKeysForUniqueFL = function(foFactors, uniqueFL) {
 		
 		uniqueFL_row = subset(uniqueFL, subset = i == 1:nrow(uniqueFL))
 		
-		allKeys[[i]] = getMatchingKeysForUniqueFL_row(foFactors, uniqueFL_row)
+		allKeys[[i]] = getMatchingKeysForUniqueFL_row(factors, uniqueFL_row)
 	}
 	
 	allKeys
 }
+
+# factors should be normalized
+# factor is scalar character
+getMatchingFactorLevels = function(factors, uniqueFL, factor, collapse=NULL) {
+	
+	keys = getMatchingKeysForUniqueFL(factors, uniqueFL)
+	if (length(keys) == 0) {
+		return(list())
+	}
+	
+	matchingFL = list()
+	
+	for (i in 1:length(keys)) {
+		matchingFL[[i]] = factors[ factors$key %in% keys[[ i ]], factor ]
+	}
+	
+	if (!is.null(collapse)) {
+		rval = rep("", length(matchingFL))
+		for (i in 1:length(matchingFL)) {
+			rval[i] = paste(sort(unique(matchingFL[[i]])), collapse=collapse)
+		}
+		matchingFL = rval
+	}
+	
+	matchingFL
+	
+}
+
 
 
 

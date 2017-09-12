@@ -1,42 +1,5 @@
 
 
-
-# ... is names of parameters, with a list for each giving breaks, range, and/or label for that parameter.
-#
-# createParameterSummaryPlotConfiguration(paramSymbols, pMem = list(label = "pMem"), catSD = list(breaks = seq(0, 50, 1)))
-createParameterSummaryPlotConfiguration = function(paramSymbols, ...) {
-	
-	baseConfig = list()
-	baseConfig$pMem = list(breaks=seq(0, 1, 0.1), range=c(0,1), 
-												 label=bquote("Prob. in memory ("*.(paramSymbols$pMem)*")"))
-	
-	baseConfig$pBetween = list(breaks=seq(0, 1, 0.1), range=c(0,1), 
-														 label=bquote("Prob. Between-Item ("*.(paramSymbols$pBetween)*")"))
-	baseConfig$pContBetween = list(breaks=seq(0, 1, 0.1), range=c(0,1), 
-																 label=bquote("Prob. continuous WM ("*.(paramSymbols$pContBetween)*")"))
-	baseConfig$pContWithin = list(breaks=seq(0, 1, 0.1), range=c(0,1), 
-																label=bquote("Proportion cont. WM ("*.(paramSymbols$pContWithin)*")"))
-	
-	baseConfig$pCatGuess = list(breaks=seq(0, 1, 0.1), range=c(0,1), 
-															label=bquote("Prob. of categorical guess ("*.(paramSymbols$pCatGuess)*")"))
-	
-	baseConfig$catSD = list(breaks=10, label=bquote("Categorical Imprecision ("*.(paramSymbols$catSD)*")"))
-	baseConfig$catSelectivity = list(breaks=10, 
-																	 label=bquote("Categorical Selectivity ("*.(paramSymbols$catSelectivity)*")"))
-	baseConfig$contSD = list(breaks=10, label=bquote("Continuous imprecision ("*.(paramSymbols$contSD)*")"))
-	
-	
-	changes = list(...)
-	for (param in names(changes)) {
-		for (n in names(changes[[param]])) {
-			baseConfig[[param]][[n]] = changes[[param]][[n]]
-		}
-	}
-	
-	baseConfig
-}
-
-
 getParameterSummaryPlotLayout = function(modelVariant) {
 	
 	if (modelVariant == "betweenAndWithin") {
@@ -47,7 +10,7 @@ getParameterSummaryPlotLayout = function(modelVariant) {
 		
 		screenCells = getSSCellMatrix(4, 3)
 		screenCells = mergeCells(screenCells, 7, 8)
-		screenCells = mergeCells(screenCells, 7, 8) #yes, twice. This makes a 3 panel wide one for catMu
+		screenCells = mergeCells(screenCells, 7, 8) #yes, merge twice. This makes a 3 panel wide one for catMu
 		
 	} else if (modelVariant == "betweenItem") {
 		parameterOrder = c("pMem", "contSD", "pContBetween", 
@@ -113,7 +76,9 @@ mergeCells = function(cells, i1, i2) {
 #' credible interval of the mean. For parameters that do not vary with factors, a histogram of participant
 #' parameters is plotted, with the mean indicated by a vertical dashed line.
 #' 
-#' Plotting to the default plotting surface in R often does not work well due to the large amount of plots that are made. To plot to a pdf instead, which tends to work better, you can either 1) use the `pdf` function before calling `plotParameterSummary` or 2) use the `asPdf` argument to plot to a pdf rather than the default plotting surface.
+#' Plotting to the default plotting surface in R often does not work well due to the large number of plots that are made. To plot to a pdf instead, which tends to work better, you can either 1) use the `pdf` function before calling `plotParameterSummary` or 2) use the `asPdf` argument to plot to a pdf rather than the default plotting surface.
+#' 
+#' Each of the panels of the overall parameter summary plot can be made with different underlying plotting functions. These are [`plotHistogram`], [`plotFactorialLineChart`], [`plotCatMu`], and [`plotFactorialLineChart_catActive.BP`].
 #' 
 #' @section `catMu` and `catActive`:
 #' In addition, a histogram of the number of active categories per participant is plotted, as is the
@@ -132,33 +97,32 @@ mergeCells = function(cells, i1, i2) {
 #' For `catMu`, each group is plotted as its own line. For `catActive`, the posterior mean and credible interval for the mean number of active categories is plotted. To be precise, the number of active categories per participant is calculated for each iteration. Then, the mean number of active categories across all participants is calculated for each iteration, producing the posterior distribution of the mean number of active categories, which is used to calculate the posterior mean and credible intervals.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
-#' @param paramSymbols A named list like that returned by [`getParameterSymbols`] that gives plotting symbols for the parameters of the model.
+
 #' @param catMuPrec The width of each bin used to plot the `catMu` parameters.
 #' @param factorOrder The order in which the factors are plotted. Only useful if there is more than one factor. The first factor is put on the x-axis of factorial line charts. The order of the others factors doesn't really matter.
+#' @param cip The proportion of the posterior in the credible interval.
+#' @param paramSymbols A named list like that returned by [`getParameterSymbols`] that gives plotting symbols for the parameters of the model.
 #' @param asPdf If `TRUE`, rather than plotting to the current plotting device, the plot is made in a pdf file that is opened in the default pdf viewer for your system.
 #' @param pdfScale Multiplicative scale factor for the size of the pdf. A larger value makes the plotting area larger, which makes all of the contents appear to be smaller.
 #' @param pdfDir The directory in which to make the pdf file. Defaults to a temporary directory.
-#'
+#' 
 #' 
 #' @family generic functions
 #' @family plotting functions
-#' @md
+#'
 #' @export
-plotParameterSummary = function(res, paramSymbols = NULL, catMuPrec = 2, factorOrder = NULL, parameterConfiguration = NULL, asPdf = FALSE, pdfScale = 1.5, pdfDir = tempdir()) {
+plotParameterSummary = function(res, catMuPrec = 2, factorOrder = NULL, cip = 0.95, paramSymbols = NULL, asPdf = FALSE, pdfScale = 1.5, pdfDir = tempdir()) {
 	
 	resultWasWP = FALSE
-	wpResults = NULL
 	
 	# Note that this function can take single group results (so it could just be renamed to plotParameterSummary)
 	if (resultIsType(res, "WP")) {
 		resultWasWP = TRUE
-		wpResults = res
 		
 		groups = list()
 		groups[[ defaultGroupName() ]] = res
 		
 		bpRes = mergeGroupResults.BP(groups)
-		bpRes$config$factors$BP_Factor = NULL # remove default extra factor
 		
 	} else if (resultIsType(res, "BP")) {
 		bpRes = res
@@ -178,7 +142,7 @@ plotParameterSummary = function(res, paramSymbols = NULL, catMuPrec = 2, factorO
 			pdfSize = c(9, 12) * pdfScale
 		}
 		
-		pdf(pdfFile, width = pdfSize[1], height = pdfSize[2])
+		grDevices::pdf(pdfFile, width = pdfSize[1], height = pdfSize[2])
 	}
 	
 
@@ -188,15 +152,11 @@ plotParameterSummary = function(res, paramSymbols = NULL, catMuPrec = 2, factorO
 		paramSymbols = getParameterSymbols(bpRes$config$modelVariant)
 	}
 	
-	if (is.null(factorOrder)) {
-		factorOrder = availableFactorNames
-	}
+	parameterConfiguration = createParameterSummaryPlotConfiguration(paramSymbols)
 	
-	if (is.null(parameterConfiguration)) {
-		parameterConfiguration = createParameterSummaryPlotConfiguration(paramSymbols)
-	}
+	factorOrder = valueIfNull(factorOrder, availableFactorNames)
 	
-	layout = CatContModel:::getParameterSummaryPlotLayout(bpRes$config$modelVariant)
+	layout = getParameterSummaryPlotLayout(bpRes$config$modelVariant)
 	
 	graphics::close.screen(all.screens=TRUE) #in case it is already open
 	graphics::split.screen(layout$screenCells)
@@ -216,24 +176,7 @@ plotParameterSummary = function(res, paramSymbols = NULL, catMuPrec = 2, factorO
 		
 		if (param == "catMu") {
 			
-			if (resultWasWP) {
-				plotCatMu.WP(wpResults, precision = catMuPrec)
-			} else {
-				plotCatMu.BP(bpRes, precision = catMuPrec)
-			}
-			
-		} else if (param == "catActive") {
-			
-			if (length(parameterFactors) == 0) {
-				
-				post = convertPosteriorsToMatrices(bpRes, param = "catActive")
-				
-				meanCatActive = apply(post$catActive, 1, mean) * bpRes$config$maxCategories
-				plotHistWithMean(meanCatActive, xlab="Number of Categories", breaks=10)
-				
-			} else {
-				factorialCatActivePlot.BP(bpRes, factorOrder = parameterFactors)
-			}
+			plotCatMu(res, precision = catMuPrec)
 			
 		} else {
 			if (length(parameterFactors) == 0) {
@@ -248,7 +191,7 @@ plotParameterSummary = function(res, paramSymbols = NULL, catMuPrec = 2, factorO
 					parameterFactors = factorOrder[ factorOrder %in% parameterFactors ]
 				}
 				
-				plotFactorialLineChart(bpRes, param, factorOrder = parameterFactors, ylab=pc$label)
+				plotFactorialLineChart(bpRes, param, factorOrder = parameterFactors, ylab = pc$label, cip = cip)
 			}
 		}
 		
@@ -272,7 +215,40 @@ plotParameterSummary = function(res, paramSymbols = NULL, catMuPrec = 2, factorO
 	}
 }
 
+#################
+# Plot anything #
+#################
 
+#' Basic Plot of any Parameter
+#' 
+#' This function plots a single parameter using default behaviors. If you
+#' need more control over how the parameters are plotted, see the underlying 
+#' plotting functions which provide more control over plotting behavior: [`plotHistogram`], [`plotFactorialLineChart`], and [`plotCatMu`].
+#' 
+#' @param res A generic results object (see [`Glossary`]).
+#' @param param The name of the parameter to plot.
+#' 
+#' @family generic functions
+#' @family plotting functions
+#' 
+#' @md
+#' @export
+plotParameter = function(res, param) {
+	
+	if (param == "catMu") {
+		plotCatMu(res)
+	} else {
+
+		parameterFactors = getFactorsForConditionEffect(res, param)
+			
+		if (length(parameterFactors) == 0) {
+			plotHistogram(res, param)
+		} else {
+			plotFactorialLineChart(res, param, factorOrder = parameterFactors)
+		}
+	}
+	
+}
 
 #########################
 # Histogram (0 factors) #
@@ -280,33 +256,32 @@ plotParameterSummary = function(res, paramSymbols = NULL, catMuPrec = 2, factorO
 
 #' Plot Histogram of Participant Mean Parameter Values
 #' 
-#' Works for both WP and BP designs.
+#'  Works for both WP and BP designs.
 #' 
 #' @param res A results object produced by either [`runParameterEstimation`] or [`mergeGroupResults.BP`].
 #' @param param The name of the parameter to use.
-#' @param xlab Label to place on the x-axis. Defaults to the value obtained from [`getParameterSymbols`].
+#' @param xlab Label to place on the x-axis. If `NULL`, defaults to a reasonable value.
 #' @param breaks Passed as `breaks` argument of `hist`. Defaults to 10 for standard deviation parameters or `seq(0, 1, 0.1)` for probability parameters.
 #' @param xlim Passed as `xlim` argument of `hist`.
 #' 
-#' @md
 #' @family generic functions
 #' @family plotting functions
+#' 
+#' @md
 #' @export
 plotHistogram = function(res, param, xlab = NULL, breaks = NULL, xlim = NULL) {
 	
-	if (is.null(xlab)) {
-		paramSymbols = getParameterSymbols(res$config$modelVariant)
-		xlab = paramSymbols[[param]]
+	if (param == "catActive") {
+		rval = plotHistogram_catActive(res, xlab = xlab, breaks = breaks, xlim = xlim)
+		return(invisible(rval))
 	}
 	
-	if (is.null(breaks)) {
-		if (param %in% getProbParams(res)) {
-			breaks = seq(0, 1, 0.1)
-		} else {
-			breaks = 10
-		}
-	}
+	pc = getSingleParameterPlotConfig(res, param)
 	
+	xlab = valueIfNull(xlab, pc$label)
+	breaks = valueIfNull(breaks, pc$breaks)
+	xlim = valueIfNull(xlim, pc$range)
+
 	ppce = getAllParameterPosteriors(res, param, manifest = TRUE, format = "data.frame")
 	
 	dfagg = stats::aggregate(x ~ pnum, ppce, mean) # mean of all conditions and iterations is equivalent
@@ -318,6 +293,7 @@ plotHistogram = function(res, param, xlab = NULL, breaks = NULL, xlim = NULL) {
 	
 }
 
+
 #' Plot Histogram with Mean Indicated
 #' 
 #' The mean is indicated with a strong vertical line.
@@ -325,8 +301,11 @@ plotHistogram = function(res, param, xlab = NULL, breaks = NULL, xlim = NULL) {
 #' @param x Vector of values to plot.
 #' @param xlab Label for the x-axis.
 #' @param xlim Limits for the x-axis.
-#' @param breaks Passed on to the \code{breaks} argument of \code{hist}.
+#' @param breaks Passed on to the `breaks` argument of `graphics::hist()`.
+#'
+#' @family plotting functions
 #' 
+#' @md
 #' @export
 plotHistWithMean = function(x, xlab=NULL, xlim=NULL, breaks=10) {
 	
@@ -353,7 +332,7 @@ plotHistWithMean = function(x, xlab=NULL, xlim=NULL, breaks=10) {
 # This function is a helper specific to the LineChart package
 credIntErrBarFun_Base = function(x, alpha) {
 	ps = c(alpha / 2, 1 - alpha / 2)
-	qs = quantile(x, ps)
+	qs = stats::quantile(x, ps)
 	list(eb = qs, includesCenter = TRUE)
 }
 
@@ -364,24 +343,38 @@ credIntErrBarFun_Base = function(x, alpha) {
 #' for a single model parameter that varies with at least one factor. This function
 #' can handle any number of factors, but the plots become messy.
 #' 
+#' @section catActive:
+#' If `param == "catActive"` and it is a BP design, this function plots the mean and credible interval for the number of active categories used by participants in different cells of the design.
+#' 
 #' @param res A generic results object (see [`Glossary`]).
-#' @param param The parameter to plot.
+#' @param param The parameter to plot. Can be `catActive` for between-participants designs.
 #' @param factorOrder The order in which the factors are plotted. Only useful if there is more than one factor. The first factor is put on the x-axis of factorial line charts. The order of the others factors doesn't really matter.
+#' @param cip The proportion of the posterior in the credible interval.
 #' @param xlab The label to put on the x-axis. Defaults to `factorOrder[1]`.
-#' @param ylab The label to put on the y-axis. Defaults to the value from [`getParameterSymbols`] for `param`.
+#' @param ylab The label to put on the y-axis. If `NULL`, defaults to a reasonable value.
 #' @param legendPosition Where to put the legend in the plot. `NULL` means no legend and `"CHOOSE_BEST"` (default) means to try to place the legend so as to not overlap with the points or error bar ends.
 #' @param plotSettings A `data.frame` of plotting settings such as made by `LineChart::buildGroupSettings()`. See that package for more information.
 #' 
 #' @return Invisibly, the plotting data frame used to create the plot.
 #' 
-#' @md
 #' @family generic functions
 #' @family plotting functions
+#' 
+#' @md
 #' @export
-plotFactorialLineChart = function(res, param, factorOrder = NULL,
+plotFactorialLineChart = function(res, param, factorOrder = NULL, cip = 0.95,
 																	xlab = NULL, ylab = NULL, 
 																	legendPosition = "CHOOSE_BEST", plotSettings = NULL)
 {
+	
+	if (param == "catActive") {
+		if (resultIsType(res, "BP")) {
+			rval = plotFactorialLineChart_catActive.BP(res, factorOrder = factorOrder, cip = cip)
+			return(invisible(rval))
+		} else {
+			stop("For WP designs, catActive may only be plotted with a histogram as it does not vary with WP factors. Use plotHistogram() instead.")
+		}
+	}
 	
 	if (is.null(factorOrder)) {
 		factorOrder = getFactorsForConditionEffect(res, param)
@@ -392,8 +385,7 @@ plotFactorialLineChart = function(res, param, factorOrder = NULL,
 	}
 	
 	if (is.null(ylab)) {
-		paramSymbols = getParameterSymbols(res$config$modelVariant)
-		ylab = paramSymbols[[param]]
+		ylab = getSingleParameterPlotConfig(res, param)$label
 	}
 	
 	factors = updateFactorsForConditionEffects(res, param)
@@ -407,7 +399,7 @@ plotFactorialLineChart = function(res, param, factorOrder = NULL,
 	allPost = reshapeMatrixToDF(cce$condEff$post, cce$uniqueFL)
 
 	ebf = function(x) {
-		credIntErrBarFun_Base(x, alpha=0.05)
+		credIntErrBarFun_Base(x, alpha = 1 - cip)
 	}
 	
 	form = stats::as.formula( paste0("x ~ ", paste0(factorOrder, collapse = " * ")) )
@@ -418,168 +410,28 @@ plotFactorialLineChart = function(res, param, factorOrder = NULL,
 	invisible(plotDf)
 }
 
-#############
-# catActive #
-#############
 
-
-#' @md
-#' @family BP functions
-#' @family plotting functions
-#' @export
-factorialCatActivePlot.BP = function(bpRes, factorOrder = NULL) {
-	
-	fNames = getFactorTypeToName(bpRes$config$factors)
-	factorOrder = valueIfNull(factorOrder, fNames$bp)
-	factorOrder = factorOrder[ factorOrder %in% fNames$bp ]
-	
-	df = getCatActivePPCE_DF.BP(bpRes, factorOrder = factorOrder)
-	
-	# Average across participants
-	df$iteration = 1:bpRes$config$iterations
-	form = paste0("x ~ iteration * ", paste(factorOrder, collapse=" * "))
-	agg = aggregate(formula(form), df, mean)
-	
-	ebf = function(x) {
-		credIntErrBarFun_Base(x, alpha=0.05)
-	}
-	
-	formula = formula(paste0("x ~ ", paste(factorOrder, collapse=" * ")))
-	plotDf = LineChart::lineChart(formula, agg, errBarType = ebf, ylab = "Number of Categories")
-	graphics::axis(4, labels = FALSE)
-
-	rval = list(raw = df, plotted = agg)
-	invisible(rval)
-}
-
-getCatActivePPCE_DF.BP = function(bpRes, factorOrder = NULL) {
-	if (is.null(factorOrder)) {
-		fNames = getFactorTypeToName(bpRes$config$factors)
-		factorOrder = fNames$bp
-	}
-	
-	gfact = bpRes$config$factors
-	gfact = gfact[ , c("group", factorOrder) ]
-	gfact = unique(gfact)
-	
-	post = convertPosteriorsToMatrices(bpRes, param = "catActive")
-	ca = post$catActive
-	
-	meanCatActive = apply(ca, c(1, 3), sum)
-	meanCatActive = t(meanCatActive)
-	
-	group_part = dimnames(meanCatActive)[[2]]
-	parts = strsplit(group_part, split = ":", fixed=TRUE)
-	design = NULL
-	for (i in 1:length(parts)) {
-		design = rbind(design, data.frame(group = parts[[i]][1], pnum = parts[[i]][2]))
-	}
-	for (n in factorOrder) {
-		design[ , n ] = CatContModel:::substituteValues(design$group, gfact$group, gfact[, n])
-	}
-	
-	reshapeMatrixToDF(meanCatActive, design)
-}
-
-
-##################
-# CatMu plotting #
-##################
-
-catMu_plotLines = function(x, y, col = "black", type = "line", lwd = 1, lty = 1) {
-	if (length(col) == 1) {
-		col = rep(col, length(x))
-	}
-	if (length(lwd) == 1) {
-		lwd = rep(lwd, length(x))
-	}
-	if (length(lty) == 1) {
-		lty = rep(lty, length(x))
-	}
-	
-	for (i in 1:(length(x) - 1)) {
-		xt = x[c(i, i+1)]
-		yt = y[c(i, i+1)]
-		
-		if (type == "line") {
-			graphics::lines(xt, yt, col = col[i], lwd = lwd[i], lty = lty[i])
-		} else if (type == "polygon") {
-			graphics::polygon( rep(xt, each = 2), c(0, yt, 0), col=col[i], border=FALSE)
-		}
-	}
-}
-
-
-catMu_plotSetup = function(plotData, dataType, ylim_1 = 0) {
-	
-	graphics::plot(plotData$x, plotData$y, type='n', ylim = c(ylim_1, max(plotData$y) * 1.05),
-								 xlab=bquote("Category Location ("*mu*")"), ylab="Posterior Density", axes=FALSE)
-
-	graphics::box()
-	if (dataType == "circular") {
-		graphics::axis(1, at=seq(0, 360, 45))
-	} else {
-		graphics::axis(1)
-	}
-	graphics::axis(2)
-	graphics::axis(4, labels = FALSE)
-
-}
-
-catMu_getPlotData = function(catMu, catActive, precision, dataType, responseRange = NULL, colorGeneratingFunction=NULL)
-{
-	
-	if (dataType == "linear" && is.null(responseRange)) {
-		stop("If dataType == linear, responseRange must be provided.")
-	}
-	
-	if (dataType == "circular") {
-		catMu = catMu %% 360
-	}
-	
-	if (is.null(colorGeneratingFunction)) {
-		cgf = function(a) { grDevices::rgb(0.5, 0.5, 0.5) }
-	} else {
-		cgf = colorGeneratingFunction
-	}
-	
-	if (dataType == "circular") {
-		angles = seq(0, 360, precision)
-	} else {
-		angles = seq(responseRange[1], responseRange[2], precision)
-	}
-	
-	activeCatMu = catMu[ catActive == 1 ]
-	
-	heights = rep(0, length(angles))
-	colors = rep("", length(angles))
-	for (i in 1:(length(angles) - 1)) {
-		heights[i] = mean(activeCatMu >= angles[i] & activeCatMu < (angles[i] + 1))
-		colors[i] = cgf(angles[i] + precision/2)
-	}
-	heights[length(heights)] = heights[1]
-	colors[length(colors)] = colors[1]
-	
-	# Center the x-value on the middle of the bin
-	#angles = angles + precision / 2
-	
-	data.frame(x = angles, y = heights, color = colors, stringsAsFactors = FALSE)
-}
-
+#########
+# CatMu #
+#########
 
 
 #' Plot Posterior Densities of Category Means
 #' 
 #' Plot a histogram of the posterior densities of the category mean parameters. Due to the nature of category mean paramters being about to trade locations with one another, there is no distinction between the different parameters. Thus, this collapses across all of the individual parameters.
 #' 
-#' Only the active categories are plotted.
+#' Only the active categories are plotted as the distribution of inactive categories is irrelevant.
 #' 
-#' @param results The results from the \code{\link{runParameterEstimation}} function.
+#' @param res A generic results object (see [`Glossary`]). If the `colorGeneratingFunction` field has been added to the results object, it will be used to add color information to the plot.
 #' @param precision The width of the bars used to calculate densities.
 #' @param pnums A vector of the participant numbers for which to make the plot.
+#' @param type The type of plot to make, either filled polygons (`"polygon"`) or lines (`"line"`). Defaults to `"polygon"` for WP designs and `"line"` for BP designs.
+#' @param lwd Line width. Only used if `type == "line"`.
+#' @param lty Line type. Only used if `type == "line"`.
+#' @param groupColor The color of the lines for each group in BP designs. Should be in the same order as the names of the groups (i.e. the same order as `names(bpRes$groups)`). Ignored for WP designs.
+#' @param legendPosition The position of the legend showing the line colors used for the different groups in BP designs. Ignored for WP designs.
 #' 
-#' @param groupColor Ignored for WP designs.
-#' @param legendPosition Ignored for WP designs.
+#' @return Invisibly, the data used to make the plot.
 #' 
 #' @md
 #' @family plotting functions
@@ -614,10 +466,10 @@ plotCatMu.WP = function(results, precision = 2, pnums = results$pnums, type = "p
 	catMu = post$catMu[ pnums, , ]
 	catActive = post$catActive[ pnums, , ]
 	
-	plotData = CatContModel:::catMu_getPlotData(catMu, catActive, precision = precision, dataType = results$config$dataType, responseRange = results$config$responseRange, colorGeneratingFunction = results$colorGeneratingFunction)
+	plotData = catMu_getPlotData(catMu, catActive, precision = precision, dataType = results$config$dataType, responseRange = results$config$responseRange, colorGeneratingFunction = results$colorGeneratingFunction)
 	
-	CatContModel:::catMu_plotSetup(plotData, results$config$dataType)
-	CatContModel:::catMu_plotLines(plotData$x, plotData$y, col = plotData$color, type = type, lwd = lwd, lty = lty)
+	catMu_plotSetup(plotData, results$config$dataType)
+	catMu_plotData(plotData$x, plotData$y, col = plotData$color, type = type, lwd = lwd, lty = lty)
 
 	invisible(plotData)
 }
@@ -628,9 +480,8 @@ plotCatMu.BP = function(bpRes, precision = 2, pnums = NULL, type = "line", group
 	
 	ng = length(names(bpRes$groups))
 	
-	if (is.null(groupColor)) {
-		groupColor = rainbow(ng)
-	}
+	groupColor = valueIfNull(groupColor, grDevices::rainbow(ng))
+	
 	if (length(groupColor) == 1) {
 		groupColor = rep(groupColor, ng)
 	}
@@ -641,10 +492,7 @@ plotCatMu.BP = function(bpRes, precision = 2, pnums = NULL, type = "line", group
 		lty = rep(lty, ng)
 	}
 	
-	
-	if (is.null(pnums)) {
-		pnums = getAllPnums.BP(bpRes)
-	}
+	pnums = valueIfNull(pnums, getAllPnums.BP(bpRes))
 	pnl = pnumVectorToList(pnums)
 	
 	allPlotData = NULL
@@ -685,7 +533,7 @@ plotCatMu.BP = function(bpRes, precision = 2, pnums = NULL, type = "line", group
 		}
 		
 		plotData = groupPlotData[[ group ]]
-		catMu_plotLines(plotData$x, plotData$y, col = groupColor[i], type = type, lwd = lwd[i], lty = lty[i])
+		catMu_plotData(plotData$x, plotData$y, col = groupColor[i], type = type, lwd = lwd[i], lty = lty[i])
 	}
 	
 	if (plotColorBar) {
@@ -694,11 +542,132 @@ plotCatMu.BP = function(bpRes, precision = 2, pnums = NULL, type = "line", group
 	}
 	
 	if (!is.null(legendPosition)) {
-		legend(legendPosition, legend = names(bpRes$groups), col = groupColor, lty = lty, lwd = lwd)
+		graphics::legend(legendPosition, legend = names(bpRes$groups), col = groupColor, lty = lty, lwd = lwd)
 	}
 	
 	invisible(allPlotData)
 }
 
 
+catMu_plotSetup = function(plotData, dataType, ylim_1 = 0) {
+	
+	graphics::plot(plotData$x, plotData$y, type='n', ylim = c(ylim_1, max(plotData$y) * 1.05),
+								 xlab=bquote("Category Location ("*mu*")"), ylab="Posterior Density", axes=FALSE)
+	
+	graphics::box()
+	if (dataType == "circular") {
+		graphics::axis(1, at=seq(0, 360, 45))
+	} else {
+		graphics::axis(1)
+	}
+	graphics::axis(2)
+	graphics::axis(4, labels = FALSE)
+	
+}
+
+catMu_getPlotData = function(catMu, catActive, precision, dataType, responseRange = NULL, colorGeneratingFunction=NULL)
+{
+	
+	if (dataType == "linear" && is.null(responseRange)) {
+		stop("If dataType == linear, responseRange must be provided.")
+	}
+	
+	if (dataType == "circular") {
+		catMu = catMu %% 360
+	}
+	
+	if (is.null(colorGeneratingFunction)) {
+		cgf = function(a) { grDevices::rgb(0.5, 0.5, 0.5) }
+	} else {
+		cgf = colorGeneratingFunction
+	}
+	
+	if (dataType == "circular") {
+		angles = seq(0, 360, precision)
+	} else {
+		angles = seq(responseRange[1], responseRange[2], precision)
+	}
+	
+	activeCatMu = catMu[ catActive == 1 ]
+	
+	heights = rep(0, length(angles))
+	colors = rep("", length(angles))
+	for (i in 1:(length(angles) - 1)) {
+		heights[i] = mean(activeCatMu >= angles[i] & activeCatMu < (angles[i] + 1))
+		colors[i] = cgf(angles[i] + precision/2)
+	}
+	heights[length(heights)] = heights[1]
+	colors[length(colors)] = colors[1]
+	
+	data.frame(x = angles, y = heights, color = colors, stringsAsFactors = FALSE)
+}
+
+catMu_plotData = function(x, y, col = "black", type = "line", lwd = 1, lty = 1) {
+	if (length(col) == 1) {
+		col = rep(col, length(x))
+	}
+	if (length(lwd) == 1) {
+		lwd = rep(lwd, length(x))
+	}
+	if (length(lty) == 1) {
+		lty = rep(lty, length(x))
+	}
+	
+	for (i in 1:(length(x) - 1)) {
+		xt = x[c(i, i+1)]
+		yt = y[c(i, i+1)]
+		
+		if (type == "line") {
+			graphics::lines(xt, yt, col = col[i], lwd = lwd[i], lty = lty[i])
+		} else if (type == "polygon") {
+			graphics::polygon( rep(xt, each = 2), c(0, yt, 0), col=col[i], border=FALSE)
+		}
+	}
+}
+
+#############
+# catActive #
+#############
+
+plotFactorialLineChart_catActive.BP = function(bpRes, factorOrder = NULL, cip = 0.95, ylab = NULL) {
+	
+	ica = getIterationCatActive(bpRes)
+	
+	name2type = getFactorTypeToName(bpRes$config$factors)
+	factorOrder = valueIfNull(factorOrder, name2type$bp)
+	factorOrder = factorOrder[ factorOrder %in% name2type$bp ]
+	
+	ebf = function(x) {
+		credIntErrBarFun_Base(x, alpha = 1 - cip)
+	}
+	
+	pc = getSingleParameterPlotConfig(bpRes, "catActive")
+	
+	ylab = valueIfNull(ylab, pc$label)
+	
+	formula = formula(paste0("x ~ ", paste(factorOrder, collapse=" * ")))
+	plotDf = LineChart::lineChart(formula, ica, errBarType = ebf, ylab = ylab)
+	graphics::axis(4, labels = FALSE)
+	
+	rval = list(raw = ica, plotted = plotDf)
+	invisible(rval)
+	
+}
+
+plotHistogram_catActive = function(res, xlab = NULL, breaks = NULL, xlim = NULL) {
+	
+	pc = getSingleParameterPlotConfig(res, "catActive")
+	
+	xlab = valueIfNull(xlab, pc$label)
+	breaks = valueIfNull(breaks, pc$breaks)
+	xlim = valueIfNull(xlim, pc$xlim)
+	
+	df = getCatActiveDataFrame(res)
+	
+	agg = stats::aggregate(x ~ pnum, df, mean)
+	
+	plotHistWithMean(agg$x, xlab = xlab, xlim = xlim, breaks = breaks)
+	
+	invisible(agg)
+}
 

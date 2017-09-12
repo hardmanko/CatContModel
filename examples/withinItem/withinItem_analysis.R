@@ -56,6 +56,9 @@ results = removeBurnIn(results, 500)
 
 plotParameterSummary(results)
 
+mei = testMainEffectsAndInteractions(results)
+mei[ mei$bfType == "10", ]
+
 testConditionEffects(results)
 
 posteriorMeansAndCredibleIntervals(results)

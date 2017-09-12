@@ -54,35 +54,34 @@ cleanAndSummarizeMEIResults = function(BFs, summarize, aggregateBy) {
 
 #' Summarize Results from Multiple Subsamples
 #' 
-#' This function should be used with the values returned by \code{\link{testMainEffectsAndInteractions}} and \code{\link{testConditionEffects}} when the \code{summarize} argument is \code{FALSE}. It summarizes Bayes factors across many repeated estimates of those Bayes factors.
+#' This function should be used with the values returned by [`testMainEffectsAndInteractions`] and [`testConditionEffects`] when the `summarize` argument is `FALSE`. It summarizes Bayes factors across many repeated estimates of those Bayes factors.
 #' 
-#' @param BFs A data.frame containing the individual Bayes factors. It should have a format like the result of \code{\link{testMainEffectsAndInteractions}} or \code{\link{testConditionEffects}}. 
-#' @param proportioniles Percentiles divided by 100 to calculate.
+#' @param BFs A data.frame containing the individual Bayes factors. It should have a format like the result of [`testMainEffectsAndInteractions`] or [`testConditionEffects`] when `summarize` is `FALSE`. 
+#' @param proportioniles Percentiles divided by 100 to calculate. I.e., for 90th percentile, provide the value 0.90.
 #' @param geometricZs A numeric vector of Z-values. Geometric BF quantiles will be calculated based on the geometric mean and standard deviation for each of these provided Z-values.
-#' @param consistencyCutoff A numeric vector of cutoffs. The proportion of Bayes factors above each cutoff is calculated. Defaults to \code{c(1, 3, 10)}.
-#' @param logBF Summarize log Bayes factors? If \code{FALSE}, no logs will be taken. If \code{TRUE}, log base 10 BFs will be used. If a numeric value, that value will be used as the base for the logarithm.
-#' @param aggregateBy Columns of \code{BFs} to aggregate by. Typically not required as it is read from an attribute of \code{BFs} called \code{aggregateColumns}.
+#' @param consistencyCutoff A numeric vector of cutoffs. The proportion of Bayes factors above each cutoff is calculated. Defaults to `c(1, 3, 10)`.
+#' @param logBF Summarize log Bayes factors? If `FALSE`, no logs will be taken. If `TRUE`, log base 10 BFs will be used. If a numeric value, that value will be used as the base for the logarithm.
+#' @param aggregateBy Columns of `BFs` to aggregate by. Typically not required as it is read from an attribute of `BFs` called `aggregateColumns`.
 #' 
 #' @return A data frame containing summarized test results. It has the following columns:
 #' \tabular{ll}{
-#' 	\code{...} \tab The columns that were aggregated by. See the \code{aggregateBy} argument. \cr
-#' 	\code{bfType} \tab The type of Bayes factor in this row. "10" means that the Bayes factor is in favor of the alternative hypothesis that there is an effect (e.g. two conditions differed; there is a main effect). "01" means that the Bayes factor is in favor of the null hypothesis that there is no effect.\cr
-#' 	\code{bf} \tab The arithmetic mean Bayes factor. \cr
-#' 	\code{sd} \tab Standard deviation of the Bayes factors. \cr
-#' 	\code{geo.mean} \tab The geometric mean Bayes factor. Bayes factors estimated with the approach used in this package tend to vary exponentially, which makes the geometric mean a possibly better measure than the arithmetic mean. Note that the geometric mean and the median tend to be in closer agreement than the arithmetic mean and the median. \cr
-#' 	\code{geo.sd} \tab Geometric standard deviation of the Bayes factors. Multiply the geo.mean by the geo.sd to go up one standard deviation. In general, \code{geo.mean * geo.sd^z} will give you the geometric value corresponding to the given z score. \cr
-#' 	\code{geo.mean + n SD} \tab The geometric mean "plus" \code{n} standard deviations, where the \code{n} values are given by the \code{geometricZs} argument. \cr
+#' 	`...` \tab The columns that were aggregated by. See the `aggregateBy` argument. \cr
+#' 	`bfType` \tab The type of Bayes factor in this row. "10" means that the Bayes factor is in favor of the alternative hypothesis that there is an effect (e.g. two conditions differed; there is a main effect). "01" means that the Bayes factor is in favor of the null hypothesis that there is no effect.\cr
+#' 	`bf` \tab The arithmetic mean Bayes factor. \cr
+#' 	`sd` \tab Standard deviation of the Bayes factors. \cr
+#' 	`geo.mean` \tab The geometric mean Bayes factor. Bayes factors estimated with the approach used in this package tend to vary exponentially, which makes the geometric mean a possibly better measure than the arithmetic mean. Note that the geometric mean and the median tend to be in closer agreement than the arithmetic mean and the median. \cr
+#' 	`geo.sd` \tab Geometric standard deviation of the Bayes factors. Multiply the geo.mean by the geo.sd to go up one standard deviation. In general, \code{geo.mean * geo.sd^z} will give you the geometric value corresponding to the given z score. \cr
+#' 	`geo.mean + n SD` \tab The geometric mean "plus" `n` standard deviations, where the `n` values are given by the `geometricZs` argument. \cr
 #' 	`p(BF > n)` \tab The proportion of Bayes factors greater than `n`. See `consistencyCutoff` to set `n`. \cr
-#' 	\code{Min, Median, Max} \tab The minimum, median, and maximum of the Bayes factors. \cr
-#' 	\code{n\%} \tab Other percentiles, as given in the \code{proportioniles} argument.
+#' 	`Min, Median, Max` \tab The minimum, median, and maximum of the Bayes factors. \cr
+#' 	\code{n\%} \tab Other percentiles, as given in the `proportioniles` argument.
 #' }
 #' 
-#' @md
 #' @export
 summarizeSubsampleResults = function(BFs, proportioniles = c(0, 0.025, 0.5, 0.975, 1), 
-																		 geometricZs = NULL, consistencyCutoff = c(1, 3, 10), logBF = FALSE, 
-																		 aggregateBy = NULL) {
-	
+																		 geometricZs = NULL, consistencyCutoff = c(1, 3, 10), 
+																		 logBF = FALSE, aggregateBy = NULL) 
+{
 	
 	if (logBF == TRUE) {
 		logBF = 10

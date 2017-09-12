@@ -159,6 +159,9 @@ verifyConfigurationList = function(config, data, immediateWarnings = FALSE) {
 	for (n in names(config$factors)) {
 		config$factors[ , n ] = as.character(config$factors[ , n ])
 	}
+	if (any(c("key", "group") %in% names(config$factors))) {
+		stop('config$factors cannot have factors named either "key" or "group". These are reserved column names.')
+	}
 	for (n in names(config$factors)) {
 		nameBad = grepl("[:.]+", n)
 		levelsBad = any(grepl("[:.]+", config$factors[,n]))

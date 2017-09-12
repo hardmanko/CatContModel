@@ -41,9 +41,9 @@ calculateWAIC = function(res, subsamples = 1, subsampleProportion = 1, onlyTotal
 	
 	summarize = valueIfNull(summarize, subsamples > 1)
 	
-	res = CatContModel:::calculateWAIC_convertPosteriorCatMu(res)
-	allWAIC = CatContModel:::calculateWAIC_subsamples(res, subsamples, subsampleProportion)
-	agg = CatContModel:::calculateWAIC_aggregate(res, allWAIC, onlyTotal = onlyTotal, summarize = summarize)
+	res = calculateWAIC_convertPosteriorCatMu(res)
+	allWAIC = calculateWAIC_subsamples(res, subsamples, subsampleProportion)
+	agg = calculateWAIC_aggregate(res, allWAIC, onlyTotal = onlyTotal, summarize = summarize)
 	agg
 	
 }
@@ -136,20 +136,23 @@ calculateWAIC_aggregate = function(res, allWAIC, onlyTotal, summarize = TRUE) {
 		summaryFuns = list(value = function(x) { x })
 	}
 	
-	# SUm total WAIC across groups to get the total total
-	totalWAIC = allWAIC[ allWAIC$pnum == "Total", ]
-	totalWAIC$group = "all"
+	# For BP designs, sum total WAIC across groups to get the all-group total
+	if (resultIsType(res, "BP")) {
+		totalWAIC = allWAIC[ allWAIC$pnum == "Total", ]
+		totalWAIC$group = "all"
+		
+		summedTotal = stats::aggregate(value ~ subsample * group * pnum * stat, totalWAIC, sum)
 	
-	summedTotal = stats::aggregate(value ~ subsample * group * pnum * stat, totalWAIC, sum)
-
-	allWAIC = rbind(allWAIC, summedTotal)
+		allWAIC = rbind(allWAIC, summedTotal)
+	}
 
 	# Aggregate, collapsing across subsamples
 	summaryValues = stats::aggregate(value ~ stat * group * pnum, allWAIC, function(x) { NA })
 	summaryValues$value = NULL
 	
 	for (fn in names(summaryFuns)) {
-		summaryValues[ , fn ] = stats::aggregate(value ~ stat * group * pnum, allWAIC, summaryFuns[[ fn ]])$value
+		temp = stats::aggregate(value ~ stat * group * pnum, allWAIC, summaryFuns[[ fn ]])
+		summaryValues[ , fn ] = temp$value
 	}
 	
 	if (onlyTotal) {

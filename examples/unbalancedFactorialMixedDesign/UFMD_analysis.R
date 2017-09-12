@@ -14,23 +14,24 @@ data = read.delim("UFMD_data.txt")
 data$group = gsub("_\\d", "", data$cond)
 data$num = gsub("\\S_", "", data$cond)
 
-# Modify the basic data to make the design unbalanced
 
-data = data[ data$cond != "B_2", ]
+# Modify the basic data to make the design unbalanced in interesting ways
 
 data$cond = as.character(data$cond)
 
+# Drop B_2
+data = data[ data$cond != "B_2", ] 
+
+# Rename group D to group C and change D_1 and D_2 to C_3 and C_4
+data$group[ data$group == "D" ] = "C"
 data$num[ data$cond == "D_1" ] = 3
 data$num[ data$cond == "D_2" ] = 4
 
-data$cond[ data$cond == "D_1" ] = "C_3"
-data$cond[ data$cond == "D_2" ] = "C_4"
-
-data$group[ data$group == "D" ] = "C"
+# Redo cond
+data$cond = paste(data$group, data$num, sep="_") 
 
 # Check out the resulting design
 unique(data[ , c("cond", "group", "num") ])
-
 
 
 
@@ -42,20 +43,26 @@ for (group in unique(data$group)) {
 
 # Modify the basic config by specifying the factors of the design.
 # This is important to do, even for group B, where the factors are trivial.
+#
+# There are two within-participants factors: letters and numbers.
+# There is one between-participant factor: BP_Group. (Not "group", which is a reserved factor name.)
 
 configs$A$factors = data.frame(cond = c("A_1", "A_2"),
 															 letters = c("a", "b"),
 															 numbers = c(1, 1),
+															 BP_Group = "A",
 															 stringsAsFactors = FALSE)
 
 configs$B$factors = data.frame(cond = "B_1",
 															 letters = "a",
 															 numbers = 1,
+															 BP_Group = "B",
 															 stringsAsFactors = FALSE)
 
 configs$C$factors = data.frame(cond = paste0("C_", 1:4),
 															 letters = c("a", "a", "b", "b"),
 															 numbers = c(1, 2, 1, 2),
+															 BP_Group = "C",
 															 stringsAsFactors = FALSE)
 
 # For group C, specify which factors may vary
@@ -99,7 +106,7 @@ examineMHAcceptance(groups$C)
 
 # Once the MH tuning seems good, sample more iterations
 for (n in names(groups)) {
-	continueResults = continueSampling(groups[[n]], 2700)
+	continueResults = continueSampling(groups[[n]], 3000)
 	groups[[n]] = continueResults$combinedResults
 }
 
@@ -117,11 +124,9 @@ library(CatContModel)
 # Read the results back in
 groups = readRDS("UFMD_groups.RDS")
 
-#groups$B = NULL
-
 bpRes = mergeGroupResults.BP(groups)
 
-bpRes = removeBurnIn(bpRes, 10)
+bpRes = removeBurnIn(bpRes, 500)
 
 bpRes$colorGeneratingFunction = function(angle) {
 	hsv((angle / 360) %% 1, 1, 1)
@@ -129,22 +134,19 @@ bpRes$colorGeneratingFunction = function(angle) {
 
 #####################################
 
+posteriorMeansAndCredibleIntervals(bpRes)
+
 
 testSingleEffect(bpRes, "pContBetween", "numbers:letters")
 
-CatContModel:::testMEI_singleParameter.Generic(bpRes, "pMem")
-CatContModel:::testMEI_singleParameter.Generic(bpRes$groups$C, "pMem")
-
-mei = CatContModel:::testMainEffectsAndInteractions.Generic(bpRes, subsamples = 5)
-mei = CatContModel:::testMainEffectsAndInteractions.Generic(bpRes$groups$C, subsamples = 5)
+mei = testMainEffectsAndInteractions(bpRes, subsamples = 5)
+mei = testMainEffectsAndInteractions(bpRes$groups$C, subsamples = 5)
 
 mei[ mei$bfType == "10", ]
 
 
-ceht = testConditionEffects.Generic(bpRes)
-ceht = testConditionEffects.Generic(bpRes$groups$C)
-
-plotFactorialLineChart(bpRes$groups$C, "contSD")
+ceht.bp = testConditionEffects(bpRes)
+ceht.wp = testConditionEffects(bpRes$groups$C)
 
 
 cef.bp = getConditionEffects(bpRes, "pMem")
@@ -153,16 +155,24 @@ cef.wp = getConditionEffects(bpRes$groups$C, "pMem")
 param = "contSD"
 plotDf = plotFactorialLineChart(bpRes, param)
 plotDf = plotFactorialLineChart(bpRes, param, factorOrder = c("letters", "numbers"))
-plotDf = plotFactorialLineChart(bpRes, param, factorOrder = c("letters", "BP_Factor"))
+plotDf = plotFactorialLineChart(bpRes, param, factorOrder = c("letters", "BP_Group"))
+
+plotParameter(bpRes, "pMem")
+plotParameter(bpRes, "catSD")
+plotParameter(bpRes, "catActive")
+plotParameter(bpRes, "catMu")
 
 
 plotFactorialLineChart(bpRes$groups$C, "pMem")
 
 
-plotParameterSummary(bpRes, factorOrder = c("letters", "BP_Factor", "numbers"), asPdf=TRUE, pdfScale = 2)
+plotParameterSummary(bpRes, factorOrder = c("letters", "BP_Group", "numbers"), asPdf=TRUE, pdfScale = 2)
 plotParameterSummary(bpRes, asPdf=TRUE, pdfScale = 2)
 
 plotParameterSummary(bpRes$groups$C, asPdf=TRUE, pdfScale = 2)
+
+plotFactorialLineChart(bpRes, "catActive")
+plotHistogram(bpRes, "catActive")
 
 
 plotCatMu(bpRes)
@@ -173,7 +183,7 @@ bpRes$groups$C$colorGeneratingFunction = function(angle) {
 
 plotCatMu(bpRes$groups$C)
 
-plotFactorialLineChart(bpRes, "pMem", factorOrder = c("letters", "BP_Factor"))
+plotFactorialLineChart(bpRes, "pMem", factorOrder = c("letters", "BP_Group"))
 
 
 plotFactorialLineChart(bpRes, "catSD")
@@ -186,8 +196,8 @@ pp = getAllParameterPosteriors(bpRes, "catSD", manifest = TRUE, format = "data.f
 getFactorNameToType(fact)
 
 
-ceg = CatContModel:::getConditionEffects.BP(bpRes, "contSD", addMu = TRUE, manifest = TRUE)
-
+ceg = getConditionEffects(bpRes, "contSD", addMu = TRUE, manifest = TRUE)
+df = CatContModel:::reshapeMatrixToDF(ceg$post, ceg$colKeys)
 hist(ceg$prior)
 
 

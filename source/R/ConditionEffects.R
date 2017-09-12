@@ -47,7 +47,7 @@ getPriorConditionEffects = function(results, param, priorSamples, addMu = FALSE,
 	
 	mu = 0
 	if (addMu) {
-		mu = rnorm(priorSamples, 
+		mu = stats::rnorm(priorSamples, 
 							 results$prior[[ paste0(param, ".mu.mu") ]], 
 							 sqrt(results$prior[[ paste0(param, ".mu.var") ]])
 		)
@@ -137,7 +137,7 @@ getConditionEffects.WP = function(results, param, priorSamples, addMu, manifest,
 	colKeys = data.frame(cond = results$config$factors$cond)
 	colKeys = normalizeFactors(colKeys)
 	
-	rval = list(prior = NULL, post = NULL, colKeys = colKeys)
+	rval = list(colKeys = colKeys)
 	
 	if (prior) {
 		rval$prior = getPriorConditionEffects(results, param, priorSamples, addMu, manifest)
@@ -157,7 +157,7 @@ getConditionEffects.BP = function(bpRes, param, priorSamples = bpRes$config$iter
 	
 	# TODO: Special case for catActive? (since it is BP, catActive can differ)
 	
-	cems = list(prior = NULL, post = NULL, colKeys = NULL)
+	cems = list()
 	for (grp in names(bpRes$groups)) {
 		
 		ceff = getConditionEffects.WP(bpRes$groups[[grp]], param=param, priorSamples = priorSamples, addMu = addMu, manifest = manifest, prior = prior, posterior = posterior)
@@ -188,16 +188,24 @@ getConditionEffects.BP = function(bpRes, param, priorSamples = bpRes$config$iter
 
 # This function collapses condition effects, keeping only unique
 # combinations of used factors levels.
-#' @export
 collapseConditionEffects = function(condEff, factors, usedFactors, uniqueFL = NULL, aggFun = mean) {
 
 	if (is.null(uniqueFL)) {
 		uniqueFL = unique(subset(factors, select = usedFactors))
-	} else {
-		usedFactors = names(uniqueFL)
 	}
 	
-	keys = getMatchingKeysForUniqueFL(factors, uniqueFL)
+	if (nrow(uniqueFL) > 0) {
+		keys = getMatchingKeysForUniqueFL(factors, uniqueFL)
+	} else {
+		keys = list(factors$key)
+		uniqueFL = list()
+		for (fn in getAllFactorNames(factors)) {
+
+			flev = sort(unique(factors[, fn]))
+			uniqueFL[[ fn ]] = paste(flev, collapse = "/")
+		}
+		uniqueFL = as.data.frame(uniqueFL)
+	}
 	
 	ppNames = c("prior", "post")
 	ppNames = ppNames[ ppNames %in% names(condEff) ]
@@ -228,7 +236,7 @@ collapseConditionEffects = function(condEff, factors, usedFactors, uniqueFL = NU
 
 #' Prior and/or Posterior Distributions of Main Effect and Interaction Parameters
 #' 
-#' 
+#' This function provides matrices of prior and posterior main effect and interaction (MEI) parameters for given `testedFactors`. The results can be used with functions from the CMBBHT package (e.g. `summarizeEffectParameters` or `plotEffectParameterSummary`) or analyzed in other ways.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
 #' @param param The name of a parameter.
@@ -245,7 +253,7 @@ collapseConditionEffects = function(condEff, factors, usedFactors, uniqueFL = NU
 #' @family generic functions
 #' @md
 #' @export
-getEffectParameters = function(res, param, testedFactors, dmFactors = testedFactors, contrastType = NULL, addMu = FALSE, manifest = FALSE, prior = TRUE, posterior = TRUE) {
+getMEIParameters = function(res, param, testedFactors, dmFactors = testedFactors, contrastType = NULL, addMu = FALSE, manifest = FALSE, prior = TRUE, posterior = TRUE) {
 	
 	cef = getConditionEffects(res, param, addMu = addMu, manifest = manifest, prior = prior, posterior = posterior)
 	

@@ -9,30 +9,12 @@ CatContModelManual = function() {
 }
 
 
-
-
 substituteValues = function(x, xvals, subvals) {
 	y = rep(subvals[1], length(x)) #to get the type right
 	for (i in 1:length(xvals)) {
 		y[x == xvals[i]] = subvals[i]
 	}
 	y
-}
-
-getLatexParameterSymbols = function() {
-	latex = list()
-	
-	latex$pMem = "\\pMem"
-	latex$pBet = "\\pBet"
-	latex$pOB = "\\pOB"
-	latex$pOW = "\\pOW"
-	latex$pAG = "\\pAG"
-	
-	latex$contSD = "\\contSD"
-	latex$catSD = "\\catSD"
-	latex$catSelectivity = "\\catSel"
-	
-	latex
 }
 
 #' Get a list of parameter symbols for plotting
@@ -44,30 +26,79 @@ getLatexParameterSymbols = function() {
 #' @export
 #'
 getParameterSymbols = function(modelVariant) {
-	paramSymbols = list()
+	ps = list()
 	
-	paramSymbols$pMem = bquote("P"^"M")
-	paramSymbols$pBetween = bquote("P"^"B")
+	ps$pMem = bquote("P"^"M")
+	ps$pBetween = bquote("P"^"B")
 	
-	paramSymbols$pContBetween = bquote("P"^"OB")
+	ps$pContBetween = bquote("P"^"OB")
 	if (modelVariant == "betweenItem") {
-		paramSymbols$pContBetween = bquote("P"^"O")
+		ps$pContBetween = bquote("P"^"O")
 	}
 	
-	paramSymbols$pContWithin = bquote("P"^"OW")
+	ps$pContWithin = bquote("P"^"OW")
 	if (modelVariant == "withinItem") {
-		paramSymbols$pContWithin = bquote("P"^"O")
+		ps$pContWithin = bquote("P"^"O")
 	}
 	
-	paramSymbols$pCatGuess = bquote("P"^"AG")
+	ps$pCatGuess = bquote("P"^"AG")
 	
-	paramSymbols$contSD = bquote(sigma^"O")
-	paramSymbols$catSD = bquote(sigma^"A")
-	paramSymbols$catSelectivity = bquote(sigma^"S")
+	ps$contSD = bquote(sigma^"O")
+	ps$catSD = bquote(sigma^"A")
+	ps$catSelectivity = bquote(sigma^"S")
 	
-	paramSymbols
+	ps$catMu = bquote(mu)
+	ps$catActive = bquote(nu)
+	
+	ps
 }
 
+# ... is names of parameters, with a list for each giving breaks, range, and/or label for that parameter.
+#
+# createParameterSummaryPlotConfiguration(paramSymbols, pMem = list(label = "pMem"), catSD = list(breaks = seq(0, 50, 1)))
+createParameterSummaryPlotConfiguration = function(paramSymbols, ...) {
+	
+	baseConfig = list()
+	baseConfig$pMem = list(breaks=seq(0, 1, 0.1), range=c(0,1), label="Prob. in memory")
+	
+	baseConfig$pBetween = list(breaks=seq(0, 1, 0.1), range=c(0,1), label="Prob. Between-Item")
+	baseConfig$pContBetween = list(breaks=seq(0, 1, 0.1), range=c(0,1), label="Prob. continuous WM")
+	baseConfig$pContWithin = list(breaks=seq(0, 1, 0.1), range=c(0,1), label="Proportion cont. WM")
+	
+	baseConfig$pCatGuess = list(breaks=seq(0, 1, 0.1), range=c(0,1), label="Prob. categorical guess")
+	
+	baseConfig$catSD = list(breaks=10, label="Categorical Imprecision")
+	baseConfig$catSelectivity = list(breaks=10, label="Categorical Selectivity")
+	baseConfig$contSD = list(breaks=10, label="Continuous imprecision")
+	
+	baseConfig$catMu = list(label = "Category Location")
+	baseConfig$catActive = list(breaks=10, label = "Number of Categories")
+	
+	
+	for (n in names(baseConfig)) {
+		
+		lab = baseConfig[[ n ]]$label
+		sym = paramSymbols[[ n ]]
+		
+		baseConfig[[n]]$label = bquote(lab*" ("*.(sym)*")")
+	}
+	
+	
+	changes = list(...)
+	for (param in names(changes)) {
+		for (n in names(changes[[param]])) {
+			baseConfig[[param]][[n]] = changes[[param]][[n]]
+		}
+	}
+	
+	baseConfig
+}
+
+getSingleParameterPlotConfig = function(res, param) {
+	symbols = getParameterSymbols(res$config$modelVariant)
+	config = createParameterSummaryPlotConfiguration(symbols)
+	config[[ param ]]
+}
 
 #' Logit Transformations
 #' 

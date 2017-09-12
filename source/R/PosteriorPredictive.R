@@ -96,7 +96,7 @@ plotColorWheelBar = function(angles, xpos, ypos, colorGeneratingFunction, horiz 
 #' @param xat A vector of the x-values for which axis tick marks are provided.
 #' @param yat A vector of the y-values for which axis tick marks are provided.
 #' @param alpha Transparency for plotted points.
-#' @param plotPnum Include the participant number in the plot headers.
+#' @param plotPnum Boolean. Include the participant number in the plot headers. Only used if there is only 1 pnum.
 #'
 #' @return Invisibly, the sampled data in a `data.frame`.
 #'
@@ -159,7 +159,6 @@ posteriorPredictivePlot = function(results, pnums = NULL, conditions=NULL, rowLa
 				sampled = rbind(sampled, thisSample)
 			}
 
-			
 			sampled$pnum = pnum
 			sampled$cond = cond
 			allSampled = rbind(allSampled, sampled)

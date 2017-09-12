@@ -3,7 +3,7 @@
 #' Glossary
 #' 
 #' @section Types of Result Object:
-#' + *Generic results object*: A results object that can be either a WP or a BP results object. If a function takes a generic results object, the name of the results object argument will be `res`.
+#' + *Generic results object*: A results object that can be either a WP or a BP results object. If a function takes a generic results object, the name of the results object argument will be `res`. Most functions take generic results objects.
 #' + *WP results object*: A within-participants results object. The return value of [`runParameterEstimation`]. If a function takes a WP results object, the name of the results object argument will be `results`.
 #' + BP results object: A between-participants results object. The return value of [`mergeGroupResults.BP`]. If a function takes a BP results object, the name of the results object argument will be `bpRes`.
 #' 
@@ -360,6 +360,13 @@ updateFactorsForConditionEffects.WP = function(results, param) {
 
 ###############################################################################
 
+#' Names of all Factors
+#' 
+#' @param factors A factors `data.frame`, e.g. `results$config$factors`.
+#' @param removeConstant Whether constant (non-varying) factors should be included in the returned factor names.
+#' 
+#' @return A character vector of factor names.
+#' 
 #' @export
 getAllFactorNames = function(factors, removeConstant = FALSE) {
 	if (removeConstant) {
@@ -372,7 +379,17 @@ getAllFactorNames = function(factors, removeConstant = FALSE) {
 	ns
 }
 
-
+#' Map from Factor Name to Factor Type
+#' 
+#' There are two types of factors, those that vary within groups (WP factors)
+#' and those that vary between groups (BP factors). This function returns a `list`
+#' that maps from the names of factors to the types of those factors.
+#' 
+#' @param factors A factors `data.frame`, e.g. `results$config$factors`.
+#' 
+#' @return A list with factor names as keys and either the value of `"wp"` or `"bp"` for each factor name.
+#' 
+#' @md
 #' @export
 getFactorNameToType = function(factors) {
 	factors = normalizeFactors(factors, removeConstant = TRUE)
@@ -385,9 +402,9 @@ getFactorNameToType = function(factors) {
 	
 	for (i in 1:length(ns)) {
 		
-		form = formula( paste0(ns[i], " ~ group") )
+		form = stats::formula( paste0(ns[i], " ~ group") )
 		nunique = function(x) { length(unique(x)) }
-		agg = aggregate(form, factors, nunique)
+		agg = stats::aggregate(form, factors, nunique)
 		
 		isWP = any(agg[ , ns[i] ] > 1)
 		
@@ -404,11 +421,11 @@ getFactorNameToType = function(factors) {
 
 #' Map from Factor Type to Factor Name
 #' 
-#' @param factors A WP/BP factors object.
+#' @param factors A factors `data.frame`, e.g. `results$config$factors`.
 #' 
 #' @return A list with three elements. `all`: all factor names. `bp`: between-participant factor names. `wp`: within-participant factor names.
 #' 
-#' @family generic functions
+#' @md
 #' @export
 getFactorTypeToName = function(factors) {
 	nameToType = getFactorNameToType(factors)
@@ -423,8 +440,14 @@ getFactorTypeToName = function(factors) {
 }
 
 
-
-#' @family generic functions
+#' Remove Constant (Non-Varying) Factors
+#' 
+#' @param factors A factors `data.frame`, e.g. `results$config$factors`.
+#' @param warnOnRemoval Whether a warning should be emitted when factors are removed.
+#' 
+#' @return The argument `factors` with constant factors removed.
+#' 
+#' @md
 #' @export
 removeConstantFactors = function(factors, warnOnRemoval = TRUE) {
 	
@@ -444,7 +467,20 @@ removeConstantFactors = function(factors, warnOnRemoval = TRUE) {
 	factors
 }
 
-#' @family generic functions
+#' Normalize the Format of Factors
+#' 
+#' Normalizing a factors `data.frame` involves
+#' 1. Creating the `group` and `key` columns if those columns did not exist in the original.
+#' 2. Converting R factors (i.e. those created with \code{\link[base]{factor}}) to character.
+#' 3. Optionally, removing constant factors.
+#' 
+#' @param factors A factors `data.frame`, e.g. `results$config$factors`.
+#' @param removeConstant Whether constant (non-varying) factors should be included in the returned factor names.
+#' @param warnOnRemoval Whether a warning should be emitted when factors are removed.
+#' 
+#' @return The argument `factors` in a normalized format.
+#' 
+#' @md
 #' @export
 normalizeFactors = function(factors, removeConstant = FALSE, warnOnRemoval = TRUE) {
 	
@@ -452,6 +488,7 @@ normalizeFactors = function(factors, removeConstant = FALSE, warnOnRemoval = TRU
 	ns = names(factors)
 	ns = ns[ !(ns %in% colNames) ]
 
+	# Create group and key columns if they did not exist.
 	if (!("group" %in% names(factors))) {
 		factors$group = defaultGroupName()
 	}
@@ -461,9 +498,12 @@ normalizeFactors = function(factors, removeConstant = FALSE, warnOnRemoval = TRU
 	
 	# Remove any R factors
 	for (n in names(factors)) {
-		factors[ , n ] = as.character(factors[ , n ])
+		if (is.factor(factors[ , n ])) {
+			factors[ , n ] = as.character(factors[ , n ])
+		}
 	}
 	
+	# Reorder columns
 	factors = factors[ , c(colNames, ns) ]
 	
 	if (removeConstant) {
@@ -487,9 +527,9 @@ getFactorTypes = function(factors) {
 	
 	for (i in 1:length(ns)) {
 		
-		form = formula( paste0(ns[i], " ~ group") )
+		form = stats::formula( paste0(ns[i], " ~ group") )
 		nunique = function(x) { length(unique(x)) }
-		agg = aggregate(form, factors, nunique)
+		agg = stats::aggregate(form, factors, nunique)
 		
 		isWP = any(agg[ , ns[i] ] > 1)
 		
@@ -509,5 +549,218 @@ getFactorTypes = function(factors) {
 	
 	list(nameToType = nameToType, typeToName = typeToName)
 }
+
+###############################################################################
+
+
+
+#' Population/Condition Posterior Means and Credible Intervals
+#' 
+#' Calculates posterior means and credible intervals for the population means in each combination of relevant factor levels for the
+#' given parameters. Irrelevant factors (i.e. ones that do not vary between the of cells of the design or for which no condition effects were estimated) are collapsed across. 
+#' 
+#' For each condition, condition effects are added to population means (if `addMu == TRUE`), the result is 
+#' transformed to the manifest space (if `manifest == TRUE`), and the mean and credible interval for the manifest value is calculated.
+#' Note that this is different from adding condition effects to participant-level parameters, tranforming 
+#' the result, calculating on each iteration the mean of the transformed participant parameters, and 
+#' calculating the posterior mean and credible interval of the iteration means. 
+#' Using iteration means rather than population means will generally result in less than the true
+#' amount of variability, which is why population means are used. Note, however, that this is a little strange,
+#' because in the model, condition effects are not added to population means, but participant means.
+#'
+#' @param res A generic results object (see [`Glossary`]).
+#' @param params A vector of parameter names. If `NULL`, the default, all valid parameters are used. Unlike most function, `"catActive"` can be used as a parameter.
+#' @param cip The credible interval proportion. Defaults to 95\% credible intervals.
+#' @param addMu See [`getConditionEffects`].
+#' @param manifest See [`getConditionEffects`].
+#' 
+#' @return A `data.frame` containing the results. The factors of the design will each have their own column. For each parameter and meaningful combination of factor levels, the mean and credible interval are given.
+#' 
+#' @family generic functions
+#' @md
+#' @export
+posteriorMeansAndCredibleIntervals = function(res, params=NULL, cip=0.95, addMu=TRUE, manifest=TRUE) {
+	
+	aggFuns = list(mean = mean,
+								 lower = function(x) { stats::quantile(x, (1 - cip) / 2) },
+								 upper = function(x) { stats::quantile(x, (1 + cip) / 2) })
+	
+	if (is.null(params)) {
+		params = getAllParams(res, filter=TRUE)
+		params = c(params, "catActive")
+	}
+
+	
+	factors = normalizeFactors(res$config$factors)
+	allFN = getAllFactorNames(factors)
+	
+	fullFormula = stats::formula( paste( "x ~ ", paste(allFN, collapse = " * ") ) )
+	
+	allAgg = NULL
+	
+	# catActive special case
+	if ("catActive" %in% params) {
+		
+		params = params[ params != "catActive" ]
+		
+		ica = getIterationCatActive(res)
+		
+		theseAgg = stats::aggregate(fullFormula, ica, function(x) { NA })
+		theseAgg$x = NULL
+		theseAgg$param = "catActive"
+		
+		for (fn in names(aggFuns)) {
+			agg = stats::aggregate(fullFormula, ica, aggFuns[[ fn ]])
+			theseAgg[ , fn ] = agg$x
+		}
+		
+		allAgg = rbind(allAgg, theseAgg)
+		
+	}
+	
+	for (param in params) {
+		
+		condEff = getConditionEffects(res, param, prior = FALSE, posterior = TRUE, 
+																	addMu = addMu, manifest = manifest)
+		
+		ceFactors = getFactorsForConditionEffect(res, param)
+		cce = collapseConditionEffects(condEff, factors, usedFactors = ceFactors)
+		
+		# Copy over missing factors
+		baseUniqueFL = cce$uniqueFL
+		for (fn in allFN[ !(allFN %in% ceFactors) ]) {
+			
+			if (length(ceFactors) == 0) {
+				
+				# If ceFactors is empty, assume that baseUniqueFL
+				# already has collapsed factor levels in it.
+				for (i in 1:length(matchingFL)) {
+					cce$uniqueFL[i,fn] = baseUniqueFL[1,fn]
+				}
+				
+			} else {
+				
+				matchingFL = getMatchingFactorLevels(factors, baseUniqueFL, fn, collapse="/")
+				for (i in 1:length(matchingFL)) {
+					cce$uniqueFL[i,fn] = matchingFL[i]
+				}
+				
+			}
+			
+		}
+		
+		df = reshapeMatrixToDF(cce$condEff$post, cce$uniqueFL)
+		
+		theseAgg = stats::aggregate(fullFormula, df, function(x) { NA })
+		theseAgg$x = NULL
+		theseAgg$param = param
+		
+		for (fn in names(aggFuns)) {
+			agg = stats::aggregate(fullFormula, df, aggFuns[[ fn ]])
+			theseAgg[ , fn ] = agg$x
+		}
+		
+		allAgg = rbind(allAgg, theseAgg)
+		
+	}
+	
+	colNames = names(allAgg)
+	allAgg = allAgg[ , c("param", colNames[ colNames != "param" ]) ]
+	allAgg
+}
+
+
+###############################################################################
+
+# collapses across columns in "drop" within interations
+getIterationCatActive = function(res, aggFun = mean, drop = "pnum") {
+	
+	df = getCatActiveDataFrame(res)
+	
+	ns = names(df)
+	usedCols = ns[ !(ns %in% c("x", drop)) ]
+	
+	# Average across drop within iterations
+	df$iteration = 1:res$config$iterations
+	form = paste0("x ~ iteration * ", paste(usedCols, collapse=" * "))
+	partMean = stats::aggregate(stats::formula(form), df, aggFun)
+	partMean$iteration = NULL
+	
+	partMean
+}
+
+###############################################################################
+
+getCatActiveDataFrame = function(res) {
+	
+	rval = NULL
+	
+	if (resultIsType(res, "WP")) {
+		rval = getCatActiveDataFrame.WP(res)
+	} else if (resultIsType(res, "BP")) {
+		rval = getCatActiveDataFrame.BP(res)
+	}
+	
+	rval
+}
+
+getCatActiveDataFrame.BP = function(bpRes) {
+	
+	type2name = getFactorTypeToName(bpRes$config$factors)
+	
+	post = convertPosteriorsToMatrices(bpRes, param = "catActive")
+	
+	# Keep iteration and pnum, but sum across catActive parameters
+	caSum = apply(post$catActive, c(1, 3), sum)
+	caSum = t(caSum)
+	
+	group_part = dimnames(caSum)[[2]]
+	gpParts = strsplit(group_part, split = ":", fixed=TRUE)
+	
+	design = NULL
+	for (i in 1:length(gpParts)) {
+		temp = data.frame(group = gpParts[[i]][1], pnum = gpParts[[i]][2], stringsAsFactors = FALSE)
+		design = rbind(design, temp)
+	}
+	
+	# Copy in factor levels
+	gfact = bpRes$config$factors
+	gfact = subset(gfact, select = c("group", type2name$bp))
+	gfact = unique(gfact)
+	
+	bpFact = subset(gfact, select = type2name$bp)
+	
+	for (fn in type2name$all) {
+		mfl = getMatchingFactorLevels(bpRes$config$factors, bpFact, factor = fn, collapse="/")
+		design[ , fn ] = substituteValues(design$group, gfact$group, mfl)
+	}
+	
+	# Convert matrix to DF
+	reshapeMatrixToDF(caSum, design)
+	
+}
+
+getCatActiveDataFrame.WP = function(results) {
+	
+	post = convertPosteriorsToMatrices(results, param = "catActive")
+	
+	# Keep iteration and pnum, but sum across catActive parameters
+	caSum = apply(post$catActive, c(1, 3), sum)
+	caSum = t(caSum)
+	
+	design = data.frame(group = defaultGroupName(), 
+											pnum = dimnames(caSum)[[2]], 
+											stringsAsFactors = FALSE)
+	
+	for (fn in getAllFactorNames(results$config$factors)) {
+		f = results$config$factors[ , fn ]
+		design[ , fn ] = paste( sort(unique(f)), collapse="/")
+	}
+	
+	# Convert matrix to DF
+	reshapeMatrixToDF(caSum, design)
+	
+}
+
 
 ###############################################################################

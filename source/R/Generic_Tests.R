@@ -174,11 +174,13 @@ testMEI_singleParameter = function(res, param, priorSamples = res$config$iterati
 #' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should probably only be less than 1 if `subsamples` is greater than 1. If `NULL`, `subsampleProportion` will be set to `1 / subsamples` and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
 #' @param doPairwise Do pairwise tests of differences between levels of main effects (these are often called "post-hoc" tests).
 #' @param testFunction See \code{\link[CMBBHT]{testHypothesis}}.
+#' @param addMu Passed to same argument of [`getConditionEffects`].
+#' @param manifest Passed to same argument of [`getConditionEffects`].
 #' 
 #' @return Depends on the value of `summarize`. If `summarize == TRUE`, it will have the same return value as [`summarizeSubsampleResults`], so see that function. If `summarize == FALSE`, a `data.frame` with columns
 #' * `param`: The parameter name.
 #' * `factor`: The factor name.
-#' * `levels`: The levels of the factor. If "Omnibus", all levels are used.
+#' * `levels`: The levels of the factor. If "Omnibus", all levels are used in an omnibus test of the effect. If all of the tests are omnibus tests (which is true as long as `doPairwise == FALSE`), this column is omitted for simplicity.
 #' * `bf10`: The Bayes factor in favor of there being a difference between factor levels.
 #' * `bf01`: The Bayes factor against there being a difference between factor levels.
 #' * `success`: If `TRUE`, the Bayes factor was estimated successfully. If `FALSE`, it was not.
@@ -187,7 +189,6 @@ testMEI_singleParameter = function(res, param, priorSamples = res$config$iterati
 #' @family test functions
 #' @family generic functions
 #' 
-#' @md
 #' @export
 testMainEffectsAndInteractions = function(res, param = NULL, 
 																						 subsamples = 20, subsampleProportion = 1, 
@@ -238,7 +239,11 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 	
 	close(pb)
 	
-	rval = CatContModel:::cleanAndSummarizeMEIResults(BFs, summarize=summarize, aggregateBy = c("param", "factor", "levels"))
+	if (all(BFs$levels == "Omnibus")) {
+		BFs$levels = NULL
+	}
+	
+	rval = cleanAndSummarizeMEIResults(BFs, summarize=summarize, aggregateBy = c("param", "factor", "levels"))
 	rval
 	
 }
@@ -283,7 +288,7 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 testConditionEffects = function(res, param = NULL, addMu = TRUE, manifest = TRUE, subsamples = 1, subsampleProportion = 1, summarize = TRUE) {
 	
 	
-	subsampleIterationsToRemove = CatContModel:::getSubsampleIterationsToRemove(res$config$iterations, subsamples, subsampleProportion)
+	subsampleIterationsToRemove = getSubsampleIterationsToRemove(res$config$iterations, subsamples, subsampleProportion)
 	
 	
 	if (is.null(param)) {
@@ -317,7 +322,7 @@ testConditionEffects = function(res, param = NULL, addMu = TRUE, manifest = TRUE
 			
 			for (grp in names(groups)) {
 				
-				eqCond = CatContModel:::getEqualConditionParameters(groups[[grp]], p)
+				eqCond = getEqualConditionParameters(groups[[grp]], p)
 				eqCond$eq = eqCond$group
 				eqCond$group = grp
 				

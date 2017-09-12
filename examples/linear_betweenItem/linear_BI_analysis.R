@@ -31,8 +31,8 @@ config$responseRange = c(90, 270)
 # 1. Override MH tuning defaults
 mhTuning = list()
 mhTuning$catMu = 3
-mhTuning$catSelectivity = 6
-mhTuning$catSD = 1.6
+mhTuning$catSelectivity = 4
+mhTuning$catSD = 2
 mhTuning$contSD = 2
 mhTuning$contSD_cond = 1.2
 mhTuning$pContBetween = 0.5
@@ -116,7 +116,7 @@ comp
 # Fit the ZL model to this data that was generated from the betweenItem model.
 # We want to see that the ZL models fits the data poorly.
 
-zlConfig = list(iterations=3000, modelVariant="ZL", dataType = "linear", iterationsPerStatusUpdate = 200)
+zlConfig = list(iterations = 3000, modelVariant = "ZL", dataType = "linear", iterationsPerStatusUpdate = 200)
 
 zlMh = list()
 zlMh$contSD = 2
@@ -138,5 +138,5 @@ plotParameterSummary(zlResults)
 waic = calculateWAIC(results, subsamples = 10, subsampleProportion = NULL)
 zlWaic = calculateWAIC(zlResults, subsamples = 10, subsampleProportion = NULL)
 
-waic
-zlWaic
+waic[ waic$stat == "WAIC_2", ]
+zlWaic[ zlWaic$stat == "WAIC_2", ]

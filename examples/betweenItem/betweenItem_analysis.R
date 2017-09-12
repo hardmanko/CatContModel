@@ -75,12 +75,24 @@ results$colorGeneratingFunction = function(angle) {
 
 # Examine the results
 
+# Plot summaries of the parameters
+
 plotParameterSummary(results)
+
+# Plot individual parts of the overall summary
+
+plotFactorialLineChart(results, "pMem")
+plotHistogram(results, "catSD")
+plotHistogram(results, "catActive")
+plotCatMu(results)
+
 
 testConditionEffects(results)
 
 mei = testMainEffectsAndInteractions(results, subsamples = 20)
 mei[ mei$bfType == "10", ]
+meiM = testMainEffectsAndInteractions(results, subsamples = 20, addMu = TRUE, manifest = TRUE)
+meiM[ meiM$bfType == "10", ]
 
 posteriorMeansAndCredibleIntervals(results)
 
