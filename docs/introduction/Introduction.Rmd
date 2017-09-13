@@ -522,10 +522,10 @@ pMem_manifest = getParameterPosterior(results, param="pMem", pnum=4, cond=3)
 
 #### Helper Function for Parameters for an Iteration
 
-Sometimes you might want all of the transformed parameters for one iteration, in which case you may want use the `getTransformedParameters` function, which provides the transformed parameters for a given participant, condition, and iteration.
+Sometimes you might want all of the transformed parameters for one iteration, in which case you may want use the `getSingleIterationParameters` function, which provides the transformed parameters for a given participant, condition, and iteration.
 
 ```{r}
-param = getTransformedParameters(results, pnum=2, cond=1, iteration=7)
+param = getSingleIterationParameters(results, pnum=2, cond=1, iteration=7)
 param
 ```
 
