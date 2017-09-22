@@ -69,16 +69,17 @@ mhTuning$pMem_cond = 0.12
 
 # Run the model for each group individually and store the results for each group in "groups"
 groups = list()
-for (group in unique(data$group)) {
+for (grp in unique(data$group)) {
 	
-	subdata = data[ data$group == group, ]
+	# Select only the data for the current group
+	subdata = data[ data$group == grp, ]
 	
 	# Remove extra group column
 	subdata$group = NULL 
 	
-	res = runParameterEstimation(configs[[ group ]], subdata, mhTuningOverrides = mhTuning)
+	res = runParameterEstimation(configs[[ grp ]], subdata, mhTuningOverrides = mhTuning)
 	
-	groups[[ group ]] = res
+	groups[[ grp ]] = res
 }
 
 # Check MH acceptance rates. You should do this for each group individually.
@@ -107,8 +108,8 @@ library(CatContModel)
 groups = readRDS("FMD_groups.RDS")
 
 # Once all of the groups' results objects are in a *named* list,
-# you can put them into the correct format with mergeGroupResults.BP
-bpRes = mergeGroupResults.BP(groups)
+# you can put them into the correct format with combineGroupResults.BP
+bpRes = combineGroupResults.BP(groups)
 
 # Remove burn-in iterations
 bpRes = removeBurnIn(bpRes, 500)

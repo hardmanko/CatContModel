@@ -91,10 +91,10 @@ testConditionEffects(results)
 
 mei = testMainEffectsAndInteractions(results, subsamples = 20)
 mei[ mei$bfType == "10", ]
-meiM = testMainEffectsAndInteractions(results, subsamples = 20, addMu = TRUE, manifest = TRUE)
-meiM[ meiM$bfType == "10", ]
+
 
 posteriorMeansAndCredibleIntervals(results)
+
 
 posteriorPredictivePlot(results, "1", alpha=0.3)
 posteriorPredictivePlot(results, "5", alpha=0.3)

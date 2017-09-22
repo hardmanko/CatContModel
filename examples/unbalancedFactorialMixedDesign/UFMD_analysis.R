@@ -124,7 +124,7 @@ library(CatContModel)
 # Read the results back in
 groups = readRDS("UFMD_groups.RDS")
 
-bpRes = mergeGroupResults.BP(groups)
+bpRes = combineGroupResults.BP(groups)
 
 bpRes = removeBurnIn(bpRes, 500)
 
