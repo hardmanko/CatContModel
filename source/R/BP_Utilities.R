@@ -1,14 +1,14 @@
 
-#' Merge Multiple Within-Participants Groups
+#' Combine Multiple Within-Participants Groups into a BP Results Object
 #' 
-#' @param groups A NAMED list in which each element is the return value of [`runParameterEstimation`].
+#' @param groups A named list in which each element is the return value of [`runParameterEstimation`].
 #' 
-#' @return An object that merges the results into a form that is usuable by the between-participants functions in this package.
+#' @return An object that merges the results into a form that is usuable by the between-participants and generic functions in this package.
 #' 
 #' @family BP functions
-#' @md
+#'
 #' @export
-mergeGroupResults.BP = function(groups) {
+combineGroupResults.BP = function(groups) {
 	
 	if (length(names(groups)) != length(groups)) {
 		stop('"groups" must be a *named* list.')
@@ -16,8 +16,6 @@ mergeGroupResults.BP = function(groups) {
 	
 	checkResults.BP(groups)
 	
-	# This needs a bunch of careful thought still, 
-	# but might actually be good enough to work.
 	config = groups[[1]]$config
 	config$factors = makeDefaultFactors.BP(groups)
 	config$conditionEffects = makeConditionEffects.BP(groups)
@@ -44,6 +42,7 @@ mergeGroupResults.BP = function(groups) {
 	bpRes
 }
 
+# BP condition effects are created by taking the union of the CE of all WP groups.
 makeConditionEffects.BP = function(groups) {
 	
 	bpCE = list()
@@ -69,12 +68,6 @@ makeConditionEffects.BP = function(groups) {
 		}
 		
 	}
-	
-	#for (n in names(bpCE)) {
-	#	if (length(bpCE[[n]]) == 0) {
-	#		bpCE[[n]] = "none"
-	#	}
-	#}
 	
 	bpCE
 	
@@ -226,6 +219,7 @@ getMatchingKeysForUniqueFL_row = function(factors, uniqueFL_row) {
 	
 	for (i in 1:nrow(factors)) {
 
+		#factors[ i, names(uniqueFL_row), drop=FALSE ]
 		thisFO = subset(factors, select = names(uniqueFL_row), subset = i == 1:nrow(factors))
 		
 		if (all(thisFO == uniqueFL_row)) {

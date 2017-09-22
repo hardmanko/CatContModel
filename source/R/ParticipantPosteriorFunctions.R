@@ -16,7 +16,7 @@
 #' @return A vector containing the parameter chain.
 #' 
 #' @family generic functions
-#' @md
+#' 
 #' @export
 getParameterPosterior = function(res, param, pnum, cond, group = NULL, manifest = TRUE) {
 	
@@ -82,7 +82,6 @@ getParameterPosterior.BP = function(bpRes, param, pnum, cond, group, manifest=TR
 #' 
 #' @family generic functions
 #' 
-#' @md
 #' @export
 getAllParameterPosteriors = function(res, param, manifest, format = "data.frame") {
 	
@@ -157,8 +156,8 @@ getAllParameterPosteriors.WP = function(results, param, manifest = FALSE) {
 #' 
 #' @return A list containing transformed parameters.
 #' 
-#' @md
 #' @family generic functions
+#' 
 #' @export
 getSingleIterationParameters = function(res, pnum, cond, iteration, group = NULL, removeInactiveCategories = TRUE) {
 	
@@ -239,7 +238,6 @@ getSingleIterationParameters.BP = function(bpRes, pnum, cond, group, iteration, 
 #' 
 #' @return A named list of matrices and/or arrays.
 #' 
-#' @md
 #' @family generic functions
 #' @export
 convertPosteriorsToMatrices = function(res, param = NULL) {
@@ -318,28 +316,57 @@ convertPosteriorsToMatrices.BP = function(bpRes, param=NULL) {
 	
 	post = list()
 	
-	for (n in names(bpRes$groups)) {
+	for (grp in names(bpRes$groups)) {
 		
-		results = bpRes$groups[[n]]
-		tp = convertPosteriorsToMatrices.WP(results, param)
+		tp = convertPosteriorsToMatrices.WP(bpRes$groups[[grp]], param)
 		
 		for (mp in matrixParams[ matrixParams %in% param ]) {
-			colnames(tp[[mp]]) = paste0(n, ":", colnames(tp[[mp]]))
+			colnames(tp[[mp]]) = paste0(grp, ":", colnames(tp[[mp]]))
 			post[[mp]] = cbind(post[[mp]], tp[[mp]])
 		}
+		
 		for (ap in arrayParams[ arrayParams %in% param ]) {
 			dn = dimnames(tp[[ap]])
-			dn[[1]] = paste0(n, ":", dn[[1]])
+			dn[[1]] = paste0(grp, ":", dn[[1]])
 			dimnames(tp[[ap]]) = dn
 			
-			a = abind::abind(post[[ap]], tp[[ap]], along = 1)
-			
-			post[[ap]] = a
+			post[[ap]] = abind::abind(post[[ap]], tp[[ap]], along = 1)
 		}
 	}
 	
 	post
 }
+
+abind1 = function(x, y, along) {
+	
+	newdim = dim(x)
+	newdim[along] = dim(x)[along] + dim(y)[along]
+	z = array(NA, dim = newdim)
+	
+	zdim = list(x = list(), y = list())
+	for (i in 1:length(newdim)) {
+		zdim$x[[i]] = 1:(dim(x)[i])
+		zdim$y[[i]] = 1:(dim(y)[i])
+	}
+	
+	zdim$y[[along]] = zdim$y[[along]] + dim(x)[along]
+	
+	for (xy in c("x", "y")) {
+		dims = paste("zdim$", xy, "[[", 1:length(dim(x)), "]]", sep="")
+		ind = paste(dims, collapse = ", ")
+		
+		code = paste("z[ ", ind, " ] = ", xy, sep="")
+		eval.string(code)
+	}
+	
+	dimnz = dimnames(x)
+	dimnz[[ along ]] = c(dimnames(x)[[ along ]], dimnames(y)[[ along ]])
+	
+	dimnames(z) = dimnz
+	
+	z
+}
+
 
 ###############################################################################
 
@@ -348,11 +375,11 @@ convertPosteriorsToMatrices.BP = function(bpRes, param=NULL) {
 #' 
 #' For each group X participant X condition cell (for which there is data; see `removeNoDataCells` argument), the participant parameter value is added to the condition effect and then converted to the manifest space.
 #' 
-#' For `catActive`, the reported values are the sum of the individual `catActive` parameters (i.e. the number of active categories). The credible intervals for `catActive` should be interpreted in the context of them only taking on integer values.
+#' For `catActive`, the reported values are the sum of the individual `catActive` parameters on a single iteration (i.e. the number of active categories). The credible intervals for `catActive` should be interpreted in the context of them only taking on integer values.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
 #' @param params A vector of parameter names. If `NULL`, all valid parameters are used. `"catActive"` is a valid parameter for this function.
-#' @param cip The credible interval proportion of the credible intervals.
+#' @param cip The credible interval proportion. Defaults to 95\% credible intervals.
 #' @param fun A user provided function that will be passed a vector of group X participant X condition posterior values to summarize (i.e. the kind of function you would pass to `stats::aggregate()`).
 #' @param removeNoDataCells Remove parameter summaries for group X participant X condition cells of the design for which there is no data.
 #' 
@@ -369,7 +396,7 @@ convertPosteriorsToMatrices.BP = function(bpRes, param=NULL) {
 #' @family generic functions
 #' 
 #' @export
-participantPosteriorSummary = function(res, params=NULL, cip = 0.95, fun=NULL, removeNoDataCells = TRUE) {
+participantPosteriorSummary = function(res, params=NULL, cip=0.95, fun=NULL, removeNoDataCells=TRUE) {
 	
 	aggFuns = list(mean = mean,
 								 lower = function(x) { stats::quantile(x, (1 - cip) / 2) },
@@ -390,7 +417,7 @@ participantPosteriorSummary = function(res, params=NULL, cip = 0.95, fun=NULL, r
 		
 		pp = NULL
 		if (param == "catActive") {
-			pp = CatContModel:::getIterationCatActive(res, drop=NULL)
+			pp = getIterationCatActive(res, drop=NULL)
 			pp$cond = "ALL_CONDS"
 		} else {
 			pp = getAllParameterPosteriors(res, param, manifest = TRUE)

@@ -23,7 +23,6 @@
 #' @family test functions
 #' @family generic functions
 #' 
-#' @md
 #' @export
 testSingleEffect = function(res, param, testedFactors, dmFactors = testedFactors, 
 														usedFactorLevels = NULL, priorSamples = res$config$iterations, 
@@ -281,8 +280,9 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 #' 	\code{p2.5, p97.5} \tab The 2.5 and 97.5 percentiles of the Bayes factors. 	
 #' }
 #'
+#' @family test functions
 #' @family generic functions
-#' @md
+#'
 #' @rdname testConditionEffects
 #' @export
 testConditionEffects = function(res, param = NULL, addMu = TRUE, manifest = TRUE, subsamples = 1, subsampleProportion = 1, summarize = TRUE) {

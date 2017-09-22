@@ -39,7 +39,7 @@
 #' @return A `data.frame` with four columns: the `factor` being used, the `effect` parameter, the prior `location`, and the prior `scale`.
 #' 
 #' @family WP functions
-#' @md
+#' 
 #' @export
 calculateMarginalEffectParameterPriors = function(results, param, testedFactors = NULL, dmFactors = NULL, contrastType = NULL, priorLoc = NULL, priorScale = NULL) {
 	

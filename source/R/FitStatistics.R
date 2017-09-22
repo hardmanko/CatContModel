@@ -25,17 +25,18 @@
 #' 
 #' @return A data.frame containing WAIC values, estimates of the effective number of free parameters, and LPPD.
 #' \tabular{ll}{
-#'  \code{pnum} \tab If \code{onlyTotal == FALSE}, the participant related to the statistic. \cr
-#'  \code{group} \tab If using a BP design, the group that the results are from. If `"all"`, that is the sum of the values across all groups. \cr
-#' 	\code{stat} \tab The name of the fit statistic.\cr
-#' 	\code{value} \tab Only if the results are not summarized. The value of the statistic. \cr
-#' 	\code{mean} \tab This and the following columns are provided if the results are summarized. The mean statistic value. \cr
-#' 	\code{sd} \tab The standard deviation of the statistic. \cr
-#' 	\code{min, median, max} \tab The minimum, median, and maximum of the statistic. \cr
-#' 	\code{p2.5, p97.5} \tab The 2.5 and 97.5 percentiles of the statistic. 	
+#'  `pnum` \tab If `onlyTotal == FALSE`, the participant related to the statistic. \cr
+#'  `group` \tab If using a BP design, the group that the results are from. If `"all"`, that is the sum of the values across all groups. \cr
+#' 	`stat` \tab The name of the fit statistic.\cr
+#' 	`value` \tab Only if the results are not summarized. The value of the statistic. \cr
+#' 	`mean` \tab This and the following columns are provided if the results are summarized. The mean statistic value. \cr
+#' 	`sd` \tab The standard deviation of the statistic. \cr
+#' 	`min, median, max` \tab The minimum, median, and maximum of the statistic. \cr
+#' 	`p2.5, p97.5` \tab The 2.5 and 97.5 percentiles of the statistic. 	
 #' }
 #' 
-#' @md
+#' @family generic functions
+#' 
 #' @export
 calculateWAIC = function(res, subsamples = 1, subsampleProportion = 1, onlyTotal = TRUE, summarize = NULL) {
 	
@@ -80,10 +81,6 @@ calculateWAIC_convertPosteriorCatMu.WP = function(results) {
 }
 
 
-calculateWAIC_cppWrapper = function(results) {
-	CCM_CPP_calculateWAIC(results)
-}
-
 calculateWAIC_subsamples = function(res, subsamples, subsampleProportion) {
 	
 	subsampleIterationsToRemove = getSubsampleIterationsToRemove(res$config$iterations, subsamples, subsampleProportion)
@@ -105,7 +102,7 @@ calculateWAIC_subsamples = function(res, subsamples, subsampleProportion) {
 		}
 		
 		for (grp in names(groups)) {
-			colWAIC = calculateWAIC_cppWrapper(groups[[ grp ]])
+			colWAIC = CCM_CPP_calculateWAIC(groups[[ grp ]])
 			statNames = names(colWAIC)
 			statNames = statNames[ statNames != "pnum" ]
 			
@@ -122,6 +119,7 @@ calculateWAIC_subsamples = function(res, subsamples, subsampleProportion) {
 	
 	allWAIC
 }
+
 
 calculateWAIC_aggregate = function(res, allWAIC, onlyTotal, summarize = TRUE) {
 
@@ -169,8 +167,6 @@ calculateWAIC_aggregate = function(res, allWAIC, onlyTotal, summarize = TRUE) {
 }
 
 
-
-
 #' Calculate Standard Fit Statistics that are Inappropriate for these Models
 #' 
 #' AIC and BIC are fit statistics that are commonly used to compare models, but they are 
@@ -178,12 +174,13 @@ calculateWAIC_aggregate = function(res, allWAIC, onlyTotal, summarize = TRUE) {
 #' ZL model). The reason is that both AIC and BIC use the number of free parameters in the 
 #' model as a penalty term. However, the actual number of free parameters and the effective 
 #' number of free parameters are very different for these models. Part of the reason is that 
-#' the `catActive` parameters don't provide very much flexibility. In addition, `catMu` does
+#' the `catActive` parameters don't provide very much flexibility to the model but are counted 
+#' as free parameters. In addition, `catMu` does
 #' nothing if the category is inactive, which is common. Finally, the hierarchical nature
 #' of the model means that the population level parameters actually constrain the participant
 #' level parameters, reducing the effective number of free parameters, but AIC and BIC count 
-#' them as free parameters. All of this combined, the effective number of free parameters
-#' is far less than the actual number of free parameters.
+#' the hierarchical parameters as free parameters. All of this combined, the effective number 
+#' of free parameters is far less than the actual number of free parameters.
 #' 
 #' An appropriate fit statistc for these models is WAIC, which estimates the effective 
 #' number of free parameters. See the [`calculateWAIC`] function of this package.
@@ -206,9 +203,13 @@ calculateWAIC_aggregate = function(res, allWAIC, onlyTotal, summarize = TRUE) {
 #' @seealso [`calculateWAIC`] for an appropriate fit statistic.
 #' 
 #' @family WP functions
-#' @md
+#'
 #' @export
 calculateInappropriateFitStatistics = function(results, onlyTotal = TRUE) {
+	
+	if (!resultIsType(results, "WP")) {
+		stop("calculateInappropriateFitStatistics only accepts WP results objects. See the Glossary (listed in the package functions index).")
+	}
 	
 	if (!results$config$calculateParticipantLikelihoods) {
 		stop("In order to calculate the inappropriate fit statistics, you need to have calculated the participant likelihoods. Set 'calculateParticipantLikelihoods' to TRUE in the config and rerun the parameter estimation.")

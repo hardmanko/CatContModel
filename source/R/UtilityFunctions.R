@@ -113,7 +113,6 @@ getSingleParameterPlotConfig = function(res, param) {
 #' 
 #' @seealso The functions `qlogis` and `plogis` in the `stats` namespace..
 #' 
-#' @md
 #' @export
 logit = function(p) {
 	stats::qlogis(p)
@@ -198,9 +197,9 @@ precRad_to_sdDeg = function(precRad) {
 
 #' Calculate an Optionally Weighted Circular Mean
 #' 
-#' @param angles A vector of angles. If in radians, set \code{degrees} to FALSE.
+#' @param angles A vector of angles. If in radians, set `degrees` to `FALSE`.
 #' @param weights A vector of weights.
-#' @param degrees Whether the angles are in degrees or radians.
+#' @param degrees If `TRUE`, angles are treated as degrees. If `FALSE`, angles are treated as radians.
 #' 
 #' @return The circular mean of the angles.
 #' 
@@ -233,7 +232,6 @@ circMean = function(angles, weights=1, degrees=TRUE) {
 #' @param y Vector of values in degrees or radians.
 #' @param degrees If `TRUE`, x and y are treated as though they are in degrees. If `FALSE`, x and y are treated as being in radians.
 #' 
-#' @md
 #' @export
 circAbsDist = function(x, y, degrees=TRUE) {
 	offset = 2 * pi
@@ -260,11 +258,11 @@ circAbsDist = function(x, y, degrees=TRUE) {
 #' @param study A scalar study angle, in degrees.
 #' @param catMu A vector of category means, in degrees.
 #' @param catSelectivity The categorical selectivity parameter, as standard deviation in degrees.
-#' @param dataType One of \code{"circular"} or \code{"linear"}.
+#' @param dataType One of `"circular"` or `"linear"`.
 #' 
 #' @return A vector of the probabilities that the study angle would be assigned to each of the categories centered on the catMu.
 #' 
-#' @seealso \code{\link{plotWeightsFunction}} to plot the weights function for all study angles.
+#' @seealso [`plotWeightsFunction`] to plot the weights function for all study angles.
 #' 
 #' @export
 categoryWeightsFunction = function(study, catMu, catSelectivity, dataType = "circular") {
@@ -288,18 +286,18 @@ categoryWeightsFunction = function(study, catMu, catSelectivity, dataType = "cir
 #' 
 #' Makes a plot of the weights function, given in Equation 5 of the Appendix of Hardman, Vergauwe, and Ricker (2017).
 #' 
-#' @param catMu A vector of category means, in degrees.
-#' @param catSelectivity The categorical selectivity parameter, as standard deviation in degrees.
-#' @param dataType One of \code{"circular"} or \code{"linear"}.
+#' @param catMu A vector of category means.
+#' @param catSelectivity The categorical selectivity parameter.
+#' @param dataType One of `"circular"` or `"linear"`.
 #' @param colors A vector of colors for the different categories.
 #' @param lty A vector of line types for the different categories.
 #' @param lwd A vector of line width for the different categories.
 #' @param study The study angles at which the category weights are plotted (i.e. a grid of x-values).
-#' @param axes If TRUE, axes are plotted.
+#' @param axes Boolean. If `TRUE`, axes are plotted. If `FALSE`, no axes are plotted.
 #' 
 #' @return Invisibly, the densities used to make the plot. Each column is related to one catMu.
 #'  
-#' @seealso \link{categoryWeightsFunction} to get the vector of probabilities for a single study angle.
+#' @seealso [`categoryWeightsFunction`] to get the vector of probabilities for a single study angle.
 #' @export
 #' 
 #' @examples
@@ -320,12 +318,19 @@ plotWeightsFunction = function(catMu, catSelectivity, dataType = "circular",
 	
 	dens = matrix(0, nrow=length(study), ncol=length(catMu))
 	
+	xlab = if (dataType == "circular") "Study Angle" else "Study Value"
+	
 	graphics::plot(range(study), c(0,1), type='n', axes=FALSE, 
-			 xlab="Study Angle", ylab="Probability to Select Category")
+			 xlab=xlab, ylab="Probability to Select Category")
 	graphics::box()
+	
 	if (axes) {
 		graphics::axis(2)
-		graphics::axis(1, at=seq(0, 360, 60))
+		if (dataType == "circular") {
+			graphics::axis(1, at=seq(0, 360, 45))
+		} else if (dataType == "linear") {
+			graphics::axis(1)
+		}
 	}
 	
 	for (i in 1:nrow(dens)) {
@@ -409,9 +414,9 @@ f_eq18 = function(mus, nus, k, catMuPriorSD, dataType, muRange = NULL) {
 #' 
 #' @param catMuPriorSD The prior standard deviation on the notched prior on catMu and catActive.
 #' @param catMu A vector of category locations, in degrees.
-#' @param dataType One of \code{"circular"} or \code{"linear"}.
+#' @param dataType One of `"circular"` or `"linear"`.
 #' @param catActive A vector of category active parameters. By default, all of the provided catMus are active.
-#' @param muRange Required only if \code{dataType == "linear"}. A length 2 vector giving the lower and upper bounds of the catMu parameters. This should usually be the same as the range of the data.
+#' @param muRange Required only if `dataType == "linear"`. A length 2 vector giving the lower and upper bounds of the catMu parameters. This should usually be the same as the range of the data.
 #' 
 #' @return Invisibly, a data frame containing the densities in the plot.
 #' 
@@ -482,7 +487,7 @@ warpedHSVColorGeneratingFunction = function(angle, inPoints, outPoints) {
 
 #' Likelihood Function for the Model
 #' 
-#' For given parameter values, a set of data, and a model variant, this calculates the likelihood for each observation in the data set.
+#' For given parameter values, a set of data, and a model variant, this calculates the likelihood for each observation in the data set. To be clear, this function calculates likelihood, not log likelihood.
 #' 
 #' Note that if you don't want to provide any `catMu` parameters, do not set `catMu` to `NULL`. Rather, set it to a zero-length vector with `vector(length = 0)`. Do not provide `catActive` parameters. Rather, do not include inactive `catMu`s.
 #' 
@@ -498,10 +503,9 @@ warpedHSVColorGeneratingFunction = function(angle, inPoints, outPoints) {
 #' 
 #' @return The provided `data` `data.frame` with an additional column named `likelihood` giving the likelihood for each observation.
 #' 
-#' @md
 #' @export
 likelihood = function(param, data, modelVariant, dataType = "circular", 
-											responseRange=NULL, minSD=NULL) 
+											responseRange = NULL, minSD = NULL) 
 {
 	
 	tr = list(config = list(modelVariant = modelVariant))
@@ -568,100 +572,17 @@ getDefaultParametersWithConditionEffects = function(modelVariant) {
 
 
 
-
-
-#' Convert Posterior Distributions to a Single Matrix
-#' 
-#' This converts raw posteriors into a single matrix. This matrix can then be used with the boa or coda packages for assessing convergence. Some of the convergence diagnostics require you to make separate matrices for separate runs of the Gibbs sampler.
-#' 
-#' @param results The results from the \code{\link{runParameterEstimation}} function.
-#' @param stripConstantParameters Remove all parameters with a constant value. Constant parameters cannot converge.
-#' @param stripCatActive Remove all of the cat active parameters. It is difficult to assess convergence for indicator parameters that are either 0 or 1.
-#' @param stripCatMu Remove all of the category mean parameters. It is difficult to assess convergence for these parameters because they have multi-modal posterior distributions.
-#' 
-#' @return A matrix containing all of the posterior distributions for the selected parameters. Each column is one parameter.
-#' 
-#' @export
-convertPosteriorsToMatrix = function(results, stripConstantParameters=TRUE, stripCatActive=TRUE, stripCatMu=TRUE) {
-	
-	rawPost = results$posteriors
-	
-	iterations = 0
-	constantPar = NULL
-	catActivePar = NULL
-	catMuPar = NULL
-	participantLLPar = NULL
-	
-	for (n in names(rawPost)) {
-		iterations = max(c(iterations, length(rawPost[[n]])))
-		
-		if (all(rawPost[[n]] == rawPost[[n]][1])) {
-			constantPar = c(constantPar, n)
-		}
-		
-		if (grepl("catActive", n, fixed=TRUE)) {
-			catActivePar = c(catActivePar, n)
-		}
-		
-		if (grepl("catMu", n, fixed=TRUE)) {
-			catMuPar = c(catMuPar, n)
-		}
-		
-		if (grepl("participantLL", n, fixed=TRUE)) {
-			participantLLPar = c(participantLLPar, n)
-		}
-		
-	}
-	
-	excludedPar = participantLLPar
-	if (stripConstantParameters) {
-		excludedPar = c(excludedPar, constantPar)
-	}
-	if (stripCatActive) {
-		excludedPar = c(excludedPar, catActivePar)
-	}
-	if (stripCatMu) {
-		excludedPar = c(excludedPar, catMuPar)
-	}
-	
-	usedParam = names(rawPost)
-	usedParam = usedParam[ !(usedParam %in% excludedPar) ]
-	
-	np = length(usedParam)
-	
-	m = matrix(0, nrow=iterations, ncol=np)
-	colnames(m) = usedParam
-	
-	for (i in 1:np) {
-		
-		temp = rawPost[[usedParam[i]]]
-		
-		if (length(temp) == 1) {
-			temp = rep(temp, iterations)
-		} else if (length(temp) != iterations) {
-			warning(paste("Data vector for parameter ", usedParam[i], " of incorrect length.", sep=""))
-		}
-		
-		m[,i] = temp
-		
-	}
-	
-	m
-}
-
-
-
 #' Sample Data from Model with Specific Parameter Values
 #' 
 #' Samples data from the model given the provided parameter values. This is useful for observing the patterns of data generated by the model and for sampling from the posterior predictive distribution of the data.
 #' 
 #' @param study A vector of study angles in degrees.
-#' @param param A list of parameter values. The values to include are \code{pMem}, \code{pBetween}, \code{pContBetween}, \code{pContWithin}, \code{pCatGuess}, \code{contSD}, \code{catMu}, \code{catSelectivity}, \code{catSD}. \code{catMu} should be a vector. If there are no categories, \code{catMu} should be \code{NULL}.
+#' @param param A list of parameter values. The values to include are `pMem`, `pBetween`, `pContBetween`, `pContWithin`, `pCatGuess`, `contSD`, `catMu`, `catSelectivity`, `catSD`. `catMu` should be a vector. If there are no categories, `catMu` should be `NULL`.
 #' @param modelVariant The model variant, as a string. Should be one of "betweenItem", "withinItem", and "ZL".
-#' @param dataType One of \code{"circular"} or \code{"linear"}.
-#' @param responseRange A length 2 vector giving the theoretical minimum and maximum values of a response. Should be provided if \code{dataType} is \code{"linear"}.
+#' @param dataType One of `"circular"` or `"linear"`.
+#' @param responseRange A length 2 vector giving the theoretical minimum and maximum values of a response. Should be provided if `dataType` is `"linear"`.
 #' 
-#' @return A data frame containing the \code{study} angles, the sampled \code{response} angles, the response \code{type} (e.g. continuous memory response), and, if the response was categorical in nature, the category it was from (\code{cat}).
+#' @return A data frame containing the `study` angles, the sampled `response` angles, the response `type` (e.g. continuous memory response), and, if the response was categorical in nature, the category it was from (`cat`).
 #'  
 #' @export
 sampleDataFromModel = function(study, param, modelVariant, dataType = "circular", responseRange = NULL) {

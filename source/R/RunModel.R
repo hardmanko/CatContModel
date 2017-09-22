@@ -2,14 +2,36 @@
 
 #' Verify Parameter Estimation Configuration Values
 #' 
+#' This function is used to verify the correctness of a configuration list and to add in default values for all missing elements. This function is used internally by, e.g., [`runParameterEstimation`].
+#' 
 #' @param config A configuration to be used as the `config` argument of [`runParameterEstimation`].
 #' @param data The data that will be used as the `data` argument of [`runParameterEstimation`].
 #' @param immediateWarnings If `TRUE`, warnings will be printed immediately. Regardless of the value, warnings will also be stored for later access with `warnings()`.
 #' 
 #' @return An updated configuration list, possibly with additional items added or existing items modified.
 #' 
-#' @md
 #' @export
+#' 
+#' @examples 
+#' config = list(iterations = 1000, modelVariant = "betweenItem")
+#' 
+#' config$factors = data.frame(
+#'   cond = c("a1", "a2", "a3", "b1", "b2", "b3"),
+#'   letters = rep(c("a", "b"), each = 3),
+#'   numbers = rep(c("1", "2", "3"), 2)
+#' )
+#' 
+#' config$conditionEffects = list(pMem = c("letters", "numbers"),
+#'   pContBetween = "all", #shortcut to listing them all
+#'   contSD = "letters",
+#'   pCatGuess = "numbers")
+#' # All unspecified parameters will be set to "none".
+#' 
+#' # Make fake data
+#' data = data.frame(pnum = 1, cond = config$factors$cond,
+#'   study = 0, response = 0)
+#' 
+#' config = verifyConfigurationList(config, data)
 verifyConfigurationList = function(config, data, immediateWarnings = FALSE) {
 	
 	usedConfigKeys = names(config)
@@ -177,6 +199,9 @@ verifyConfigurationList = function(config, data, immediateWarnings = FALSE) {
 	config
 }
 
+# Checks the correctness of the condition effects in 
+# config$conditionEffects, including possibly modifying them.
+# This function is used by verifyConfigurationList
 verifyConditionEffects = function(config, immediateWarnings = FALSE) {
 	
 	parametersWithPossibleConditionEffects = getAllParams(NULL, config$modelVariant, filter=TRUE)
@@ -232,42 +257,10 @@ verifyConditionEffects = function(config, immediateWarnings = FALSE) {
 }
 
 
-checkStartingValueOverrides = function(config, svo) {
-	
-	for (n in names(svo)) {
-		#Convert catMu starting values to radians
-		if (config$dataType == "circular" && grepl("catMu", n, fixed=TRUE)) {
-			svo[[n]] = CatContModel::d2r(svo[[n]])
-		}
-		
-		if (grepl("catActive", n, fixed=TRUE)) {
-			if (!(svo[[n]] %in% c(0, 1))) {
-				stop("Starting values of catActive must be either 0 or 1.")
-			}
-		}
-	}
-	
-	svo
-}
-
-checkConstantValueOverrides = function(config, cvo) {
-	
-	for (n in names(cvo)) {
-		#Convert catMu constant values to radians
-		if (config$dataType == "circular" && grepl("catMu", n, fixed=TRUE)) {
-			cvo[[n]] = CatContModel::d2r(cvo[[n]])
-		}
-		
-		if (grepl("catActive", n, fixed=TRUE)) {
-			if (!(cvo[[n]] %in% c(0, 1))) {
-				stop("Constant values of catActive must be either 0 or 1.")
-			}
-		}
-	}
-	
-	cvo
-}
-
+# This function is used by runParameterEstimation.
+# It checks that config$conditionEffects are correct, given the 
+# constant value overrides that are being used.
+# It returns a, potentially modified, copy of config$conditionEffects.
 checkConditionEffectsGivenConstantParameters = function(config, constantValueOverrides, immediateWarnings = FALSE) {
 	
 	for (param in names(config$conditionEffects)) {
@@ -296,66 +289,98 @@ checkConditionEffectsGivenConstantParameters = function(config, constantValueOve
 	config$conditionEffects
 }
 
+# This function is used by runParameterEstimation.
+# It checks the starting value overrides for correctness.
+# It returns a, potentially modified, copy of the starting value overrides.
+checkStartingValueOverrides = function(config, svo) {
+	
+	for (n in names(svo)) {
+		#Convert catMu starting values to radians
+		if (config$dataType == "circular" && grepl("catMu", n, fixed=TRUE)) {
+			svo[[n]] = CatContModel::d2r(svo[[n]])
+		}
+		
+		if (grepl("catActive", n, fixed=TRUE)) {
+			if (!(svo[[n]] %in% c(0, 1))) {
+				stop("Starting values of catActive must be either 0 or 1.")
+			}
+		}
+	}
+	
+	svo
+}
+
+# This function is used by runParameterEstimation.
+# It checks the constant parameter value overrides for correctness.
+# It returns a, potentially modified, copy of the starting value overrides.
+checkConstantValueOverrides = function(config, cvo) {
+	
+	for (n in names(cvo)) {
+		#Convert catMu constant values to radians
+		if (config$dataType == "circular" && grepl("catMu", n, fixed=TRUE)) {
+			cvo[[n]] = CatContModel::d2r(cvo[[n]])
+		}
+		
+		if (grepl("catActive", n, fixed=TRUE)) {
+			if (!(cvo[[n]] %in% c(0, 1))) {
+				stop("Constant values of catActive must be either 0 or 1.")
+			}
+		}
+	}
+	
+	cvo
+}
+
+
+
 
 #' Estimate Parameters of the Models
 #' 
-#' This function runs the Gibbs sampler for the selected delayed estimation model.
+#' This function runs the Gibbs sampler for the selected delayed estimation model variant and data. In addition to this function documentation, you should read the manual and look at some of the examples (see the Examples section of the manual).
 #'
 #' @param config A list of configuration options. See details.
-#' @param data The data to use in a data frame with 4 columns: \code{pnum}, \code{cond}, \code{study}, and \code{response}. \code{pnum} and \code{cond} may be strings. \code{study} and \code{response} should be degrees in the interval [0, 360).
-#' @param mhTuningOverrides A list of overrides of the default tuning parameters for the Metropolis-Hastings algorithm. For all parameters with Metropolis-Hastings steps, a normal candidate distribution centered on the current value is used. These tuning parameters are the standard deviations of the candidate distributions.
-#' @param priorOverrides A list of overrides of the default priors. See details.
-#' @param startingValueOverrides A list of overrides of the default starting values.
-#' @param constantValueOverrides A list parameters giving overrides to the parameter values, which sets the parameters to constant values.
+#' @param data The data to use in a data frame with 4 columns: `pnum`, `cond`, `study`, and `response`. `pnum` and `cond` may be strings. If `config$dataType == "circular"`, then `study` and `response` should be degrees in the interval [0, 360). If `config$dataType == "linear"`, then `study` and `response` can be in any units.
+#' @param mhTuningOverrides A list of overrides of the default tuning parameters for the Metropolis-Hastings algorithm. See the Tuning Metropolis-Hastings Acceptance Rates section of the manual for more information.
+#' @param priorOverrides A list of overrides of the default priors. See details and/or the Priors section of the manual.
+#' @param startingValueOverrides A list of overrides of the default starting values. This is a list mapping from parameter name to starting values.
+#' @param constantValueOverrides A list parameters giving overrides to the parameter values, which sets the parameters to constant values. This is a list mapping from parameter name to starting values. See [`setConstantParameterValue`] and [`setConstantCategoryParameters`].
 #' 
 #' 
-#' @return An list containing the results of the Gibbs sampler, as follows:
+#' @return A list containing the results of the Gibbs sampler, as follows:
 #' \tabular{ll}{
-#'  \code{config} \tab The primary configuration that was used. \cr
-#'	\code{posteriors} \tab A named list of posterior distributions for each parameter.\cr
-#' 	\code{mhAcceptance} \tab A data frame containing information about the acceptance rates of parameters with Metropolis-Hastings steps.\cr
-#' 	\code{mhTuning} \tab The Metropolis-Hastings tuning parameters that were used. \cr
-#' 	\code{data} \tab The provided data.\cr
-#' 	\code{priors} \tab The priors that were used.\cr
-#' 	\code{startingValues} \tab A named list of the starting values of the parameters. \cr
-#' 	\code{constantValueOverrides} \tab A named list of constant parameter value overrides (that were provided by the user). \cr
-#' 	\code{pnums} \tab A vector of the participant numbers. \cr
-#' 	\code{equalityConstraints} \tab A list mapping from the names of parameters to the name of the parameter that they obtain their value from, if any.
+#'  `config` \tab The configuration that was used. \cr
+#'	`posteriors` \tab A named list of posterior distributions for each parameter.\cr
+#' 	`mhAcceptance` \tab A `data.frame` containing information about the acceptance rates of parameters with Metropolis-Hastings steps.\cr
+#' 	`mhTuning` \tab The Metropolis-Hastings tuning parameters that were used. \cr
+#' 	`data` \tab The provided data.\cr
+#' 	`priors` \tab The priors that were used.\cr
+#' 	`startingValues` \tab A named list of the starting values of the parameters. \cr
+#' 	`constantValueOverrides` \tab A named list of constant parameter value overrides that were provided by the user. \cr
+#' 	`pnums` \tab A vector of the participant numbers. \cr
+#' 	`equalityConstraints` \tab A list mapping from the names of parameters to the name of the parameter that they obtain their value from, if any.
 #' }
 #' 
 #' @details
-#' The elements of \code{config} include:
+#' The elements of `config` include:
 #' \tabular{ll}{
-#' 	\code{iterations} \tab Required. The number of iterations of the Gibbs sampler to run. No default value.\cr
-#' 	\code{modelVariant} \tab Required. Which variant of the model to use. Choose from "betweenItem", "withinItem", and "ZL". "betweenItem" and "withinItem" are the two model variants used by Hardman, Vergauwe, and Ricker. "ZL" is the Zhang and Luck (2008) model. Defaults to "betweenItem".\cr
-#' 	\code{dataType} \tab The type of data you have, either \code{"circular"} or \code{"linear"}. Defaults to \code{"circular"}. \cr
-#' 	\code{cornerstoneConditionName} \tab The name of the condition that will be used as the cornerstone condition. Defaults to the condition with the most observations in the data set.\cr
-#' 	\code{maxCategories} \tab The maximum number of categories that each participant is allowed to have. Defaults to 16.\cr
-#' 	\code{conditionEffects} \tab Replaces parametersWithConditionEffects. A list mapping from the name of a parameter to a character vector with the names of the factors that parameter will be allowed to vary by. To use all factors (or if you have only 1 factor), use the special value \code{"all"}. To prevent the parameter from varying by task condition, use the special value \code{"none"}. The default varies by model variant. Parameters that you do not include will be set to \code{"none"}. See the example. \cr
-#' 	\code{factors} \tab A \code{data.frame} with a column named "cond" which contains the unique conditions in the data set. The other columns are factors and factor levels corresponding to the conditions. If you have only 1 factor, you do not need to set this, but you may want to as the column names are used to identify the factors. See the example. \cr
-#' 	\code{minSD} \tab The minimum standard deviation of the Von Mises or normal distributions. This affects the contSD, catSD, and catSelectivity parameters. Defaults to 1. \cr
-#' 	\code{calculateParticipantLikelihoods} \tab Whether (log) likelihoods should be calculated on each iteration for each participant. See \code{\link{calculateInappropriateFitStatistics}}. \cr
-#' 	\code{responseRange} \tab If using the "linear" dataType, the possible range of response values as a length 2 vector, where the first value in the vector is the lower limit. By default, this is inferred from the data.
+#' 	`iterations` \tab Required. The number of iterations of the Gibbs sampler to run. No default value.\cr
+#' 	`modelVariant` \tab Required. Which variant of the model to use. Choose from "betweenItem", "withinItem", "betweenAndWithin", and "ZL". "betweenItem" and "withinItem" are the two model variants used by Hardman, Vergauwe, and Ricker.  "betweenAndWithin" is an unpublished model variant that has some problems. "ZL" is the Zhang and Luck (2008) model.\cr
+#' 	`dataType` \tab The type of data you have, either `"circular"` or `"linear"`. Defaults to `"circular"`. \cr
+#' 	`cornerstoneConditionName` \tab The name of the condition that will be used as the cornerstone condition. Defaults to the condition with the most observations in the data set. \cr
+#' 	`maxCategories` \tab The maximum number of categories that each participant is allowed to have. Defaults to 16.\cr
+#' 	`conditionEffects` \tab A list mapping from the name of a parameter to a character vector with the names of the factors that parameter will be allowed to vary by. To use all factors (or if you have only 1 factor), use the special value `"all"`. To prevent the parameter from varying by task condition, use the special value `"none"`. The default varies by model variant. Parameters that you do not include will be set to `"none"`. See the example. \cr
+#' 	`factors` \tab A `data.frame` with a column named `cond` which contains the unique conditions in the data set. The other columns are factors, each containing factor levels corresponding to the conditions. If you have only 1 factor, you do not need to set this, but you may want to as the column names are used to identify the factors. See the example. \cr
+#' 	`minSD` \tab The minimum standard deviation of the Von Mises or normal distributions. This affects the `contSD`, `catSD`, and `catSelectivity` parameters. Defaults to 1. \cr
+#' 	`calculateParticipantLikelihoods` \tab Boolean. Whether (log) likelihoods should be calculated on each iteration for each participant. See [`calculateInappropriateFitStatistics`] for a poor reason to set this to `TRUE`.  Defaults to `FALSE`. \cr
+#' 	`responseRange` \tab Only used if using the `"linear"` `dataType`, the possible range of response values as a length 2 vector, where the first value in the vector is the lower limit and the second the upper limit. By default, this is taken to be the range of the response values from the data set.
 #' }
 #' 
-#' Some things about the priors can be adjusted with the \code{priorOverrides} argument. The priors are specified in Hardman, Vergauwe, and Ricker. Most participant level parameters have a hierarchical Normal prior with estimated mean (mu) and variance (sigma2). The prior on mu is Normal with fixed mean and variance. The prior on sigma2 is Inverse Gamma with fixed alpha and beta. To set the priors, use the \code{priorOverrides} argument. For example, to set the priors on the distribution of \code{pMem}, you would set \code{pMem.mu.mu}, \code{pMem.mu.var}, \code{pMem.var.a}, and/or \code{pMem.var.b}. pMem.mu.var sets the prior variance on mu of the pMem parameters. For all of the parameters, the priors are set in the latent space.
+#' @section Prior Overrides:
+#' Some things about the priors can be adjusted with the `priorOverrides` argument. The default priors and the prior distributions are specified in Hardman, Vergauwe, and Ricker (2017). Most participant level parameters have a hierarchical Normal prior with estimated mean, `mu`, and variance, `sigma2`. The prior on `mu` is Normal with fixed mean and variance. The prior on `sigma2` is Inverse Gamma with fixed alpha and beta. To set the priors, use the `priorOverrides` argument. For example, to set the priors on the distribution of `pMem`, you would set `pMem.mu.mu`, `pMem.mu.var`, `pMem.var.a`, and/or `pMem.var.b`. For all of the parameters, the priors are set in the latent space. See the Priors section of the manual for more information.
 #' 
-#' The condition effect parameters have fixed Cauchy priors with a location and scale. For example, for pMem, the location and scale priors are \code{pMem_cond.loc} and \code{pMem_cond.scale}. The locations all default to 0. The scales are different for different parameters.
+#' The condition effect parameters have Cauchy priors with constant location and scale. For example, for `pMem`, the location and scale priors are `pMem_cond.loc` and `pMem_cond.scale`. The locations all default to 0. The scales are different for different parameters. The locations should almost certaintly always be 0 unless you have a compelling argument to use a different value.
 #' 
 #' @export
-#' 
-#' @examples 
-#' config = list(iterations = 1000, modelVariant = "betweenItem")
-#' 
-#' config$factors = data.frame(cond = c("a1", "a2", "a3", "b1", "b2", "b3"),
-#' letters = rep(c("a", "b"), each = 3),
-#' numbers = rep(c("1", "2", "3"), 2))
-#' 
-#' config$conditionEffects = list(pMem = c("letters", "numbers"),
-#' pContBetween = "all", #shortcut to listing them all
-#' contSD = "letters",
-#' pCatGuess = "numbers")
-#' #all not stated will be set to "none".
 #' 
 runParameterEstimation = function(config, data, mhTuningOverrides=list(), 
 																	priorOverrides=list(), startingValueOverrides=list(), 
@@ -429,12 +454,14 @@ runParameterEstimation = function(config, data, mhTuningOverrides=list(),
 
 #' Sample Additional Iterations of the Gibbs Sampler
 #' 
-#' After running the parameter estimation with \code{\link{runParameterEstimation}} and analyzing the results, you may decide that you want more iterations to be sampled. This function allows you to continue sampling iterations from where the parameter estimation left off.
+#' After running the parameter estimation with [`runParameterEstimation`] and analyzing the results, you may decide that you want more iterations to be sampled. This function allows you to continue sampling iterations from where the parameter estimation left off.
 #' 
-#' @param results The results from the \code{\link{runParameterEstimation}} function.
+#' @param results The results from the [`runParameterEstimation`] function.
 #' @param iterations The number of new iterations to sample.
 #' 
-#' @return A list with three elements: The oldResults (what you passed in), the newResults (the additional iterations), and the combinedResults (the oldResults and newResults merged together).
+#' @return A list with three elements: The `oldResults` (what you passed in), the `newResults` (the additional iterations), and the `combinedResults` (the `oldResults` and `newResults` merged together).
+#' 
+#' @family WP functions
 #' 
 #' @export
 continueSampling = function(results, iterations) {
@@ -461,8 +488,9 @@ continueSampling = function(results, iterations) {
 #' @param doIntegrityChecks If `TRUE`, check that all of the results are comparable in terms of priors, Metropolis-Hastings tuning paramters, etc. The only time you should set this to FALSE is if you think there is a bug in the integrity checks.
 #' @param rList Instead of providing individual results objects as `...`, you can use `rList` to provide a list of results objects.
 #'
-#' @md
 #' @return The merged results.
+#' 
+#' @family WP functions
 #'
 #' @export
 mergeResults = function(..., doIntegrityChecks=TRUE, rList=NULL) {
@@ -505,9 +533,9 @@ mergeResults = function(..., doIntegrityChecks=TRUE, rList=NULL) {
 
 #' Compare Two Results Objects for Configuration Consistency
 #' 
-#' By default, nothing is compared. The various comparisons must be enabled individually.
+#' By default, nothing is compared. The various comparisons must be enabled individually. This is a WP function only.
 #' 
-#' @param res1 The first results object.
+#' @param res1 The first results object from [`runParameterEstimation`].
 #' @param res2 The second results object.
 #' @param data Compare data sets.
 #' @param constantValueOverrides Compare `constantValueOverrides`.
@@ -518,9 +546,8 @@ mergeResults = function(..., doIntegrityChecks=TRUE, rList=NULL) {
 #' @param configIgnore Elements of the config list to not compare.
 #' @param msgFun A function of one argument to pass messages to. Defaults to `stop`. Another good choice is `warning`.
 #' 
-#' @return Nothing.
+#' @family WP functions
 #' 
-#' @md
 #' @export
 compareResults = function(res1, res2, data = FALSE, constantValueOverrides = FALSE, equalityConstraints = FALSE, priors = FALSE, mhTuning = FALSE, config = FALSE, configIgnore = c("iterationsPerStatusUpdate"), msgFun = stop) {
 	
@@ -626,15 +653,15 @@ compareResults = function(res1, res2, data = FALSE, constantValueOverrides = FAL
 
 #' Examine the Metropolis-Hastings Acceptance Rates
 #' 
-#' Most of the parameters in the model do not have conjugate priors, so the Metropolis-Hastings algorithm is used to sample from their conditional distribution. This function helps to examine the acceptance rate of the MH algorithm for different parameter groups.
+#' Most of the parameters in the model do not have conjugate priors, so the Metropolis-Hastings (MH) procedure is used to sample from their conditional posterior distribution. This function helps to examine the acceptance rate of the MH procedure for different parameter groups.
 #' 
-#' When a category is inactive, catMu is always accepted. Thus. when considering the acceptance rate of the catMu parameters, you should only consider the acceptances of active categories. This function gives two acceptance rates for catMu: Active only, which you should use, and the total, including inactive categories, which is basically irrelevant.
+#' When a category is inactive, `catMu` is always accepted. Thus, when considering the acceptance rate of the `catMu` parameters, you should only consider the acceptances of active categories. This function gives two acceptance rates for `catMu`: Active only, which you should use, and the total, including inactive categories, which is basically irrelevant.
 #' 
-#' Note that the results of this function are not changed by removing burn-in iterations, except that the catMu acceptance rates are recalculated in a way that makes them meaningless. In short: Only use this function before burn-in iterations are removed.
+#' Note that the results of this function are not changed by removing burn-in iterations, except that the `catMu` acceptance rates are recalculated in a way that makes them meaningless once burn-in iterations have been removed. In short: Only use this function before burn-in iterations are removed.
 #' 
-#' @param results The results from the \code{\link{runParameterEstimation}} function.
+#' @param results The results from the [`runParameterEstimation`] function.
 #' 
-#' @return A data frame containing a summary of the MH acceptance rates for each group of parameters.
+#' @return A `data.frame` containing a summary of the MH acceptance rates for each group of parameters.
 #' 
 #' @export
 examineMHAcceptance = function(results) {
@@ -690,181 +717,5 @@ examineMHAcceptance = function(results) {
 	summ = summ[ order(summ$paramGroup), ]
 	
 	summ
-}
-
-
-
-
-
-#' Set Parameters to Constant Values
-#' 
-#' This function helps with setting parameters to constant values. It returns a
-#' list mapping from parameter name to parameter value. I sets all participant
-#' parameters to the same value. It also sets the hierarchical, population
-#' level parameters to constant values (this doesn't really have any effect:
-#' if all of the participant level parameters are constant, the population level
-#' parameters do nothing).
-#' 
-#' If \code{doConditionEffects} is TRUE, the condition effects are all set to 0, which
-#' means that the participants will have the same parameter values in all conditions.
-#' Note that this overrides the \code{conditionEffects} setting in the
-#' configuration for \code{\link{runParameterEstimation}}. If you allow condition
-#' effects with \code{conditionEffects} but set \code{doConditionEffects == TRUE}
-#' you will get no condition effects. The reverse is not true.
-#' 
-#' If you call this function several times to get multiple lists of fixed parameter
-#' values, know that you can combine the lists with the concatenate function, \code{c()}.
-#' 
-#' @param data The data you will use, in the same format as required by \code{\link{runParameterEstimation}}.
-#' @param param The parameter to set to a constant value, e.g. "pMem".
-#' @param value The constant value of the paramter. See also the \code{transformValueToLatent} argument.
-#' @param doConditionEffects Whether condition effects should all be set to 0.
-#' @param transformValueToLatent Whether \code{value} should be transformed to the latent space. If TRUE (the default) you should provide parameter values in the manifest space (e.g. probabilities should be between 0 and 1). If FALSE, you should provide parameter values in the latent space.
-#' 
-#' @return A list mapping from parameter name to parameter value.
-#' 
-#' @seealso \code{\link{setConstantCategoryParameters}} For setting catMu and catActive to constant values.
-#' 
-#' @examples
-#' data = data.frame(pnum=rep(1:5, each=2), cond=rep(1:2, each=5))
-#' constParam = setConstantParameterValue(data, param = "pContBetween", value = 0.5)
-#' 
-#' @export
-setConstantParameterValue = function(data, param, value, doConditionEffects = TRUE, transformValueToLatent = TRUE) {
-	
-	if (transformValueToLatent) {
-		trans = getParameterTransformation(NULL, param, inverse=TRUE)
-		value = trans(value)
-		if (param %in% getProbParams(NULL)) {
-			value = min(max(value, -100), 100) #clamp probability parameters to be finite.
-		}
-	}
-	
-	pnums = sort(unique(data$pnum))
-	conds = sort(unique(data$cond))
-	
-	rval = list()
-	for (pnum in pnums) {
-		partParam = paste( param, "[", pnum, "]", sep="")
-		rval[[ partParam ]] = value
-	}
-
-	rval[[ paste( param, ".mu", sep="" ) ]] = 0
-	rval[[ paste( param, ".var", sep="" ) ]] = 1
-	
-	if (doConditionEffects) {
-		for (cond in conds) {
-			condParam = paste( param, "_cond[", cond, "]", sep="")
-			rval[[ condParam ]] = 0
-		}
-	}
-	
-	rval
-}
-
-#' Set catMu and catActive Parameters to Constant Values
-#' 
-#' 
-#' @param data Your data set, in the same format as required by \code{\link{runParameterEstimation}}.
-#' @param catParam A data.frame with constant values of catMu and catActive parameters. See details.
-#' @param maxCategories The maximum number of categories that will be allowed when running parameter estimation.
-#' @param activateConstantCats If TRUE, categories for which catMu values are given are forced to be active.
-#' @param deactivateUnspecifiedCats If TRUE, catActive is set to 0 for all categories for which constant values of both catMu and catActive are not specified. If FALSE, catActive and catMu are left as free parameters for the extra categories.
-#' 
-#' @return A list mapping from parameter name to parameter value.
-#' 
-#' @details The catParam data.frame can have three columns: pnum, catMu, and catActive, where the catActive column is optional. Each row specifies the setting for a catMu and/or catActive for the given participant. Each participant can have multiple rows, each row specifying constant parameters for a different category. If you want to allow a parameter to be estimated, set the value for that parameter to NA. 
-#' 
-#' Because either or both of catMu and catActive can be specified, there are 4 possibilities per category: 
-#' 1) both catMu and catActive set to constant values. This forces the model to use the category at a fixed location.
-#' 2) catMu set to a constant value but catActive freely estimated. In this case, what catActive will tell you is mow much of the time a category at that fixed location was used. You might do this if you have candidates for category locations that should be used, but don't know how much each category might be used.
-#' 3) catActive set to a constant value, but catMu freely estimated. You should not set catActive to 0 in this case, because inactive categories do nothing with the catMu parameters. Thus, by setting catActive to 1 but leaving catMu unspecified, it forces the model to use a category, but allows it to put that category anywhere.
-#' 4) Neither catMu nor catActive specified. This is the default behavior of the model, where both are freely estimated.
-#' 
-#' Each of these 4 possibilities is set per category. Thus, you can do complex things like force each participant to have 3 active categories in fixed locations, 2 more active categories in freely-estimated locations, and some additional number of fully freely-estimated categories.
-#' 
-#' @examples 
-#' catParam = data.frame(pnum = rep(1, 4),
-#' 	catMu = c(60, 120, NA, NA),
-#' 	catActive = c(1, NA, 1, NA))
-#' data = data.frame(pnum=1) #This is just for testing
-#' constCat = setConstantCategoryParameters(data, catParam, maxCategories = 5, 
-#' 	activateConstantCats = TRUE, deactivateUnspecifiedCats = TRUE)
-#' 
-#' @export
-setConstantCategoryParameters = function(data, catParam, maxCategories, activateConstantCats = TRUE, 
-														deactivateUnspecifiedCats = TRUE) 
-{
-
-	allPnums = sort(unique(data$pnum))
-
-	if (is.null(catParam$catActive)) {
-		catParam$catActive = NA
-	}
-	
-	if (activateConstantCats) {
-		catParam[ !is.na(catParam$catMu), "catActive" ] = 1.0
-	}
-	
-	if (!all(catParam$catActive %in% c(0.0, 1.0, NA))) {
-		stop("All catActive parameters must be either 0 or 1, or NA if not constant.")
-	}
-
-	rval = list()
-	for (pnum in allPnums) {
-		
-		#mus = catParam$catMu[ catParam$pnum == pnum ]
-		catMu = catParam$catMu[ catParam$pnum == pnum ]
-		catActive = catParam$catActive[ catParam$pnum == pnum ]
-		
-		if (length(catMu) > maxCategories) {
-			warning( paste("More categories provided for participant ", pnum, " than the maximum number of categories.", sep="") )
-		}
-		
-		for (i in 1:maxCategories) {
-			
-			catInd = i - 1 #zero-indexed
-			
-			catMuName = paste( "catMu[", pnum, ",", catInd, "]", sep="")
-			catActiveName = paste( "catActive[", pnum, ",", catInd, "]", sep="")
-			
-			if (!is.na(catMu[i])) {
-				rval[[ catMuName ]] = catMu[i]
-			}
-			
-			if (!is.na(catActive[i])) {
-				rval[[ catActiveName ]] = catActive[i]
-			}
-			
-			if (deactivateUnspecifiedCats && is.na(catActive[i]) && is.na(catActive[i])) {
-				rval[[ catMuName ]] = 0.0
-				rval[[ catActiveName ]] = 0.0
-			}
-
-		}
-	}
-
-	rval
-}
-
-
-#This function sucks. Don't use it.
-upgradeResultsList = function(results, from, to) {
-	
-	if (from == "0.6.1" && to == "0.7.0") {
-		results$config$conditionEffects = list()
-		for (pp in results$config$parametersWithConditionEffects) {
-			results$config$conditionEffects[[pp]] = "all"
-		}
-		results$config$parametersWithConditionEffects = NULL
-		
-		results$conditions = NULL
-		
-		results$config = verifyConfigurationList(results$config, results$data)
-	} else {
-		stop("Unsupported upgrade path")
-	}
-	
-	results
 }
 

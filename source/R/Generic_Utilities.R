@@ -1,11 +1,13 @@
 
 
-#' Glossary
+#' Glossary of Common Terms
+#' 
+#' This glossary covers some of the most common jargon used in this package.
 #' 
 #' @section Types of Result Object:
 #' + *Generic results object*: A results object that can be either a WP or a BP results object. If a function takes a generic results object, the name of the results object argument will be `res`. Most functions take generic results objects.
 #' + *WP results object*: A within-participants results object. The return value of [`runParameterEstimation`]. If a function takes a WP results object, the name of the results object argument will be `results`.
-#' + BP results object: A between-participants results object. The return value of [`mergeGroupResults.BP`]. If a function takes a BP results object, the name of the results object argument will be `bpRes`.
+#' + BP results object: A between-participants results object. The return value of [`combineGroupResults.BP`]. If a function takes a BP results object, the name of the results object argument will be `bpRes`.
 #' 
 #' In this package, most functions can take either a WP or a BP results object. I use stong naming conventions for clarity, so pay attention to the name of the results object argument when calling a function to verify that you are providing the correct type of results object.
 #' 
@@ -17,7 +19,6 @@
 #' @section Condition Effects:
 #' In terms of the model specifications, a *condition effect* is a parameter that accounts for differences between the different within-participants conditions in the design. This is explained in more detail in the Condition Effects section in the Appendix of Hardman, Vergauwe, and Ricker (2017). In the equation on page 22, `P_j` is the condition effect parameter that is added to the participant parameter, `P_i`.
 #' 
-#' @md
 #' @name Glossary
 NULL
 
@@ -36,7 +37,7 @@ NULL
 #' @return A new results object with burnIn iterations removed.
 #' 
 #' @family generic functions
-#' @md
+#'
 #' @export
 removeBurnIn = function(res, burnIn) {
 	
@@ -125,8 +126,8 @@ resultIsType = function(res, type) {
 #' 
 #' @return A function of one vector, matrix, or array argument that transforms the argument while maintaining the dimensionality of the argument.
 #' 
-#' @md
 #' @family generic functions
+#' 
 #' @export
 getParameterTransformation = function(res, param, inverse=FALSE) {
 
@@ -171,7 +172,8 @@ getParameterTransformation = function(res, param, inverse=FALSE) {
 #' 
 #' @return A character vector of the names of parameters used by the model variant.
 #' 
-#' @md
+#' @family generic functions
+#' 
 #' @export
 getProbParams = function(res, modelVariant = res$config$modelVariant, filter = FALSE) {
 	pp = c("pMem", "pBetween", "pContBetween", "pContWithin", "pCatGuess")
@@ -224,7 +226,8 @@ getCategoryParams = function(res, modelVariant = res$config$modelVariant, filter
 #' 
 #' @return A character vector of factor names.
 #' 
-#' @md
+#' @family generic functions
+#' 
 #' @export
 getFactorsForConditionEffect = function(res, param) {
 	
@@ -235,10 +238,6 @@ getFactorsForConditionEffect = function(res, param) {
 		rval = getFactorsForConditionEffect.BP(res, param)
 	}
 
-	if (is.null(rval)) {
-		stop("Invalid arguments.")
-	}
-	
 	rval
 }
 
@@ -389,7 +388,6 @@ getAllFactorNames = function(factors, removeConstant = FALSE) {
 #' 
 #' @return A list with factor names as keys and either the value of `"wp"` or `"bp"` for each factor name.
 #' 
-#' @md
 #' @export
 getFactorNameToType = function(factors) {
 	factors = normalizeFactors(factors, removeConstant = TRUE)
@@ -425,7 +423,6 @@ getFactorNameToType = function(factors) {
 #' 
 #' @return A list with three elements. `all`: all factor names. `bp`: between-participant factor names. `wp`: within-participant factor names.
 #' 
-#' @md
 #' @export
 getFactorTypeToName = function(factors) {
 	nameToType = getFactorNameToType(factors)
@@ -447,7 +444,6 @@ getFactorTypeToName = function(factors) {
 #' 
 #' @return The argument `factors` with constant factors removed.
 #' 
-#' @md
 #' @export
 removeConstantFactors = function(factors, warnOnRemoval = TRUE) {
 	
@@ -480,7 +476,6 @@ removeConstantFactors = function(factors, warnOnRemoval = TRUE) {
 #' 
 #' @return The argument `factors` in a normalized format.
 #' 
-#' @md
 #' @export
 normalizeFactors = function(factors, removeConstant = FALSE, warnOnRemoval = TRUE) {
 	
@@ -577,7 +572,7 @@ getFactorTypes = function(factors) {
 #' @return A `data.frame` containing the results. The factors of the design will each have their own column. For each parameter and meaningful combination of factor levels, the mean and credible interval are given.
 #' 
 #' @family generic functions
-#' @md
+#'
 #' @export
 posteriorMeansAndCredibleIntervals = function(res, params=NULL, cip=0.95, addMu=TRUE, manifest=TRUE) {
 	
@@ -634,7 +629,7 @@ posteriorMeansAndCredibleIntervals = function(res, params=NULL, cip=0.95, addMu=
 				
 				# If ceFactors is empty, assume that baseUniqueFL
 				# already has collapsed factor levels in it.
-				for (i in 1:length(matchingFL)) {
+				for (i in 1:length(baseUniqueFL)) {
 					cce$uniqueFL[i,fn] = baseUniqueFL[1,fn]
 				}
 				
@@ -725,14 +720,16 @@ getCatActiveDataFrame.BP = function(bpRes) {
 	
 	# Copy in factor levels
 	gfact = bpRes$config$factors
-	gfact = subset(gfact, select = c("group", type2name$bp))
+	gfact = gfact[ , c("group", type2name$bp), drop=FALSE ]
 	gfact = unique(gfact)
 	
-	bpFact = subset(gfact, select = type2name$bp)
+	bpFact = gfact[ , type2name$bp, drop=FALSE ]
 	
-	for (fn in type2name$all) {
-		mfl = getMatchingFactorLevels(bpRes$config$factors, bpFact, factor = fn, collapse="/")
-		design[ , fn ] = substituteValues(design$group, gfact$group, mfl)
+	if (ncol(bpFact) > 0) {
+		for (fn in type2name$all) {
+			mfl = getMatchingFactorLevels(bpRes$config$factors, bpFact, factor = fn, collapse="/")
+			design[ , fn ] = substituteValues(design$group, gfact$group, mfl)
+		}
 	}
 	
 	# Convert matrix to DF
@@ -762,5 +759,115 @@ getCatActiveDataFrame.WP = function(results) {
 	
 }
 
+###############################################################################
+
+#' Convert Posterior Distributions to a Single Matrix
+#' 
+#' This converts raw posteriors into a single matrix. This matrix can then be used with the boa or coda packages for assessing convergence. Some of the convergence diagnostics require you to make separate matrices for separate runs of the Gibbs sampler.
+#' 
+#' @section BP designs:
+#' For BP designs, the parameter names in the resulting matrix are preceded by "grp:", where "grp" is the name of the group that the parameter is from.
+#' 
+#' @param res A generic results object (see [`Glossary`]).
+#' @param stripConstantParameters Remove all parameters with a constant value. Constant parameters cannot converge.
+#' @param stripCatActive Remove all of the cat active parameters. It is difficult to assess convergence for indicator parameters that are either 0 or 1.
+#' @param stripCatMu Remove all of the category mean parameters. It is difficult to assess convergence for these parameters because they often have multi-modal posterior distributions.
+#' 
+#' @return A matrix containing all of the posterior distributions for the selected parameters. Each column is one parameter.
+#' 
+#' @family generic functions
+#' 
+#' @export
+#' 
+convertPosteriorsToMatrix = function(res, stripConstantParameters=TRUE, stripCatActive=TRUE, stripCatMu=TRUE) {
+	
+	if (resultIsType(res, "WP")) {
+		fun = convertPosteriorsToMatrix.WP
+	} else if (resultIsType(res, "BP")) {
+		fun = convertPosteriorsToMatrix.BP
+	}
+	
+	fun(res, stripConstantParameters, stripCatActive, stripCatMu)
+}
+
+convertPosteriorsToMatrix.WP = function(results, stripConstantParameters=TRUE, stripCatActive=TRUE, stripCatMu=TRUE) {
+	
+	rawPost = results$posteriors
+	
+	iterations = 0
+	constantPar = NULL
+	catActivePar = NULL
+	catMuPar = NULL
+	participantLLPar = NULL
+	
+	for (n in names(rawPost)) {
+		iterations = max(c(iterations, length(rawPost[[n]])))
+		
+		if (all(rawPost[[n]] == rawPost[[n]][1])) {
+			constantPar = c(constantPar, n)
+		}
+		
+		if (grepl("catActive", n, fixed=TRUE)) {
+			catActivePar = c(catActivePar, n)
+		}
+		
+		if (grepl("catMu", n, fixed=TRUE)) {
+			catMuPar = c(catMuPar, n)
+		}
+		
+		if (grepl("participantLL", n, fixed=TRUE)) {
+			participantLLPar = c(participantLLPar, n)
+		}
+		
+	}
+	
+	excludedPar = participantLLPar
+	if (stripConstantParameters) {
+		excludedPar = c(excludedPar, constantPar)
+	}
+	if (stripCatActive) {
+		excludedPar = c(excludedPar, catActivePar)
+	}
+	if (stripCatMu) {
+		excludedPar = c(excludedPar, catMuPar)
+	}
+	
+	usedParam = names(rawPost)
+	usedParam = usedParam[ !(usedParam %in% excludedPar) ]
+	
+	np = length(usedParam)
+	
+	m = matrix(0, nrow=iterations, ncol=np)
+	colnames(m) = usedParam
+	
+	for (i in 1:np) {
+		
+		temp = rawPost[[usedParam[i]]]
+		
+		if (length(temp) == 1) {
+			temp = rep(temp, iterations)
+		} else if (length(temp) != iterations) {
+			warning(paste("Data vector for parameter ", usedParam[i], " of incorrect length.", sep=""))
+		}
+		
+		m[,i] = temp
+		
+	}
+	
+	m
+}
+
+convertPosteriorsToMatrix.BP = function(bpRes, stripConstantParameters=TRUE, stripCatActive=TRUE, stripCatMu=TRUE) {
+	
+	mat = NULL
+	
+	for (grp in names(bpRes$groups)) {
+		temp = convertPosteriorsToMatrix.WP(bpRes$groups[[ grp ]], stripConstantParameters, stripCatActive, stripCatMu)
+		colnames(temp) = paste(grp, ":", colnames(temp), sep="")
+		mat = cbind(mat, temp)
+	}
+	
+	mat
+}
 
 ###############################################################################

@@ -49,7 +49,7 @@ file.remove( paste0(fullPackagePath, packageFiles) )
 
 # Move new files
 Rcpp.package.skeleton(packageName, path=packagePath, cpp_files=cpp_files, code_files=rFiles, 
-												force=TRUE, example_code=FALSE, 
+											force=TRUE, example_code=FALSE, 
 											author="Kyle O Hardman", license="MIT + file LICENSE", email="kylehardman@gmail.com")
 
 

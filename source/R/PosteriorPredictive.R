@@ -100,12 +100,15 @@ plotColorWheelBar = function(angles, xpos, ypos, colorGeneratingFunction, horiz 
 #'
 #' @return Invisibly, the sampled data in a `data.frame`.
 #'
-#' @md
 #' @family WP functions
 #' @family plotting functions
+#' 
 #' @export
-#'
 posteriorPredictivePlot = function(results, pnums = NULL, conditions=NULL, rowLabels=NULL, xlim=NULL, ylim=NULL, xat=NULL, yat=NULL, alpha=0.5, plotPnum=FALSE) {
+	
+	if (!resultIsType(results, "WP")) {
+		stop("posteriorPredictivePlot only accepts WP results objects. See the Glossary (listed in the package functions index).")
+	}
 	
 	if (is.null(pnums)) {
 		pnums = results$pnums

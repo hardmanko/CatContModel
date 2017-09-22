@@ -78,7 +78,7 @@ mergeCells = function(cells, i1, i2) {
 #' 
 #' Plotting to the default plotting surface in R often does not work well due to the large number of plots that are made. To plot to a pdf instead, which tends to work better, you can either 1) use the `pdf` function before calling `plotParameterSummary` or 2) use the `asPdf` argument to plot to a pdf rather than the default plotting surface.
 #' 
-#' Each of the panels of the overall parameter summary plot can be made with different underlying plotting functions. These are [`plotHistogram`], [`plotFactorialLineChart`], [`plotCatMu`], and [`plotFactorialLineChart_catActive.BP`].
+#' Each of the panels of the overall parameter summary plot can be made with different underlying plotting functions. These are [`plotHistogram`], [`plotFactorialLineChart`], and [`plotCatMu`].
 #' 
 #' @section `catMu` and `catActive`:
 #' In addition, a histogram of the number of active categories per participant is plotted, as is the
@@ -122,7 +122,7 @@ plotParameterSummary = function(res, catMuPrec = 2, factorOrder = NULL, cip = 0.
 		groups = list()
 		groups[[ defaultGroupName() ]] = res
 		
-		bpRes = mergeGroupResults.BP(groups)
+		bpRes = combineGroupResults.BP(groups)
 		
 	} else if (resultIsType(res, "BP")) {
 		bpRes = res
@@ -231,7 +231,6 @@ plotParameterSummary = function(res, catMuPrec = 2, factorOrder = NULL, cip = 0.
 #' @family generic functions
 #' @family plotting functions
 #' 
-#' @md
 #' @export
 plotParameter = function(res, param) {
 	
@@ -256,9 +255,9 @@ plotParameter = function(res, param) {
 
 #' Plot Histogram of Participant Mean Parameter Values
 #' 
-#'  Works for both WP and BP designs.
+#' Plots a histogram of the means of the participants' parameter value. The mean parameter value is indicated with a vertical line.
 #' 
-#' @param res A results object produced by either [`runParameterEstimation`] or [`mergeGroupResults.BP`].
+#' @param res A generic result object (see [`Glossary`]).
 #' @param param The name of the parameter to use.
 #' @param xlab Label to place on the x-axis. If `NULL`, defaults to a reasonable value.
 #' @param breaks Passed as `breaks` argument of `hist`. Defaults to 10 for standard deviation parameters or `seq(0, 1, 0.1)` for probability parameters.
@@ -267,7 +266,6 @@ plotParameter = function(res, param) {
 #' @family generic functions
 #' @family plotting functions
 #' 
-#' @md
 #' @export
 plotHistogram = function(res, param, xlab = NULL, breaks = NULL, xlim = NULL) {
 	
@@ -305,7 +303,6 @@ plotHistogram = function(res, param, xlab = NULL, breaks = NULL, xlim = NULL) {
 #'
 #' @family plotting functions
 #' 
-#' @md
 #' @export
 plotHistWithMean = function(x, xlab=NULL, xlim=NULL, breaks=10) {
 	
@@ -360,7 +357,6 @@ credIntErrBarFun_Base = function(x, alpha) {
 #' @family generic functions
 #' @family plotting functions
 #' 
-#' @md
 #' @export
 plotFactorialLineChart = function(res, param, factorOrder = NULL, cip = 0.95,
 																	xlab = NULL, ylab = NULL, 
@@ -433,9 +429,9 @@ plotFactorialLineChart = function(res, param, factorOrder = NULL, cip = 0.95,
 #' 
 #' @return Invisibly, the data used to make the plot.
 #' 
-#' @md
 #' @family plotting functions
 #' @family generic functions
+#' 
 #' @export
 plotCatMu = function(res, precision = 2, pnums = NULL, type = NULL, 
 															 lwd = 1, lty = 1, groupColor = NULL, legendPosition = "topright") 

@@ -20,8 +20,9 @@
 #' 
 #' @return A list with two matrices, `prior` and `post`. Each column is one condition effect and each row is one sample from the prior or posterior.
 #' 
-#' @md
+#'
 #' @family generic functions
+#' 
 #' @export
 getConditionEffects = function(res, param, priorSamples = res$config$iterations, addMu = FALSE, manifest = FALSE, prior = TRUE, posterior = TRUE) 
 {
@@ -251,7 +252,7 @@ collapseConditionEffects = function(condEff, factors, usedFactors, uniqueFL = NU
 #' @return A list of prior and posterior matrices (depending on the `prior` and `posterior` arguments). Each of the matrices have iterations in rows and effect parameters in columns. The columns are named with the following scheme: "F1.L1:F2.L2" where "Fn" is the name of a factor and "Ln" is the level of that factor and ":" indicates the combinations of factor levels.
 #' 
 #' @family generic functions
-#' @md
+#'
 #' @export
 getMEIParameters = function(res, param, testedFactors, dmFactors = testedFactors, contrastType = NULL, addMu = FALSE, manifest = FALSE, prior = TRUE, posterior = TRUE) {
 	
