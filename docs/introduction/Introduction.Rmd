@@ -15,16 +15,16 @@ This package contains implementations of a few variants of psychological process
 
 All of the models use Bayesian parameter estimation and model comparison methods. There is nothing inherently Bayesian about the models, but maximum likelihood estimation is, in my experience, relatively slow and unreliable. The unreliability only appears if the model is somewhat complex and if you know what to look for. The slowness of maximum likelihood only really appears once models become complex. The categorical models in this package are complex, by virtue of having a large number of parameters. As such, the choice of Bayesian methods is obvious.
 
-There are two basic steps to using this package: 1) Running the parameter estimation and 2) analyzing the posterior distributions of the parameters. These steps each have many sub-steps, which are described in detail in the following sections.
+There are two basic steps to using this package: 1) Running the parameter estimation to obtain posterior distributions of the model parameters and 2) analyzing the posterior distributions in a variety of ways. These steps each have many sub-steps, which are described in detail in the Parameter Estimation and Examining Results sections.
 
 I do not hold you responsible for having read and comprehended the Appendix of @HardmanVergauweRicker2017. However, there is a great deal of information there that I do not repeat here, so it would likely be of benefit for you to read it if there is anything about the specification of the model(s) that you do not understand.
 
 
 # Parameter Estimation
 
-## Data Format
+## Data Format {#dataFormat}
 
-This package works with two kinds of data: circular and linear. Circular data come from a circular study/response space, such as used by @HardmanVergauweRicker2017. Linear data, unlike circular data, do not wrap around. This package assumes that linear data is bounded within finite limits. See the [Linear Data](#linearData) section for more information on using linear data.
+This package works with two kinds of data: circular and linear. Circular data come from a circular study/response space, such as used by @HardmanVergauweRicker2017. Linear data, such as used by @RickerHardman2017, do not wrap around but are instead bounded by finite limits. See the [Linear Data](#linearData) section for more information on using linear data. Most of the examples use circular data.
 
 The data must be stored in a `data.frame` where each row of the data frame has the data for a single study/response pair, with information about which participant and condition the study/response pair are from. The data should have 4 columns, in no particular order:
 
@@ -43,18 +43,6 @@ data = read.delim("../../examples/betweenItem/betweenItem_data.txt")
 
 data[1:5,]
 ```
-
-### Between-Participants Designs
-
-The models are designed for within-participants designs in which all participants have data in all conditions. This allows for maximal interpretability of the condition effect parameters. 
-
-With a between-participants design, the model will run, but it is possible to have differences between conditions get soaked up, at least in part, by participant level parameters due to different participants being in different conditions. In theory, this is mitigated by the fact that there is a hierarchical prior on all of the participant level parameters. This should keep all participants somewhat clustered around one population grand mean, while the condition effects account for differences between conditions, but this is only in theory. 
-
-In practice I have found that fully between-participants designs do not work properly. What happens is that the condition effect parameters trade off badly with participant level parameters, making inference about parameters questionable.
-
-I have experimented with a mixed between/within design in which all participants do 2 conditions out of 3 possible conditions. Making there be some overlap between participants and conditions seems to help and the model seems to work acceptably well.
-
-If you have a fully between-participants design, you are not totally out of luck. You should fit the model separately for each group of participants. Then you should contact me and I may be able to help you. I am working on adding some support for between-participants designs to the package and I may have the piece you need ready.
 
 
 ## Main Parameter Estimation Function
@@ -78,7 +66,7 @@ names(results)
 ```
 See the documentation for `runParameterEstimation` for more information about the contents of the results object. You will not necessarily need to directly use the contents of the results object, provided that the analyses you want to perform are basically identical to the analyses that I have already done and programmed into this package. If this is not the case, you will need to dig into the results object a little. That said, the analyses that are already programmed in are fairly general.
 
-## Tuning Metropolis-Hastings Acceptance Rates
+## Tuning Metropolis-Hastings Acceptance Rates {#mhTuning}
 
 Many of the parameters of the model are updated with a Metropolis-Hastings (MH) step. The MH procedure works best when the acceptance rates of sampled parameters are in a moderate range. It is up to the user to verify that the acceptance rates for the parameters are in a reasonable range, at about a 0.4 to 0.6 acceptance rate. Once you have parameter estimation results, the following helper function can be used:
 ```{r}
@@ -142,7 +130,7 @@ saveRDS(results, file = "results_1.RDS")
 
 I will show you how to combine these parallel chains in the [Combining Results from Parallel Chains](#combiningParallelChains) section.
 
-## Verifying Convergence
+## Verifying Convergence {#verifyingConvergence}
 
 It is important for the purposes of analysis that the posterior distribution of the parameters has converged. Many of the parameters in the model are estimated with the Metropolis-Hastings procedure, which can be somewhat slow to converge. As a result, it is important to find out when the posterior chains have converged so that the pre-convergence burn-in iterations can be removed.
 
@@ -191,9 +179,10 @@ pmat = mcmc(pmat) #convert to coda format
 
 With this parameter matrix, you can use the Geweke diagnostic from the `coda` package. The Geweke diagnostic calculates a z statistic for each parameter. Under the hypothesis that the chains have converged, the z statistics follow a standard normal distribution. We can examine how well the z statistics follow a standard normal by making a QQ plot.
 
-```{r fig.width=3, fig.height=3}
+```{r fig.width=3.5, fig.height=3}
 gr = geweke.diag(pmat, 0.4, 0.4)
-qqnorm(gr$z) # The z-scores should follow a standard normal distribution.
+par(mar=c(4, 4, 1, 1))
+qqnorm(gr$z, main="") # The z-scores should follow a standard normal distribution.
 abline(0,1)
 ```
 
@@ -347,7 +336,7 @@ One research question is whether there is any categorical responding present in 
 testCategoricalResponding(results)
 ```
 
-Note that the test is done in each condition individually. The null hypothesis for each test is that the parameter value is equal to the null hypothesized values, `pContBetween_test` and `pCatGuess_test`.
+Note that the test is done in each condition individually. The null hypothesis for each test is that the parameter value is equal to the null hypothesized values, which are given in the `H0_value` column.
 
 ## Testing Parameter Means
 
@@ -721,6 +710,8 @@ probParameterManifestConditionEffectPlot(qlogis(0.5), 3)
 probParameterManifestConditionEffectPlot(qlogis(0.9), 3)
 ```
 
+In the title of each plot, `p` is the latent participant parameter value and `scale` is the prior scale of the Cauchy distribution from which prior condition effects are sampled.
+
 Turning to the SD parameters, the process works similarly but is a little more straightforward. In particular, as you can see from the code below, a latent condition effect of 3 results in a manifest condition effect of 3 for a participant parameter of 10 or 15. This is true except when the latent condition effect is negative and results in a combined latent value of less than the cutoff (which is 1 by default; set by `config$minSD`).
 
 ```{r}
@@ -761,9 +752,7 @@ The spikes at the left side of the distributions are due to the transformation o
 
 ## Controlling the Number of Categories
 
-One of the issues with this model is that it is eager to use a lot of categories. However, it is reasonable to think 1) that people do not have a huge number of categories and 2) that those categories are not extremely close to one another. As discussed in the Category Center and Active Parameters subsection in the Appendix of @HardmanVergauweRicker2017, with a uniform prior on the `catMu` and `catActive` parameters, the maximum number of parameters was always used for all participants, which is unreasonable.
-
-There are two ways to control the number of categories used by participants: Setting the maximum number of categories and setting a prior on category locations.
+One of the issues with this model is that it is eager to use a lot of categories. However, it is reasonable to think 1) that people do not have a huge number of categories and 2) that those categories are not extremely close to one another. As discussed in the Category Center and Active Parameters subsection in the Appendix of @HardmanVergauweRicker2017, with a uniform prior on the `catMu` and `catActive` parameters, the maximum number of categories was always used for all participants. This behavior is very unreasonable, so the model has mechanisms to control the number of active categories. There are two ways to control the number of categories used by participants: Setting the maximum number of categories and setting a prior on category locations.
 
 ### Maximum Number of Categories
 
@@ -780,18 +769,18 @@ There are a few guidelines to follow here.
 1. If you set `maxCategories` to a very large value (like 100), it will make the parameter estimation take a really long time. This is because every category has parameters that are estimated regardless of whether the category is active or not. Specifically, even for inactive categories, the `catActive` parameter is constantly checking whether the category should become active and the `catMu` parameter is wandering around.
 2. If you set `maxCategories` to the exact number of categories that you want to be the maximum, the effective maximum will be slightly lower than `maxCategories` because even categories in good locations will occasionally be deactivated.
 
-Thus, you should set `maxCategories` to a value slightly larger (maybe 20%) than the value you want as the effective maximum.
+Based on these two ideas, it seems reasonable to set `maxCategories` to a value slightly larger (maybe 20%) than the value you want as the effective maximum.
 
 ### Prior on Category Locations
 
-The more complex way to control the number of categories is to set a prior which penalizes categories which are too close to one another. This prior discussed in the Category Center and Active Parameters section of the Appendix of @HardmanVergauweRicker2017. The parameter that control this is called $\sigma_{0\mu}$ in the article and `catMuPriorSD` in the package. You can set its value by providing a list with it as a prior override, as shown in the code snippet below.
+The more complex way to control the number of categories is to set a prior which penalizes categories which are too close to one another. This prior is discussed in the Category Center and Active Parameters section of the Appendix of @HardmanVergauweRicker2017. The parameter that control this is called $\sigma_{0\mu}$ in the article and `catMuPriorSD` in the package. You can set its value by providing a list with it as a prior override, as shown in the code snippet below.
 
 ```{r eval=FALSE}
 priors = list(catMuPriorSD = 12)
 results = runParameterEstimation(config, data, priorOverrides=priors)
 ```
 
-The mathematical behavior of the prior is described in the article. Below is a plot of what this prior looks like for the given category centers. The solid points are at the category centers.
+The mathematical behavior of the prior is described in the article. Below is a plot of what this prior looks like for the given category centers. The solid points at the bottom of the troughs in the plot are at the category centers that are used in this example.
 
 ```{r fig.width=4, fig.height=3}
 par(mar=c(5,4,1,1), cex=0.8)
@@ -799,7 +788,7 @@ catMus = c(60, 110, 150, 180, 300, 320)
 plotCatMuPrior(12, catMus)
 ```
 
-This function can be thought of as the prior density for a new category that is trying to be added to the existing categories. In the vicinity of existing categories, the prior density for the new category is quite low, which makes it less likely that the new category will go in that location. However, far from any existing category, such as near 240 degrees, the prior density is relatively high and locally approximately uniform, which makes it relatively easy for a new category to be placed there.
+The plotted function can be thought of as the prior density for a new category that is trying to be added to the existing categories. In the vicinity of existing categories, the prior density for the new category is quite low, which makes it less likely that the new category will go in that location. However, far from any existing category, such as near 240 degrees, the prior density is relatively high and locally approximately uniform, which makes it relatively easy for a new category to be placed there.
 
 Note that this prior is on both `catMu` and `catActive`. The effect it has on `catActive` is to make it more likely that an active category that has moved too near another active category will be deactivated, along with making it less likely that an inactive category would become active when it is near an active category. The effect it has on `catMu` is that it makes it less likely that an active category would move nearer to another active category. It has no effect on inactive `catMu`s (inactive `catMu` parameters move around with a random walk, looking for a good place to become active).
 
@@ -872,6 +861,8 @@ config$factors = data.frame(
 ```
 
 For example, condition `a3` is associated with level `a` of the letters factor and level `3` of the numbers factor. This information is needed by the package so it can know what conditions in the data go with what factor levels. If you have only one factor, you do not need to provide the factors data frame, but you may. It is not necessary to include the factors in the data set: You still only need the `cond` column in the data.
+
+Note that there are limitations on the factor names and factor levels. Factor levels and factor names may not contain ":" or "." (color or periord). No factors may be named "cond", "key", or "group" as those names are reserved for special columns in `factors`.
 
 Now that the model has this information about factors, you can start doing two things: constraining parameter estimation and performing hypothesis tests. Note that the discussion of factors naturally lends itself to factorial designs, the following subsections also apply to one-factor designs.
 
@@ -1022,23 +1013,186 @@ Notes:
 
 See the `factorial_betweenItem` example for more code examples of modifying `results$config$factors`. In that case, the design is not nested, but the presence of a two-factor interaction means that simple effects (main effects of a factor within a single level of another factor) must be analyzed. The analysis of simple effects is very much like the analysis of a nested design.
 
+# Between-Participants Designs
+
+Starting with version 0.8.0 of this package, between-participants (BP) and mixed between/within designs are supported. The workflow for BP designs is similar to within-participants (WP) designs, but there are additional steps. The extra steps are in the parameter estimation phase, while analysis of the fitted models is nearly the same regardless of whether the design is BP or WP.
+
+For the BP designs supported by this package, there are some number of different groups with completely different sets of participants in each group. 
+If a participant is in more than one group, the model has no way of doing anything about it. If you have an unusual design in which some participants are in more than one group, you can still use this package
+with the understanding that participants who are in more than one group will have multiple different parameter estimates, one for each group that the participant is in. You essentially lose some information that would allow the model to be more parsimonious by estimating fewer parameters per participant, but this would require writing a different model. Thus, I'm just not going to support having some participants in multiple groups.
+
+The first step is to perform estimation for each group of participants separately. This ends up being similar to parameter estimation for a single group, but looping over multiple groups.
+
+* Most of the configuration options must be the same for every group.
+    + Model variant, number of iterations, etc.
+* Some configuration options may differ.
+    + The levels of at least the between-participants factors of the design will probably differ between groups.
+    + Priors are not required to be the same for all groups, but usually should be the same unless you have a good reason for the priors to vary.
+    + `conditionEffects` can be different in different groups. See the Unbalanced Factorial Mixed Design example.
+
+## Conceptual Example
+
+This section goes through the conceptual steps that need to be performed in order to work with a BP design. The code examples in this section are not run. For a working example of a BP design, see the Factorial Mixed Design and Unbalanced Factorial Mixed Design examples (see the [Examples section](#examples))
+
+Assume that you have a four group design and the groups are named A, B, C, and D. For each group, you have data sets that are in the correct format (see the [Data Format](#dataFormat) section) and these data sets are `dataA` through `dataD`. You might have your data in some other format, like one large data frame for all four groups, you'll just need to subset that data frame to select the right data for each group. To help automate parameter estimation, we will put these data sets into a list that will be iterated over.
+
+```{r eval=FALSE}
+dataSets = list(A = dataA, B = dataB, C = dataC, D = dataD)
+```
+
+Set up the same basic configuration list for each group and then modify those configs for each group as needed. Typically, the configurations for the different groups should be the same except for `factors` and maybe `conditionEffects`.
+
+```{r eval=FALSE}
+configs = list()
+for (grp in names(dataSets)) {
+	configs[[ grp ]] = list(
+		modelVariant = "betweenItem", 
+		iterations = 500
+	)
+}
+
+```
+
+The main configuration item that should differ between groups is `factors`, which specifies which levels of the factors of the design correspond to which conditions within groups. For this example, assume that each of the four groups has one WP factor called `numbers` with two levels, 1 and 2. You can have any number of WP or BP factors. In this case, assume that the four groups form a 2 X 2 BP design with the two BP factors named `letters` and `LETTERS`.
+
+In the example code below note that the WP factor is the same for each group, but it doesn't have to be if the levels of the WP factor are different in different groups. Note that the BP factors all have the same level within each group (using R's automatic vector extension).
+
+```{r eval=FALSE}
+
+configs$A$factors = data.frame(
+	cond = c(1, 2),
+	numbers = c(1, 2),
+	letters = 'a',
+	LETTERS = 'A',
+	stringsAsFactors = FALSE
+)
+
+configs$B$factors = data.frame(
+	cond = c(1, 2),
+	numbers = c(1, 2),
+	letters = 'a',
+	LETTERS = 'B',
+	stringsAsFactors = FALSE
+)
+
+configs$C$factors = data.frame(
+	cond = c(1, 2),
+	numbers = c(1, 2),
+	letters = 'b',
+	LETTERS = 'A',
+	stringsAsFactors = FALSE
+)
+
+configs$D$factors = data.frame(
+	cond = c(1, 2),
+	numbers = c(1, 2),
+	letters = 'b',
+	LETTERS = 'B',
+	stringsAsFactors = FALSE
+)
+
+```
+
+Depending on how dissimilar your groups are, you may be able to use the same (or similar) Metropolis-Hastings (MH) tuning values for each group. If you think that the groups will be similar, you can set up a default MH tuning that is the same for each group and then modify it as need be.
+
+```{r eval=FALSE}
+mhTunings = list()
+for (grp in names(dataSets)) {
+	mhTunings[[ grp ]] = list(
+		pMem = 0.5,
+		contSD = 2
+	)
+}
+
+# Modify tunings for individual groups
+mhTunings$B$pCatGuess = 1
+```
+
+With all of the preceding pieces in place, you can run the initial parameter estimation for all of the groups.
+
+```{r eval=FALSE}
+
+groups = list()
+for (grp in names(dataSets)) {
+	
+	groups[[ grp ]] = runParameterEstimation(
+											config = configs[[ grp ]], 
+											data = dataSets[[ grp ]], 
+											mhTuningOverrides = mhTunings[[ grp ]]
+										)
+}
+
+```
+
+After the initial short parameter estimation, check MH acceptance rates for all four groups. For any parameters with unacceptable acceptance rates, go back and modify the MH tuning values and rerun parameter estimation. For more information, see the [section on tuning MH acceptance rates](#mhTuning).
+
+```{r eval=FALSE}
+examineMHAcceptance(groups$A)
+examineMHAcceptance(groups$B)
+examineMHAcceptance(groups$C)
+examineMHAcceptance(groups$D)
+```
+
+Once the MH acceptance rates are good enough, continue sampling more iterations for each group. In this example, that is done in a loop.
+
+```{r eval=FALSE}
+for (grp in names(groups)) {
+	continueResults = continueSampling(groups[[grp]], 5000)
+	groups[[n]] = continueResults$combinedResults
+}
+```
+
+Instead of running all of the main parameter estimation in a loop in one R session, you might want to run each group individually in different R sessions to get a parallel processing speed bonus.
+
+At this point, you have tuning MH acceptance rates and estimated parameters for all four groups. Now the results from the groups need to be combined together into a BP results object with `combineGroupResults.BP`. 
+
+```{r eval=FALSE}
+bpRes = combineGroupResults.BP(groups)
+```
+
+Some checks are performed by `combineGroupResults.BP` to make sure that it makes sense to combine together the different groups. For example, if the model variant, number of iterations, or factors are incompatible between groups, you will get an error. You could consider doing a "dry run" in which you use only a tiny number of iterations (skipping MH tuning for now) to make sure that all of the steps work up to here and then rerun with more iterations.
+
+The BP results object, named `bpRes` here, is analogous to the `results` object used in WP designs, but with a different structure. There are two main members of `bpRes`: `groups` and `config`. `groups` is the argument passed to `combineGroupResults.BP` without any modifications. Thus, if you ever want to work with a single group, you can access it as in the example below.
+
+```{r eval=FALSE}
+plotParameterSummary(bpRes$groups$B) # Not shown
+```
+
+The other main member of `bpRes` is `config`, which is analogous to `results$config`, but with some differences. The main difference is that `bpRes$config$factors` combines together information about factors for all groups, not just a single group. You should check that `bpRes$config$factors` is correct for your design. If you made a mistake setting up `config$factors` for the individual groups, this is a good chance to catch it.
+
+You can pass `bpRes` to nearly all functions that you can pass a WP results object to, such as `plotParameterSummary()`, `testMainEffectsAndInteractions()`, and `removeBurnIn()`.
+
+```{r eval=FALSE}
+bpRes = removeBurnIn(bpRes, 500)
+```
+
+You will need to pick the number of burn-in iterations to remove based on [convergence verification techniques](#verifyingConvergence) that are applied to each group individually.
+
+Once removing burn-in iterations, you can now move on to analysis stage. Most all analysis functions in this package can take either a WP or BP results object. Functions that work for either type can be found by looking at the "Other generic functions" section toward the bottom of the documentation page for `testMainEffectsAndInteractions()`.
+The functions that can only take a WP results object can be found by looking at the "Other WP functions" section toward the bottom of the documentation page for `testMeanParameterValue()`.
+If in doubt, you can check the documentation page for the function that you want to use.
+
 
 # Notes
 
 ## Citing this Package and the Models
 
-For referencing ideas in the models, please cite @HardmanVergauweRicker2017. See the references section for a full citation.
+For referencing the models themselves, please cite @HardmanVergauweRicker2017. See the references section at the end of the document for a full citation of that article.
 
-If you use this package, please cite it:
+For a reference specifically related to how the models are modified in order to allow for the use of linear data, reference @RickerHardman2017.
 
-Hardman, K.O. (2016). CatContModel: Categorical and Continuous 
-Working Memory Models for Delayed Estimation Tasks (Version 0.7.5) [Computer software]. Retrieved from
-https://github.com/hardmanko/CatContModel/releases/tag/v0.7.5
+If you use this package in your research, please cite it:
+
+Hardman, K.O. (2017). CatContModel: Categorical and Continuous 
+Working Memory Models for Delayed Estimation Tasks (Version 0.8.0) [Computer software]. Retrieved from
+https://github.com/hardmanko/CatContModel/releases/tag/v0.8.0
 
 Make sure to update the version number in both the name and the URL.
 
+If you want to reference information contained in this manual, I think it is suffucient to cite the package because this manual is included in the package.
 
-## Examples
+
+## Examples {#examples}
 
 In addition to the code examples included in this document, there are many code-based examples of package usage in the `examples` directory in the GitHub repository for this package: [Direct link](https://github.com/hardmanko/CatContModel/tree/master/examples). The readme file there gives more information on the contents of the examples and how to use them.
 
@@ -1049,7 +1203,7 @@ The code is commented and goes through many of the basic steps needed to analyze
 
 ### Between-Item
 
-This was the best model selected by @HardmanVergauweRicker2017. If you are going to use one categorical model from this package for color data, you should use this model. However, you could try fitting more than one model and comparing the fit of those models with [WAIC](#WAIC).
+This was the best model selected by @HardmanVergauweRicker2017. If you are going to use one categorical model from this package for color data, you should use this model. However, you could try fitting more than one model from this package and comparing the fit of those models with [WAIC](#WAIC).
 
 #### Fully Categorical Model
 
@@ -1102,9 +1256,29 @@ These models were developed with colors in mind, but there is nothing about the 
 
 Always attempt at least some diagnostics to verify that the model is working well. One of the best diagnostics is to see whether the data produced by the fitted model looks like the real data. See the [Posterior Predictive Distribution](#posteriorPredictive) section for information on how to do this.
 
-### Linear Data {#linearData}
+## Linear Data {#linearData}
 
-To use this package with linear data (i.e. data the do not wrap around/are not circular), you will need to modify the main parameter estimation configuration in a few ways. 
+Some delayed estimation tasks, such as those used by @RickerHardman2017, use stimuli and responses on a bounded space rather than a circular space. Although the stimuli used by @RickerHardman2017 were presented on a circle, because the stimuli do not wrap around, they are not mathematically circular, but instead linear with finite endpoints. It is possible to use this package with data that are bounded on a linear interval without much difficulty.
+
+### Modifications to Distributions
+
+In order to accomodate linear data, a few modifications to the distributions used by the model were required. With linear data, rather than using Von Mises distributions, the model uses a combination of normal and truncated normal distributions. With reference to the equation numbers in the Appendix of @HardmanVergauweRicker2017, the following modifications were made:
+
++ In Equations 3, 4, and 7, the Von Mises distributions were changed to truncated normal distributions. The truncation points are the most extreme possible response values. This truncation range can either be set by the user or guessed by the package based on the observed range of responses across all participants.
++ In Equations 5 and 20, the Von Mises distributions were changed to normal distributions.
+
+@RickerHardman2017 presented these changes in the paragraph starting at the end of page 6 and continuing to page 7, but only alluded to the rationale, which I give here.
+
+Importantly, for typical values of the standard deviation parameters (e.g. `contSD`), the Von Mises distribution is very similar to a normal distribution. This similarity is discussed further in the Within-Item Model Variant section of the Appendix of @HardmanVergauweRicker2017. This allows for the use of the normal distribution as a natural drop-in replacement for the Von Mises distribution.
+
+In Equations 3, 4, and 7, the Von Mises distributions give the density for a response given some parameters. Thus, these distributions are distributions of the data. If a linear response range with bounded endpoints is used, then it is known that no responses can be outside of those endpoints. If a participant studies a value near or at one of the response endpoints, memory imprecision may sometimes result in the participant believing that the correct response is outside of that response endpoint. In that case, the participant could respond at or very near the endpoint. Over many similar trials, a cluster of responses as the endpoint would develop, possibly with a tail pointing away from the endpoint. This description is highly suggestive of a truncated normal distribution, so that is what I chose, but I recognize that other ways of dealing with endpoints are possible. Note that if you don't like the idea of having clusters of responses at the endpoints, you should make the range of possible responses wider than the range of studied values in your task, which should help with this endpoint problem.
+
+In Equations 5 and 20, the Von Mises (changed to non-trucated normal) distributions give densities based studied values and category means. The possible studied values and the possible category locations are both unrestricted by the range of possible responses. As such, it would not make sense to truncate the normal distributions in Equations 5 and 20 based on the range of possible responses. Likewise, it would not make sense to truncate the distributions based on any characteristics of the task design because categories are participant characteristics that cannot be directly observed. Thus, the normal distributions in Equations 5 and 20 are not truncated.
+
+
+### How to use Linear Data
+
+To use this package with linear data, you will need to make some minor changes to the parameter estimation configuration. 
 Imagine that you have linear data and that the possible range of responses goes from -100 to 100 (in whatever the units of the data are). You would create a configuration list as follows:
 
 ```{r eval=FALSE}
@@ -1118,10 +1292,10 @@ Note that two new, important values are provided: `dataType` and `responseRange`
 
 Note that you do not need to provide `responseRange`. If you do not provide it, `responseRange` will be set to the range of the observed data. This is done across all participants, not per participant. If different participants were given tasks that differed in terms of the possible range of responses, you won't be able to use this package without modification. In many cases, the observed range of the data and the possible range of responses are very similar, but if you have data in which the observed and possible ranges differ substantially, you should provide the possible range.
 
-You do not need to provide the possible range of the studied values. The possible range of studied values is irrelevant because studied values are treated as having known true values, which means that they have no distributional form.
+You do not need to provide the possible range of the studied values. The possible range of studied values is irrelevant because studied values are treated as having known true values, which means that they have no distributional form. You don't need to know what studied values were possible if you know exactly what values were studied.
 
-Once the model is configured to work with linear data, all of the analyses proceed as usual. All of the parameters have the same basic meaning regardless of whether circular or linear data are used. Some plotting functions might behave a little differently, but they should work.
-
+Once the model is configured to work with linear data, all of the analyses proceed as usual. 
+All of the same parameters are used with both circular and linear data. All of the parameters have the same basic meaning regardless of whether circular or linear data are used.
 The choice of `modelVariant` (e.g. betweenItem) is independent of the `dataType`: All model variants work will either data type.
 
 Note that the default priors assume that the data are circular in degrees, which is sort of like saying that they have a range of 360 degrees. If your linear data have a much smaller range, like 30 units, or a much larger range, like 5000 units, you should consider whether you need to adjust the hierarchical priors on `contSD`, `catSD`, and `catSelectivity`. In particular, I would mostly consider adjusting the prior mean and variance on the means of those three parameters. Likewise, you should probably change the condition effect prior scales for those parameters. Finally, you should probably adjust the Metropolis-Hastings tuning values for those three parameters. See the code example below:
@@ -1146,8 +1320,11 @@ results = runParameterEstimation(config, data,
 	mhTuningOverrides = mhTuningOverrides)
 ```
 
-Currently, the `catMu` parameters are not allowed outside of the range of the data. This may change at some point once I make a hard decision about how to allow it to happen. Details: There is a calculation in the likelihood function in which the density of an observed response given a `catMu` parameter is calculated. The density function is a truncated normal. If the `catMu` parameter is far outside of the possible range of responses, the proportion of the normal distribution within the response range (which is the truncation scale factor) is approximately 0. To calculate the truncated density, a normal density is divided by the truncation scale factor. Division by 0 is bad, so I have to choose how to prevent division by 0. There are no good solutions (at least that I know of), only less bad solutions. The current less bad solution is to prevent the `catMu` parameters from being outside of the response range.
+This code example only shows `contSD`, but the logic is easily extended to the other standard deviation parameters. See the Chosing Priors subsection within the [Priors](#priors) section for more information on how to select priors.
 
+### Category Location Restriction
+
+Currently, the `catMu` parameters are not allowed outside of the range of the data. This may change at some point once I make a hard decision about how to allow it to happen. Details: There is a calculation in the likelihood function in which the density of an observed response given a `catMu` parameter is calculated. The density function is a truncated normal. If the `catMu` parameter is far outside of the possible range of responses, the proportion of the normal distribution within the response range (which is the truncation scale factor) is approximately 0. To calculate the truncated density, a normal density is divided by the truncation scale factor. Division by 0 is bad, so I have to choose how to prevent division by 0. There are no good solutions (at least that I know of), only less-bad solutions. The current less-bad solution is to prevent the `catMu` parameters from being outside of the response range. Obviously, the internal categories used by participants do not necessarily map neatly onto the response space chosen by the experimenter. It is always possible that there is a category just outside of the response space but that category is forced into the response space by the model. This is another reason to make the response range wider than the range of studied values, because having a buffer between the range of studied values and the range of possible responses makes it less likely that a studied value would be assigned to a category outside of the range of possible responses.
 
 
 
@@ -1156,8 +1333,6 @@ Currently, the `catMu` parameters are not allowed outside of the range of the da
 `catSelectivity` is really hard to estimate. Don't expect to be able to do anything fancy with it, like giving it a condition effect as discussed in the [Constraining Parameter Estimation](#constrainingParameterEstimation) section.
 
 
-
 # References
-
 
 
