@@ -238,11 +238,13 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 	
 	close(pb)
 	
+	aggregateBy = c("param", "factor", "levels")
 	if (all(BFs$levels == "Omnibus")) {
 		BFs$levels = NULL
+		aggregateBy = aggregateBy[ aggregateBy != "levels" ]
 	}
 	
-	rval = cleanAndSummarizeMEIResults(BFs, summarize=summarize, aggregateBy = c("param", "factor", "levels"))
+	rval = cleanAndSummarizeMEIResults(BFs, summarize=summarize, aggregateBy = aggregateBy)
 	rval
 	
 }
