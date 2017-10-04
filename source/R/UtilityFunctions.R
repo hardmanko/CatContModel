@@ -80,7 +80,7 @@ createParameterSummaryPlotConfiguration = function(paramSymbols, ...) {
 		lab = baseConfig[[ n ]]$label
 		sym = paramSymbols[[ n ]]
 		
-		baseConfig[[n]]$label = bquote(lab*" ("*.(sym)*")")
+		baseConfig[[n]]$label = bquote(.(lab)*" ("*.(sym)*")")
 	}
 	
 	
