@@ -114,13 +114,7 @@ for (n in names(groups)) {
 #saveRDS(groups, file="UFMD_groups.RDS")
 
 
-
-############################
-# TESTING: REMOVE
-setwd("~/../Programming/R/CatContModel/examples/unbalancedFactorialMixedDesign")
-library(CatContModel)
-############################
-
+##########################
 # Read the results back in
 groups = readRDS("UFMD_groups.RDS")
 
@@ -132,147 +126,52 @@ bpRes$colorGeneratingFunction = function(angle) {
 	hsv((angle / 360) %% 1, 1, 1)
 }
 
-#####################################
+##############
+# Plotting and analysis goes more or less as usual with unbalanced designs
 
-posteriorMeansAndCredibleIntervals(bpRes)
-
-
-testSingleEffect(bpRes, "pContBetween", "numbers:letters")
-
-mei = testMainEffectsAndInteractions(bpRes, subsamples = 5)
-mei = testMainEffectsAndInteractions(bpRes$groups$C, subsamples = 5)
-
-mei[ mei$bfType == "10", ]
-
-
-ceht.bp = testConditionEffects(bpRes)
-ceht.wp = testConditionEffects(bpRes$groups$C)
-
-
-cef.bp = getConditionEffects(bpRes, "pMem")
-cef.wp = getConditionEffects(bpRes$groups$C, "pMem")
-
-param = "contSD"
-plotDf = plotFactorialLineChart(bpRes, param)
-plotDf = plotFactorialLineChart(bpRes, param, factorOrder = c("letters", "numbers"))
-plotDf = plotFactorialLineChart(bpRes, param, factorOrder = c("letters", "BP_Group"))
+plotParameterSummary(bpRes, asPdf=TRUE, pdfScale = 2)
 
 plotParameter(bpRes, "pMem")
 plotParameter(bpRes, "catSD")
 plotParameter(bpRes, "catActive")
 plotParameter(bpRes, "catMu")
 
-
-plotFactorialLineChart(bpRes$groups$C, "pMem")
-
-
-plotParameterSummary(bpRes, factorOrder = c("letters", "BP_Group", "numbers"), asPdf=TRUE, pdfScale = 2)
-plotParameterSummary(bpRes, asPdf=TRUE, pdfScale = 2)
-
-plotParameterSummary(bpRes$groups$C, asPdf=TRUE, pdfScale = 2)
-
-plotFactorialLineChart(bpRes, "catActive")
-plotHistogram(bpRes, "catActive")
+plotParameterLineChart(bpRes, "catSD")
+plotParameterHistogram(bpRes, "catSD")
 
 
-plotCatMu(bpRes)
+##########
+# Main effects and interactions
+mei = testMainEffectsAndInteractions(bpRes, subsamples = 5)
 
-bpRes$groups$C$colorGeneratingFunction = function(angle) {
-	hsv((angle / 360) %% 1, 1, 1)
-}
-
-plotCatMu(bpRes$groups$C)
-
-plotFactorialLineChart(bpRes, "pMem", factorOrder = c("letters", "BP_Group"))
+mei[ mei$bfType == "10", ]
 
 
-plotFactorialLineChart(bpRes, "catSD")
+#########
+# Due to how ugly this design is, you might want to compare cells of the design directly.
+ce = testConditionEffects(bpRes)
+ce
 
-plotHistogram(bpRes, "catSD")
+# Just bayes factors in favor of sameness (no difference)
+ce[ ce$param == "pMem" & ce$bfType == "01", ]
 
-pp = getAllParameterPosteriors(bpRes, "catSD", manifest = TRUE, format = "data.frame")
-
-
-getFactorNameToType(fact)
-
-
-ceg = getConditionEffects(bpRes, "contSD", addMu = TRUE, manifest = TRUE)
-df = CatContModel:::reshapeMatrixToDF(ceg$post, ceg$colKeys)
-hist(ceg$prior)
-
-
-plotParameterSummary.BP(bpRes$groups$C, factorOrder = c("letters", "numbers"), asPdf=TRUE, pdfScale = 2)
-
-
-
-
-
-
-f = bpRes$groups$C$config$factors
-f
-normalizeFactors(f)
-
-normalizeFactors(bpRes$config$factors)
-
-#config = bpRes$config
-config = bpRes$groups$C$config
-param = "pMem"
-
-f = config$factors
-#f = f[ c(1, 2, 3, 5, 7, 8), ]
-#f = f[ c(1, 3, 5, 7), ]
-f = f[ 1:3, ]
-config$factors = f
-
-config$conditionEffects$pMem = "none"
-
-getFactorsForConditionEffect.WP(config, param)
-getFactorsForConditionEffect.BP(bpRes, param)
-
-
-
-
-updateFactorsForConditionEffects(bpRes, "pMem")
-updateFactorsForConditionEffects(bpRes, "contSD")
-updateFactorsForConditionEffects(bpRes, "pContBetween")
-
-updateFactorsForConditionEffects(bpRes$groups$C, "pMem")
-
-
-getvaryingFactorNames(bpRes, "pMem")
-getFactorsForConditionEffect(bpRes, "pMem")
-
-
+# To help you understand what cells are being compared, use the key column
+# of factors and compare to the key column in "ce".
 bpRes$config$factors
-getFactorsForConditionEffect(bpRes, "pMem")
-getFactorsForConditionEffect.BP(bpRes, "contSD")
-getFactorsForConditionEffect.BP(bpRes, "pContBetween")
 
+#########
+# Other stuff
+posteriorMeansAndCredibleIntervals(bpRes)
 
-getFactorTypeToName(bpRes$config$factors)
-
-bpCopy = bpRes
-fact = bpCopy$config$factors
-fact$letters = "a"
-bpCopy$config$factors = fact
-bpCopy = CatContModel:::backPropogateBPFactorsToWPFactors(bpCopy)
-
-bpCopy$groups$A$config$factors
-bpCopy$groups$B$config$factors
-bpCopy$groups$C$config$factors
+waic = calculateWAIC(bpRes)
 
 
 
-bpCopy = bpRes
-bpCopy
-makeBPConditionEffects(bpCopy)
+############################################################
+# Imagine that you want to do an analysis with only group C
+# You can use the results object stored in bpRes$groups$C
+grpC = bpRes$groups$C
 
-
-
-
-
-subs = CatContModel:::calculateWAIC_subsamples(bpRes, 1, 0.1)
-
-
+testMainEffectsAndInteractions(grpC)
 
 

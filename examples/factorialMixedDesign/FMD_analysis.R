@@ -99,11 +99,6 @@ for (n in names(groups)) {
 
 
 
-# TESTING REMOVE
-setwd("~/../Programming/R/CatContModel/examples/factorialMixedDesign") #or wherever you are working
-library(CatContModel)
-# END TESTING
-
 # Read the results back in
 groups = readRDS("FMD_groups.RDS")
 
@@ -135,14 +130,16 @@ plotParameterSummary(bpRes, asPdf = TRUE)
 # Plot the individual parameters of the overall parameter summary.
 # This gives you much more control than using plotParameterSummary.
 
-plotFactorialLineChart(bpRes, param = "contSD")
+plotParameterLineChart(bpRes, "pContBetween")
+
+plotParameterHistogram(bpRes, "pMem", breaks = seq(0, 1, 0.1))
 
 plotCatMu(bpRes)
 
-plotHistogram(bpRes, "pMem", breaks = seq(0, 1, 0.1))
+# Plot any parameter with default settings
+plotParameter(bpRes, "catActive")
 
-
-
+#############
 # Test main effects and interactions for the factors of the design.
 # Due to the very large number of tests, a small number of subsamples is used
 # for the purposes of speeding up this example.
@@ -154,7 +151,8 @@ mei
 # Just contSD Bayes factors in favor of the alternative
 mei[ mei$param == "contSD" & mei$bfType == "10", c("factor", "bf") ]
 
-
+# And plot just that parameter to check the reasonableness of the results
+plotParameterLineChart(bpRes, "contSD", factorOrder = c("LETTERS", "letters", "numbers"))
 
 
 #############
@@ -163,7 +161,7 @@ mei[ mei$param == "contSD" & mei$bfType == "10", c("factor", "bf") ]
 # Copy original results
 resCopy = bpRes
 
-# Modify the factors
+# Copy over the factors
 factors = resCopy$config$factors
 
 # Select only desired rows
@@ -180,6 +178,7 @@ mei = testMainEffectsAndInteractions(resCopy, subsamples = 5)
 
 mei
 
+# Also make plots for subsetted design
 plotParameterSummary(resCopy, asPdf = TRUE)
 
 

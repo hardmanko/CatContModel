@@ -81,9 +81,9 @@ plotParameterSummary(results)
 
 # Plot individual parts of the overall summary
 
-plotFactorialLineChart(results, "pMem")
-plotHistogram(results, "catSD")
-plotHistogram(results, "catActive")
+plotParameterLineChart(results, "pMem")
+plotParameterHistogram(results, "catSD")
+plotParameterHistogram(results, "catActive")
 plotCatMu(results)
 
 

@@ -119,8 +119,7 @@ subRes$config$factors = newFactors
 testSingleEffect(subRes, "contSD", "letters")
 
 # Are the results reasonable when compared to a plot of the parameters?
-plotFactorialLineChart(results, "contSD")
-plotFactorialLineChart(subRes, "contSD")
+plotParameterLineChart(subRes, "contSD")
 
 #######################
 # Let's say that we want to know which levels of the numbers factor are 
