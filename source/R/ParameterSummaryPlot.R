@@ -78,7 +78,7 @@ mergeCells = function(cells, i1, i2) {
 #' 
 #' Plotting to the default plotting surface in R often does not work well due to the large number of plots that are made. To plot to a pdf instead, which tends to work better, you can either 1) use the `pdf` function before calling `plotParameterSummary` or 2) use the `asPdf` argument to plot to a pdf rather than the default plotting surface.
 #' 
-#' Each of the panels of the overall parameter summary plot can be made with different underlying plotting functions. These are [`plotHistogram`], [`plotFactorialLineChart`], and [`plotCatMu`].
+#' Each of the panels of the overall parameter summary plot can be made with different underlying plotting functions. These are [`plotParameterHistogram`], [`plotParameterLineChart`], and [`plotCatMu`].
 #' 
 #' @section `catMu` and `catActive`:
 #' In addition, a histogram of the number of active categories per participant is plotted, as is the
@@ -181,7 +181,7 @@ plotParameterSummary = function(res, catMuPrec = 2, factorOrder = NULL, cip = 0.
 		} else {
 			if (length(parameterFactors) == 0) {
 				
-				plotHistogram(bpRes, param, xlab = pc$label, breaks = pc$breaks, xlim = pc$range)
+				plotParameterHistogram(bpRes, param, xlab = pc$label, breaks = pc$breaks, xlim = pc$range)
 				
 			} else {
 				if (any(!(parameterFactors %in% factorOrder))) {
@@ -191,7 +191,7 @@ plotParameterSummary = function(res, catMuPrec = 2, factorOrder = NULL, cip = 0.
 					parameterFactors = factorOrder[ factorOrder %in% parameterFactors ]
 				}
 				
-				plotFactorialLineChart(bpRes, param, factorOrder = parameterFactors, ylab = pc$label, cip = cip)
+				plotParameterLineChart(bpRes, param, factorOrder = parameterFactors, ylab = pc$label, cip = cip)
 			}
 		}
 		
@@ -223,7 +223,7 @@ plotParameterSummary = function(res, catMuPrec = 2, factorOrder = NULL, cip = 0.
 #' 
 #' This function plots a single parameter using default behaviors. If you
 #' need more control over how the parameters are plotted, see the underlying 
-#' plotting functions which provide more control over plotting behavior: [`plotHistogram`], [`plotFactorialLineChart`], and [`plotCatMu`].
+#' plotting functions which provide more control over plotting behavior: [`plotParameterHistogram`], [`plotParameterLineChart`], and [`plotCatMu`].
 #' 
 #' @param res A generic results object (see [`Glossary`]).
 #' @param param The name of the parameter to plot.
@@ -241,9 +241,9 @@ plotParameter = function(res, param) {
 		parameterFactors = getFactorsForConditionEffect(res, param)
 			
 		if (length(parameterFactors) == 0) {
-			plotHistogram(res, param)
+			plotParameterHistogram(res, param)
 		} else {
-			plotFactorialLineChart(res, param, factorOrder = parameterFactors)
+			plotParameterLineChart(res, param, factorOrder = parameterFactors)
 		}
 	}
 	
@@ -267,10 +267,10 @@ plotParameter = function(res, param) {
 #' @family plotting functions
 #' 
 #' @export
-plotHistogram = function(res, param, xlab = NULL, breaks = NULL, xlim = NULL) {
+plotParameterHistogram = function(res, param, xlab = NULL, breaks = NULL, xlim = NULL) {
 	
 	if (param == "catActive") {
-		rval = plotHistogram_catActive(res, xlab = xlab, breaks = breaks, xlim = xlim)
+		rval = plotParameterHistogram_catActive(res, xlab = xlab, breaks = breaks, xlim = xlim)
 		return(invisible(rval))
 	}
 	
@@ -358,17 +358,17 @@ credIntErrBarFun_Base = function(x, alpha) {
 #' @family plotting functions
 #' 
 #' @export
-plotFactorialLineChart = function(res, param, factorOrder = NULL, cip = 0.95,
+plotParameterLineChart = function(res, param, factorOrder = NULL, cip = 0.95,
 																	xlab = NULL, ylab = NULL, 
 																	legendPosition = "CHOOSE_BEST", plotSettings = NULL)
 {
 	
 	if (param == "catActive") {
 		if (resultIsType(res, "BP")) {
-			rval = plotFactorialLineChart_catActive.BP(res, factorOrder = factorOrder, cip = cip)
+			rval = plotParameterLineChart_catActive.BP(res, factorOrder = factorOrder, cip = cip)
 			return(invisible(rval))
 		} else {
-			stop("For WP designs, catActive may only be plotted with a histogram as it does not vary with WP factors. Use plotHistogram() instead.")
+			stop("For WP designs, catActive may only be plotted with a histogram as it does not vary with WP factors. Use plotParameterHistogram() instead.")
 		}
 	}
 	
@@ -625,7 +625,7 @@ catMu_plotData = function(x, y, col = "black", type = "line", lwd = 1, lty = 1) 
 # catActive #
 #############
 
-plotFactorialLineChart_catActive.BP = function(bpRes, factorOrder = NULL, cip = 0.95, ylab = NULL) {
+plotParameterLineChart_catActive.BP = function(bpRes, factorOrder = NULL, cip = 0.95, ylab = NULL) {
 	
 	ica = getIterationCatActive(bpRes)
 	
@@ -650,7 +650,7 @@ plotFactorialLineChart_catActive.BP = function(bpRes, factorOrder = NULL, cip = 
 	
 }
 
-plotHistogram_catActive = function(res, xlab = NULL, breaks = NULL, xlim = NULL) {
+plotParameterHistogram_catActive = function(res, xlab = NULL, breaks = NULL, xlim = NULL) {
 	
 	pc = getSingleParameterPlotConfig(res, "catActive")
 	
