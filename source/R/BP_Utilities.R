@@ -157,7 +157,7 @@ makeDefaultFactors.BP = function(groups) {
 	type2name = getFactorTypeToName(factors)
 	if (length(groups) > 1 && length(type2name$bp) == 0) {
 		factors$BP_Group = factors$group
-		message("No between-participants factors found. A default between-participants factor named BP_Group has been created.")
+		message("No between-participants factors found. A default between-participants factor named BP_Group has been created. To remove this factor from the design, set bpRes$config$factors$BP_Goup to NULL.")
 	}
 	
 	allFn = getAllFactorNames(factors)

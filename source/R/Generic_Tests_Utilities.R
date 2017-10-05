@@ -37,7 +37,6 @@ cleanAndSummarizeMEIResults = function(BFs, summarize, aggregateBy) {
 	
 	if (summarize) {
 		rval = summarizeSubsampleResults(BFs, aggregateBy = aggregateBy)
-		
 	} else {
 		rval = BFs
 		attr(rval, "aggregateColumns") = aggregateBy

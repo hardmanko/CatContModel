@@ -1,6 +1,6 @@
 # Introduction
 
-This R package implements the models used by Hardman, Vergauwe, and Ricker (2016) ([manuscript link](http://kylehardman.com/Content/StaticPages/Publications/Files/Hardman%20Vergauwe%20and%20Ricker%20(2017)%20-%20Manuscript.pdf)). These models are difficult to implement and difficult to use. This package simplifies the process of using the models.
+This R package implements the models used by Hardman, Vergauwe, and Ricker (2017) ([manuscript link](http://kylehardman.com/Content/StaticPages/Publications/Files/Hardman%20Vergauwe%20and%20Ricker%20(2017)%20-%20Manuscript.pdf)). The models were used to analyze color delayed estimation tasks, but are applicable to more than just color stimuli. These models are difficult to implement and difficult to use. This package simplifies the process of using the models.
 
 This package is under development, as are the models. If you run into bugs or unusual model behavior, please report them in the issue tracker (click on the "Issues" tab).
 
@@ -35,7 +35,7 @@ Different package types are identified by their file extension:
 
 Once you have an installable version of the package, the file [installPackage.R](https://github.com/hardmanko/CatContModel/blob/master/installPackage.R) contains code for installing this package and package dependencies. Comments in that file indicate how to use it.
 
-Always be sure to run the whole installation script to update the dependencies to the latest versions, or at least the correct versions.
+Always be sure to run the whole installation script to update the dependencies to the latest/correct versions.
 
 
 # Usage
