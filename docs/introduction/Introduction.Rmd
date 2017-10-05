@@ -1,8 +1,9 @@
 ---
 title: "CatContModel Introduction"
 author: "Kyle Hardman"
-date: "Package version 0.7.5, May 2017"
+date: "Package version 0.8.0, October 2017"
 output: pdf_document
+number_sections: yes
 linkcolor: blue
 csl: apa-single-spaced.csl
 bibliography: references.bib
@@ -11,7 +12,7 @@ toc: yes
 
 # Introduction
 
-This package contains implementations of a few variants of psychological process models for delayed-estimation working memory experiments. Primarily, it implements the models used by @HardmanVergauweRicker2017. It also implements a version of the model used by @ZhangLuck2008. It includes variations on the models that allow for linear (i.e. non-circular) data.
+This package contains implementations of a few variants of psychological process models for delayed-estimation working memory experiments. Primarily, it implements the models used by @HardmanVergauweRicker2017. It also implements a version of the model used by @ZhangLuck2008. It includes variations on the models that allow for non-circular data (i.e. data that are linear on a bounded interval), such as used by @RickerHardman2017.
 
 All of the models use Bayesian parameter estimation and model comparison methods. There is nothing inherently Bayesian about the models, but maximum likelihood estimation is, in my experience, relatively slow and unreliable. The unreliability only appears if the model is somewhat complex and if you know what to look for. The slowness of maximum likelihood only really appears once models become complex. The categorical models in this package are complex, by virtue of having a large number of parameters. As such, the choice of Bayesian methods is obvious.
 
@@ -47,7 +48,7 @@ data[1:5,]
 
 ## Main Parameter Estimation Function
 
-The behavior of the parameter estimation is controlled by a few configuration lists. You only need to supply the `iterations` and `modelVariant` members of the primary configuration list and your data. See the documentation for `runParameterEstimation` for more information about the arguments and further arguments you can use.
+The behavior of the parameter estimation is controlled by a few configuration `list`s. You only need to supply the `iterations` and `modelVariant` members of the primary configuration list along with your data. See the documentation for `runParameterEstimation` for more information about the arguments and further arguments you can use.
 
 ```{r eval=FALSE}
 config = list(iterations=500, modelVariant="betweenItem")
@@ -64,7 +65,7 @@ The results object returned by `runParameterEstimation` is a named list with a b
 ```{r}
 names(results)
 ```
-See the documentation for `runParameterEstimation` for more information about the contents of the results object. You will not necessarily need to directly use the contents of the results object, provided that the analyses you want to perform are basically identical to the analyses that I have already done and programmed into this package. If this is not the case, you will need to dig into the results object a little. That said, the analyses that are already programmed in are fairly general.
+See the documentation for `runParameterEstimation` for more information about the contents of the results object. You will not necessarily need to directly use the contents of the results object, provided that the analyses you want to perform are the kinds of standard analyses that I have programmed into this package. If this is not the case, you will need to dig into the results object a little. That said, the analyses that are already programmed in are fairly general so you probably don't need to know very much about the contents of the results object.
 
 ## Tuning Metropolis-Hastings Acceptance Rates {#mhTuning}
 
@@ -242,13 +243,13 @@ for (i in 1:10) {
 
 # Examining Results
 
-As these are complex models, there are a variety of ways in which the results can be examined. I have implemented several basic analyses, most of which are presented below. For all of the functions below, more information can found in the documentation of the function, including, typically, function arguments that I leave at the default values here.
+As these are complex models, there are a variety of ways in which the results can be examined. I have implemented several basic analyses, most of which are presented below. For all of the functions below, more information can found in the documentation of the function. Typically there are additional function arguments that are left at the default values here, but which could be useful to modify the analyses.
 
 ## Color Generating Function
 
 This section is an aside about prettifying plots: Feel free to skip it.
 
-This model was designed to work with color delayed estimation tasks, in which case the study and response angles are not as good of a description of the stimuli as what the study and response _colors_ were. To add color information to the plots, you may add a function named `colorGeneratingFunction` to the results object that takes an angle in degrees as a argument and returns a color. The result of this is that plots made by this package will plot color information, where appropriate. You will be able to see this in the following plots. If the color generating function is not set, the plots will still work, just without color information.
+The models were designed to work with color delayed estimation tasks, in which case the study and response angles are not as good of a description of the stimuli as what the study and response _colors_ were. To add color information to the plots, you may add a function named `colorGeneratingFunction` to the results object that takes an angle in degrees as a argument and returns a color. The upshot of adding the color generating function is that plots made by this package will plot color information, where appropriate. You will be able to see how color is used in some of the following plots. If the color generating function is not set, the plots will still work, just without color information.
 
 ```{r}
 results$colorGeneratingFunction = function(x) {
@@ -263,13 +264,23 @@ Obviously, you should use a color generating function that is the same as what y
 
 A good place to start examining results is by plotting parameter values. You can make a plot that summarizes the parameters of the model with `plotParameterSummary`, an example of which is plotted below.
 
-I consider these plots to be publication quality (I used them in an article) and would recommend that you consider publishing such plots as well, rather than tables or omitting parameter estimates altogether.
-
-To plot individual panels of the larger figure, you can use some lower-level plotting functions, including `plotCatMu` for the `catMu` parameter, `plotHistWithMean` for histograms for parameters without condition effects, and `plotPosteriorLineChart` or `plotFactorialPosteriorLineChart` for single-factor or factorial designs for which there are condition effects.
-
 ```{r fig.width=6.5, fig.height=6.5}
 par(cex=0.75)
 plotParameterSummary(results)
+```
+
+Plots of individual parameters (panels of the overall parameter summary plot) can be made with a variety of individual parameter plotting functions, which gives you more control over what is plotted. To plot any parameter using default configuration settings, use `plotParameter`. If you know that the parameter you're plotting should be ploted as a histogram or line chart, use `plotParameterHistogram` or `plotParameterLineChart`. For plotting the `catMu` parameter with non-default settings, use `plotCatMu`.
+
+```{r fig.height=6, fig.width=6}
+par(mfrow=c(2, 2), mar=c(5, 4, 1, 1))
+
+plotParameter(results, "catActive")
+
+plotParameterHistogram(results, "catSelectivity")
+
+plotParameterLineChart(results, "pMem")
+
+plotCatMu(results, precision = 6)
 ```
 
 
@@ -419,9 +430,9 @@ The parameters are named as follows. The symbol for the parameter from the Appen
 1. Probability parameters:
 
 + `pMem` ($P^M$): The probability that the tested item is in memory.
-+ `pBetween` ($P^B$): The probability that a memory response is a between-item response. This wasn't actually in the article.
++ `pBetween` ($P^B$): The probability that a memory response is a between-item response. (This wasn't actually in the article and is only used by the between-and-within model variant, which is a questionably good model.)
 + `pContBetween` ($P^O$): The probability that a between-item memory response is continuous in nature.
-+ `pContWithin` (also $P^O$): The proportion of a within-item memory response that is continuous in nature. In future articles, I would probably use $P^{OW}$ for `pContWithin` and $P^{OB}$ for `pContBetween`.
++ `pContWithin` (also $P^O$): The proportion of a within-item memory response that is continuous in nature. In future articles, I might use $P^{OW}$ for `pContWithin` and $P^{OB}$ for `pContBetween`.
 + `pCatGuess` ($P^{AG}$): The probability that a guess is from one of the color categories (rather than from a uniform distribution).
 
 2. Standard deviation parameters:
@@ -440,12 +451,12 @@ Each participant has 1 of each of the probability and standard deviation paramet
 
 Different model variants have different parameters. Parameters that are not used by a model variant are set to constant values.
 
-+ `betweenAndWithin` uses all parameters. 
++ The `betweenAndWithin` variant uses all parameters. 
 + `betweenItem` does not use `pBetween` or `pContWithin` (`pBetween` is effectively set to 1). 
 + `withinItem` does not use `pBetween` or `pContBetween` (`pBetween` is effectively set to 0). 
 + `ZL` uses only `pMem` and `contSD` (`pBetween` and `pContBetween` both effectively set to 1, `pCatGuess` effectively set to 0).
 
-The names of the participant level parameters are formatted as follows: `parameter[pnum]`, where `pnum` is the participant number of the participant associated with that parameter. For example, for the participant with `pnum` 7, the `pMem` parameter is named `pMem[7]`.
+The names of the participant level parameters as used in code are formatted as follows: `parameter[pnum]`, where `pnum` is the participant number of the participant associated with that parameter. For example, for the participant with `pnum` 7, the `pMem` parameter is named `pMem[7]`.
 
 Each participant has several `catMu` and `catActive` parameters. Their names are formatted as follows: `catMu[pnum,catIndex]`, where `catIndex` is 0-indexed. For example, the first (i.e. 0-th) `catMu` parameter for the participant with `pnum` 7 would be `catMu[7,0]`. Note that there are no spaces near the comma (or anywhere).
 
@@ -479,7 +490,7 @@ post$contSD[50:52, 1:3]
 
 ### Parameter Transformations
 
-If working with parameters directly, it is extremely important that you remember that most of the parameters must be transformed to the proper space. For example, the probability parameters exist on the interval `(-Inf, Inf)` and are transformed to probabilities in the interval $[0,1]$ with the logit transformation. 
+If working with parameters directly, it is extremely important that you remember that most of the parameters must be transformed to the proper space. For example, the probability parameters exist on the interval `(-Inf, Inf)` and are transformed to probabilities in the interval `[0,1]` with the logit transformation. The parameters that are estimated by the model all exist in the _latent_ space (e.g. `(-Inf, Inf)` for probability parameters) and are transformed to the _manifest_ space (e.g. `[0,1]`).
 
 Critically, you must apply condition effects to participant level parameters before transforming parameters.
 This means that, for example, to find out what a given participant's probability of having the tested item in memory is in a given condition of the experiment, you must do the following:
@@ -529,7 +540,7 @@ oneRes = runParameterEstimation(config, data)
 pr = oneRes$priors
 ```
 
-See the Priors section of the appendix of @HardmanVergauweRicker2017 for a conceptual overview of the priors used by the model. All parameters have default priors that are basically fine to use for cirular data. If using linear data, you may need to change the priors, depending on your data. See the [Linear Data]{#linearData} section for more information.
+See the Priors section of the appendix of @HardmanVergauweRicker2017 for a conceptual overview of the priors used by the model. All parameters have default priors that are basically fine to use for cirular data. If using linear data, you may need to change the priors, depending on your data. See the [Linear Data](#linearData) section for more information.
 
 You can change the priors on various parameters in the model with the `priorOverrides` argument of `runParameterEstimation`. It should be a list mapping from the name of the prior parameter to the value of that parameter. The only real complexity here is the naming of the parameters, which I will get to.
 
@@ -562,7 +573,7 @@ Parameter | Prob.              | SD                   |
 
 ### Condition Effects
 
-The condition effect parameters account for differences in participant-level parameters between task conditions. The priors on the condition effect parameters are Cauchy distributions with location 0 and some scale value. In particular, the default scales are `r pr$pMem_cond.scale` for the probability parameters (e.g. `pMem`, `pContBetween`) and `r pr$contSD_cond.scale` for the standard deviation parameters (e.g. `contSD`, `catSelectivity`). Note that the scale of the parameters should be thought of with respect to the untransformed space. see the Condition Effects section of the Appendix of @HardmanVergauweRicker2017 for information about the transformation.
+The condition effect parameters account for differences in participant-level parameters between task conditions. The priors on the condition effect parameters are Cauchy distributions with location 0 and some scale value. In particular, the default scales are `r pr$pMem_cond.scale` for the probability parameters (e.g. `pMem`, `pContBetween`) and `r pr$contSD_cond.scale` for the standard deviation parameters (e.g. `contSD`, `catSelectivity`). Note that the scale of the parameters should be thought of with respect to the latent parameter space. see the Condition Effects section of the Appendix of @HardmanVergauweRicker2017 for information about the transformation.
 
 The naming of these priors is formatted like `P_cond.loc` and `P_cond.scale`, where `.loc` is the location and `.scale` is the scale. NB: The package allows you to set the prior location of condition parameters to a non-zero value, but I would strongly recommend against doing this. Leave the prior location at 0 unless you think you are really clever.
 
@@ -812,7 +823,7 @@ constantParam[["contSD_cond[A]"]] = -1
 runParameterEstimation(config, data, constantValueOverrides = constantParam)
 ```
 
-Note that the `constantValueOverrides` must specify parameters for each participant individually. Also note that values must be provided in the latent (untransformed) space.
+Note that the `constantValueOverrides` must specify parameters for each participant individually. Also note that values must be provided in the latent parameter space.
 
 Typically, you will set all parameter values for all participants to the same value, so there is a helper function called `setConstantParameterValue` for that purpose. In addition, setting the category parameters (`catMu` and `catActive`) to constant values is complex, so `setConstantCategoryParameters` helps with that.
 
@@ -927,8 +938,7 @@ When you have an unbalanced design (factors are not fully crossed), the analysis
 Please read the section with the same name as this section in the CMBBHT package manual [here](https://github.com/hardmanko/CMBBHT/releases/download/v0.1.1/Manual.pdf).
 In brief, you have to make subjective choices. `testMainEffectsAndInteractions` makes one choice for you, but you can use the lower-level function `testSingleEffect` to get more control.
 
-When working with non-fully-crossed designs, you have to choose what main effects or interactions to account for as it has implications for the results. 
-This is difficult to do with the function `testMainEffectsAndInteractions`. It only includes terms up to and including the tested effect. For example, if you are testing two-factor interaction, it will estimate that interaction and the two associated main effects. If there is a third factor, it will not estimate the main effect of that third factor or any interactions including that third factor.
+When working with non-fully-crossed designs, you have to choose what main effects or interactions to account for as it has implications for the results. By default, `testMainEffectsAndInteractions` only includes terms up to and including the tested effect. For example, if you are testing two-factor interaction, it will estimate that interaction and the two associated main effects. If there is a third factor in the design, it will not estimate the main effect of that third factor or any interactions including that third factor. This behavior seems to be fairly standard, for example in unbalanced frequentist ANOVA.
 
 If you want more control over what effects are estimated, you can use the lower-level function `testSingleEffect`. Here is a minimal (and not run) usage example where the main effect of letters is tested in the context of a design matrix that includes the interaction between letters and numbers.
 
@@ -1115,11 +1125,12 @@ With all of the preceding pieces in place, you can run the initial parameter est
 groups = list()
 for (grp in names(dataSets)) {
 	
-	groups[[ grp ]] = runParameterEstimation(
-											config = configs[[ grp ]], 
-											data = dataSets[[ grp ]], 
-											mhTuningOverrides = mhTunings[[ grp ]]
-										)
+	groups[[ grp ]] = 
+		runParameterEstimation(
+			config = configs[[ grp ]], 
+			data = dataSets[[ grp ]], 
+			mhTuningOverrides = mhTunings[[ grp ]]
+		)
 }
 
 ```
@@ -1137,8 +1148,8 @@ Once the MH acceptance rates are good enough, continue sampling more iterations 
 
 ```{r eval=FALSE}
 for (grp in names(groups)) {
-	continueResults = continueSampling(groups[[grp]], 5000)
-	groups[[n]] = continueResults$combinedResults
+	continueResults = continueSampling(groups[[ grp ]], 5000)
+	groups[[ grp ]] = continueResults$combinedResults
 }
 ```
 
@@ -1177,10 +1188,6 @@ If in doubt, you can check the documentation page for the function that you want
 
 ## Citing this Package and the Models
 
-For referencing the models themselves, please cite @HardmanVergauweRicker2017. See the references section at the end of the document for a full citation of that article.
-
-For a reference specifically related to how the models are modified in order to allow for the use of linear data, reference @RickerHardman2017.
-
 If you use this package in your research, please cite it:
 
 Hardman, K.O. (2017). CatContModel: Categorical and Continuous 
@@ -1189,6 +1196,10 @@ https://github.com/hardmanko/CatContModel/releases/tag/v0.8.0
 
 Make sure to update the version number in both the name and the URL.
 
+For referencing the models themselves, please cite @HardmanVergauweRicker2017. See the references section at the end of the document for a full citation of that article.
+
+For a reference specifically related to how the models are modified in order to allow for the use of linear data, reference @RickerHardman2017 (or the [Linear Data](#linearData) section of this manual).
+
 If you want to reference information contained in this manual, I think it is suffucient to cite the package because this manual is included in the package.
 
 
@@ -1196,7 +1207,7 @@ If you want to reference information contained in this manual, I think it is suf
 
 In addition to the code examples included in this document, there are many code-based examples of package usage in the `examples` directory in the GitHub repository for this package: [Direct link](https://github.com/hardmanko/CatContModel/tree/master/examples). The readme file there gives more information on the contents of the examples and how to use them.
 
-The code is commented and goes through many of the basic steps needed to analyze the design. The data are simulated from a number of different experimental designs and different model variants are used. 
+The code is commented and goes through many of the basic steps needed to analyze the design. The data are simulated from a number of different experimental designs and different model variants are used.
 
 
 ## Models
