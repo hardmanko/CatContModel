@@ -155,6 +155,7 @@ devtools::build(packageLocation, path=paste(baseDir, "packaged/", sep=""), binar
 
 
 #Test installation
+install.packages( paste0(packagePath, "/packaged/CatContModel_0.8.0.tar.gz"), repos=NULL)
 install.packages( paste0(packagePath, "/packaged/CatContModel_0.8.0.zip"), repos=NULL)
 
 
