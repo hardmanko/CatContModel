@@ -20,7 +20,7 @@
 #' @export
 getParameterPosterior = function(res, param, pnum, cond, group = NULL, manifest = TRUE) {
 	
-	if (grepl(":", pnum, fixed=TRUE)) {
+	if (!is.null(pnum) && grepl(":", pnum, fixed=TRUE)) {
 		grp_pnum = strsplit(pnum, ":", fixed=TRUE)[[1]]
 		group = grp_pnum[1]
 		pnum = grp_pnum[2]
@@ -161,7 +161,7 @@ getAllParameterPosteriors.WP = function(results, param, manifest = FALSE) {
 #' @export
 getSingleIterationParameters = function(res, pnum, cond, iteration, group = NULL, removeInactiveCategories = TRUE) {
 	
-	if (grepl(":", pnum, fixed=TRUE)) {
+	if (!is.null(pnum) && grepl(":", pnum, fixed=TRUE)) {
 		grp_pnum = strsplit(pnum, ":", fixed=TRUE)[[1]]
 		group = grp_pnum[1]
 		pnum = grp_pnum[2]
