@@ -47,6 +47,7 @@ namespace CatCont {
 	double normalDeviate(double x, double sd);
 	double uniformDeviate(double low, double high);
 
+	double cubicSplineDensity(double x, double scale);
 
 	double clamp(double x, double minimum, double maximum);
 

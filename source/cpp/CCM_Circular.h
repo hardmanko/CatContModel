@@ -20,7 +20,9 @@ namespace CatCont {
 		double circularMean(double rad1, double rad2);
 
 		double circularAbsoluteDistance(double x, double y, bool degrees);
+		double circularSignedDistance(double x, double y, bool degrees);
 
+		double clampAngle(double x, bool degrees);
 
 		vector<double> betweenAndWithinLikelihood(const CombinedParameters& par, const ConditionData& data, ModelVariant modelVariant);
 		double betweenAndWithinLL(const CombinedParameters& par, const ConditionData& data, ModelVariant modelVariant);

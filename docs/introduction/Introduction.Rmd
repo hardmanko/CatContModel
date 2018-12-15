@@ -1,7 +1,7 @@
 ---
 title: "CatContModel Introduction"
 author: "Kyle Hardman"
-date: "Package version 0.8.0, October 2017"
+date: "Package version 0.8.1, October 2018"
 output: pdf_document
 number_sections: yes
 linkcolor: blue
@@ -667,7 +667,7 @@ Probability parameters (`pMem`, `pBetween`, `pContBetween`, `pContWithin`, and `
 ```{r dev='png', dpi=200}
 par(mfrow=c(2,2), mar=c(3,3,1,1))
 ppHist(pr$pMem.mu.mu, pr$pMem.mu.var, pr$pMem.var.a, pr$pMem.var.b, type = "prob", lpos = "bottom")
-ppHist(0, 1^2,   0.5, 0.5, type = "prob", lpos = "top")
+ppHist(0, 1.0^2, 0.5, 0.5, type = "prob", lpos = "top")
 ppHist(0, 1.1^2, 1.5, 1.5, type = "prob", lpos = "bottom")
 ppHist(0, 0.8^2, 2,   2,   type = "prob", lpos = "bottom")
 ```
@@ -682,9 +682,12 @@ ppHist(20, 10^2, 1.2,  1.2,  type = "sd", lpos = "topright")
 ppHist(25, 20^2, 2,    2,    type = "sd", lpos = "topright")
 ```
 
-Condition effect parameters are relatively easy to choose priors for. Choosing priors on probability parameter condition effects is more difficult than for SD parameter condition effects.
+#### Choosing Condition Effect Priors
 
-The difficulty is due to the fact that the condition effects are in the latent space, but you really want to know what the prior is in the manifest space. Unfortunately, due to the logit transformation, the magnitude of the condition effect in the manifest space depends on the magnitude of the participant parameters that the condition effects are added to.
+Choosing condition effect parameter priors is somewhat complicated by the fact that the condition effects parameters are in the latent space, but you really want to know what the prior is in the manifest space.
+
+For probability parameters, the logit transformation is used to travel between latent and manifest spaces.
+Due to the nonlinearity of the logit transformation, the magnitude of the condition effect in the manifest space depends on the magnitude of the participant parameters that the condition effects are added to.
 
 In the following chunk, I define a function that calculates the manifest condition effect given the latent condition effect and the latent participant parameter that the condition effect is added to. Then I use a latent condition effect of 1 with with manifest participant parameter values of 0.5 and 0.7.
 
@@ -696,42 +699,57 @@ probParamManifestConditionEffect = function(p_lat, ce_lat) {
 	withCE - noCE
 }
 
+# logit(0.5) converts the manifest probability 0.5 to the latent space value (which happens to be 0)
 probParamManifestConditionEffect(logit(0.5), 1)
 probParamManifestConditionEffect(logit(0.7), 1)
 ```
 
-As you can see, the manifest condition effect is larger when the participant parameter is 0.5 than when it is 0.7. In general, the manifest condition effects become smaller as the participant paramter gets farther from 0.5. This is due to the particular nonlinear behavior of the logistic transformation
+As you can see, the manifest condition effect is larger when the participant parameter is 0.5 than when it is 0.7. In general, the manifest condition effects become smaller as the participant parameter gets farther from 0.5. This is due to the particular nonlinear behavior of the logistic transformation
 
 To examine the prior distribution of condition effects, pick a participant parameter value and a condition effect scale, and use the `probParamManifestConditionEffect` function below. 
 
 ```{r fig.height=6}
 
-probParameterManifestConditionEffectPlot = function(p_lat, ce_scale, n=1e6) {
+probParameterManifestConditionEffectPlot = function(p_man, ce_scale, n=1e6) {
 	ce = rcauchy(n, 0, ce_scale)
-	p = probParamManifestConditionEffect(p_lat, ce)
+	p = probParamManifestConditionEffect(logit(p_man), ce)
 	hist(p, prob=TRUE, xlab="Manifest CE",
-			 main = paste0("p = ", round(p_lat, 2), ", scale = ", ce_scale))
+			 main = paste0("p = ", p_man, ", scale = ", ce_scale))
 }
 
-par(mfrow=c(2,2))
+par(mfrow=c(3,2))
 
-probParameterManifestConditionEffectPlot(qlogis(0.5), pr$pMem_cond.scale)
-probParameterManifestConditionEffectPlot(qlogis(0.9), pr$pMem_cond.scale)
-probParameterManifestConditionEffectPlot(qlogis(0.5), 3)
-probParameterManifestConditionEffectPlot(qlogis(0.9), 3)
+probParameterManifestConditionEffectPlot(0.5, 0.3)
+probParameterManifestConditionEffectPlot(0.8, 0.3)
+probParameterManifestConditionEffectPlot(0.5, pr$pMem_cond.scale)
+probParameterManifestConditionEffectPlot(0.8, pr$pMem_cond.scale)
+probParameterManifestConditionEffectPlot(0.5, 3)
+probParameterManifestConditionEffectPlot(0.8, 3)
 ```
 
-In the title of each plot, `p` is the latent participant parameter value and `scale` is the prior scale of the Cauchy distribution from which prior condition effects are sampled.
+In the title of each plot, `p` is the latent participant parameter value and `scale` is the prior scale of the Cauchy distribution from which prior condition effects are sampled. The x-axis of each plot is the condition effect in the manifest (probability) space, so 0.2 indicates a 20% difference between conditions.
 
-Turning to the SD parameters, the process works similarly but is a little more straightforward. In particular, as you can see from the code below, a latent condition effect of 3 results in a manifest condition effect of 3 for a participant parameter of 10 or 15. This is true except when the latent condition effect is negative and results in a combined latent value of less than the cutoff (which is 1 by default; set by `config$minSD`).
+What you can see is that as the scale increases, the prior becomes increasingly heavy at the ends, which is probably not a good prior for many typical cases. You probably would not expect so much mass at such large differences between conditions of most designs as when the scale is 3.
+
+Another way of looking at the priors is to calculate a prior credible interval: The endpoints of the central 95\% of the prior.
+
+```{r fig.height=3}
+ps = seq(0, 1, 0.025)
+
+conditionEffectPriorCredibleInterval("pMem", ps, 0.1)
+conditionEffectPriorCredibleInterval("pMem", ps, pr$pMem_cond.scale)
+conditionEffectPriorCredibleInterval("pMem", ps, 0.5)
+```
+
+Turning to the SD parameters, the process works similarly but is a little more straightforward. In particular, as you can see from the code below, a latent condition effect of 3 results in a manifest condition effect of 3 for participant parameter values of both 10 and 15. This is true except when the latent condition effect is negative and results in a combined latent value of less than the minimum standard deviation cutoff (which is 1 by default; set by `config$minSD`).
 
 ```{r}
-sdParamManifestConditionEffect = function(p_lat, ce_lat) {
+sdParamManifestConditionEffect = function(sd_lat, ce_lat) {
 	trans = function(x) {
 		pmax(x, 1)
 	}
-	noCE = trans(p_lat)
-	withCE = trans(p_lat + ce_lat)
+	noCE = trans(sd_lat)
+	withCE = trans(sd_lat + ce_lat)
 	
 	withCE - noCE
 }
@@ -740,7 +758,7 @@ sdParamManifestConditionEffect(10, 3)
 sdParamManifestConditionEffect(15, 3)
 ```
 
-To examine distributions, we can use the same process as with probability parameters. The one modification is to cut off the plots above 50 so that we can see the lower part of the distribution better.
+To examine distributions for standard deviation parameters, we can use the same process as with probability parameters. The one modification is to cut off the plots above 50 so that we can see the lower part of the distribution better.
 
 ```{r fig.height=3}
 sdParameterManifestConditionEffectPlot = function(sd_lat, ce_scale, n=1e6) {
@@ -757,7 +775,7 @@ sdParameterManifestConditionEffectPlot(10, 5)
 
 ```
 
-The spikes at the left side of the distributions are due to the transformation of SD parameters cutting off the distribution below a point and pushing all of the mass below that point up to that point.
+The spikes at the left side of the distributions are due to the transformation of SD parameters cutting off the distribution below a point and pushing all of the mass below that point up to the cutoff point.
 
 
 
@@ -1190,9 +1208,9 @@ If in doubt, you can check the documentation page for the function that you want
 
 If you use this package in your research, please cite it:
 
-Hardman, K.O. (2017). CatContModel: Categorical and Continuous 
-Working Memory Models for Delayed Estimation Tasks (Version 0.8.0) [Computer software]. Retrieved from
-https://github.com/hardmanko/CatContModel/releases/tag/v0.8.0
+Hardman, K.O. (2018). CatContModel: Categorical and Continuous 
+Working Memory Models for Delayed Estimation Tasks (Version 0.8.1) [Computer software]. Retrieved from
+https://github.com/hardmanko/CatContModel/releases/tag/v0.8.1
 
 Make sure to update the version number in both the name and the URL.
 
@@ -1341,7 +1359,7 @@ Currently, the `catMu` parameters are not allowed outside of the range of the da
 
 ## catSelectivity
 
-`catSelectivity` is really hard to estimate. Don't expect to be able to do anything fancy with it, like giving it a condition effect as discussed in the [Constraining Parameter Estimation](#constrainingParameterEstimation) section.
+`catSelectivity` is really hard to estimate. Don't expect to be able to do anything fancy with it, like giving it a condition effect as discussed in the [Constraining Parameter Estimation](#constrainingParameterEstimation) section. My recommendation is to just use one `catSelectivity` parameter per experiment and to not use it for inference. It could be a parameter of interest for some studies, but the difficulty in estimating `catSelectivity` means that I have to recommend against trying such a study.
 
 
 # References

@@ -129,7 +129,7 @@ verifyConfigurationList = function(config, data, immediateWarnings = FALSE) {
 	# maxCategories
 	if (config$modelVariant == "ZL") {
 		config$maxCategories = 0
-		cat("Note: config$maxCategories has been set to 0 because you are using the ZL modelVariant.")
+		cat("Note: config$maxCategories has been set to 0 because you are using the ZL modelVariant.\n")
 	}
 	if (is.null(config$maxCategories)) {
 		config$maxCategories = 16
@@ -140,7 +140,7 @@ verifyConfigurationList = function(config, data, immediateWarnings = FALSE) {
 	# minSD
 	if (is.null(config$minSD)) {
 		config$minSD = 1
-		cat(paste("Note: config$minSD not set. Set to ", config$minSD, " degree.\n", sep=""))
+		cat(paste("Note: config$minSD not set. Set to ", config$minSD, " degree(s).\n", sep=""))
 	}
 	
 	##########################################

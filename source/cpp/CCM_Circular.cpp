@@ -63,6 +63,15 @@ namespace CatCont {
 			return atn;
 		}
 
+		double clampAngle(double x, bool degrees) {
+			double div = degrees ? 360.0 : 2 * PI;
+			x = std::fmod(x, div);
+			if (x < 0) {
+				x += div;
+			}
+			return x;
+		}
+
 		double circularAbsoluteDistance(double x, double y, bool degrees) {
 			double circ = 2 * PI;
 			if (degrees) {
@@ -81,7 +90,38 @@ namespace CatCont {
 			return std::min(d, circ - d);
 		}
 
+		double circularSignedDistance(double x, double y, bool degrees) {
 
+			x = clampAngle(x, degrees);
+			y = clampAngle(y, degrees);
+			
+			if (!degrees) {
+				x = radiansToDegrees(x);
+				y = radiansToDegrees(y);
+			}
+
+			bool swap = y < x;
+			if (swap) {
+				std::swap(x, y);
+			}
+	
+			double d1 = y - x;
+			double d2 = x + (360 - y);
+	
+			double rval = 0;
+			if (d1 < d2) {
+				rval = d1;
+			} else {
+				rval = -d2;
+			}
+			if (swap) {
+				rval = -rval;
+			}
+			if (!degrees) {
+				rval = degreesToRadians(rval);
+			}
+			return rval;
+		}
 
 		//OUT_weights must be an array of the correct size. 
 		//This code is nasty for the sake of efficiency, avoiding lots of little allocations of weights vectors.

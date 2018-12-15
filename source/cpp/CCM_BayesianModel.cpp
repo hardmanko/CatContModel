@@ -796,12 +796,12 @@ namespace CatCont {
 		for (const string& s : probParams) {
 
 			priors[s + ".mu.mu"] = 0;
-			priors[s + ".mu.var"] = pow(1.5, 2); //sd = 1.5, var = 2.25
-			priors[s + ".var.a"] = 2;
-			priors[s + ".var.b"] = 2;
+			priors[s + ".mu.var"] = pow(1.2, 2); //sd = 1.2, var = 1.44
+			priors[s + ".var.a"] = 1.5;
+			priors[s + ".var.b"] = 1.5;
 
 			priors[s + "_cond.loc"] = 0;
-			priors[s + "_cond.scale"] = 1;
+			priors[s + "_cond.scale"] = 0.3;
 
 		}
 
@@ -813,7 +813,7 @@ namespace CatCont {
 		for (const string& s : sdParams) {
 
 			priors[s + ".mu.mu"] = 35;
-			priors[s + ".mu.var"] = pow(15, 2); //sd = 20
+			priors[s + ".mu.var"] = pow(15, 2); //sd = 15
 			priors[s + ".var.a"] = 0.75;
 			priors[s + ".var.b"] = 0.75;
 

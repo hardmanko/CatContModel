@@ -76,6 +76,40 @@ namespace CatCont {
 #endif
 
 
+	double cubicSplineDensity(double x, double scale) {
+
+		x /= scale;
+
+		if (x < 0) {
+			return 1;
+		} else if (x > 2) {
+			return 0;
+		}
+
+		double coef[4] = { 1.0, 0.0, -0.75, 0.25 };
+		double dens = 0;
+		for (unsigned int i = 0; i < 4; i++) {
+			dens += pow(x, (double)i) * coef[i];
+		}
+
+		return dens;
+	}
+
+	/*
+	double dPlateauSpline(double x, double mu, double plateauHalfWidth, double tailScale) {
+		double d = circularAbsoluteDistance(x, mu); // TODO: This is wrong for linear
+		return dPlateauSpline(d, dPlateauSpline, tailScale);
+	}
+	*/
+
+	// d is distance from center of plateau.
+	// plateauHalfWidth should be chosen depending on which side of the center you are (not this function's job).
+	double dPlateauSpline(double d, double plateauHalfWidth, double tailScale) {
+		double remD = max(d - plateauHalfWidth, 0.0); // You don't need to do this max
+		return cubicSplineDensity(remD, tailScale);
+	}
+
+
 	double clamp(double x, double minimum, double maximum) {
 		return std::min(std::max(x, minimum), maximum);
 	}

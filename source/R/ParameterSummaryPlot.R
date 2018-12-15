@@ -1,4 +1,51 @@
 
+# ... is names of parameters, with a list for each giving breaks, range, and/or label for that parameter.
+#
+# createParameterSummaryPlotConfiguration(paramSymbols, pMem = list(label = "pMem"), catSD = list(breaks = seq(0, 50, 1)))
+createParameterSummaryPlotConfiguration = function(paramSymbols, ...) {
+	
+	baseConfig = list()
+	baseConfig$pMem = list(breaks=seq(0, 1, 0.1), range=c(0,1), label="Prob. in memory")
+	
+	baseConfig$pBetween = list(breaks=seq(0, 1, 0.1), range=c(0,1), label="Prob. Between-Item")
+	baseConfig$pContBetween = list(breaks=seq(0, 1, 0.1), range=c(0,1), label="Prob. continuous WM")
+	baseConfig$pContWithin = list(breaks=seq(0, 1, 0.1), range=c(0,1), label="Proportion cont. WM")
+	
+	baseConfig$pCatGuess = list(breaks=seq(0, 1, 0.1), range=c(0,1), label="Prob. categorical guess")
+	
+	baseConfig$catSD = list(breaks=10, label="Categorical Imprecision")
+	baseConfig$catSelectivity = list(breaks=10, label="Categorical Selectivity")
+	baseConfig$contSD = list(breaks=10, label="Continuous imprecision")
+	
+	baseConfig$catMu = list(label = "Category Location")
+	baseConfig$catActive = list(breaks=10, label = "Number of Categories")
+	
+	
+	for (n in names(baseConfig)) {
+		
+		lab = baseConfig[[ n ]]$label
+		sym = paramSymbols[[ n ]]
+		
+		baseConfig[[n]]$label = bquote(.(lab)*" ("*.(sym)*")")
+	}
+	
+	
+	changes = list(...)
+	for (param in names(changes)) {
+		for (n in names(changes[[param]])) {
+			baseConfig[[param]][[n]] = changes[[param]][[n]]
+		}
+	}
+	
+	baseConfig
+}
+
+getSingleParameterPlotConfig = function(res, param) {
+	symbols = getParameterSymbols(res$config$modelVariant)
+	config = createParameterSummaryPlotConfiguration(symbols)
+	config[[ param ]]
+}
+
 
 getParameterSummaryPlotLayout = function(modelVariant) {
 	

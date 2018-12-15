@@ -109,7 +109,7 @@ bpRes = combineGroupResults.BP(groups)
 # Remove burn-in iterations
 bpRes = removeBurnIn(bpRes, 500)
 # bpRes has two elements at the top level:
-# groups: A copy of the groups arguments of mergeGroupResults_BP
+# groups: A copy of the groups arguments of mergeGroupResults.BP
 # config: Like results$config, but applicable to all groups (subject to some limitations)
 
 

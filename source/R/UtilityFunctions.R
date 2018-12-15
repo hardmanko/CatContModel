@@ -53,52 +53,6 @@ getParameterSymbols = function(modelVariant) {
 	ps
 }
 
-# ... is names of parameters, with a list for each giving breaks, range, and/or label for that parameter.
-#
-# createParameterSummaryPlotConfiguration(paramSymbols, pMem = list(label = "pMem"), catSD = list(breaks = seq(0, 50, 1)))
-createParameterSummaryPlotConfiguration = function(paramSymbols, ...) {
-	
-	baseConfig = list()
-	baseConfig$pMem = list(breaks=seq(0, 1, 0.1), range=c(0,1), label="Prob. in memory")
-	
-	baseConfig$pBetween = list(breaks=seq(0, 1, 0.1), range=c(0,1), label="Prob. Between-Item")
-	baseConfig$pContBetween = list(breaks=seq(0, 1, 0.1), range=c(0,1), label="Prob. continuous WM")
-	baseConfig$pContWithin = list(breaks=seq(0, 1, 0.1), range=c(0,1), label="Proportion cont. WM")
-	
-	baseConfig$pCatGuess = list(breaks=seq(0, 1, 0.1), range=c(0,1), label="Prob. categorical guess")
-	
-	baseConfig$catSD = list(breaks=10, label="Categorical Imprecision")
-	baseConfig$catSelectivity = list(breaks=10, label="Categorical Selectivity")
-	baseConfig$contSD = list(breaks=10, label="Continuous imprecision")
-	
-	baseConfig$catMu = list(label = "Category Location")
-	baseConfig$catActive = list(breaks=10, label = "Number of Categories")
-	
-	
-	for (n in names(baseConfig)) {
-		
-		lab = baseConfig[[ n ]]$label
-		sym = paramSymbols[[ n ]]
-		
-		baseConfig[[n]]$label = bquote(.(lab)*" ("*.(sym)*")")
-	}
-	
-	
-	changes = list(...)
-	for (param in names(changes)) {
-		for (n in names(changes[[param]])) {
-			baseConfig[[param]][[n]] = changes[[param]][[n]]
-		}
-	}
-	
-	baseConfig
-}
-
-getSingleParameterPlotConfig = function(res, param) {
-	symbols = getParameterSymbols(res$config$modelVariant)
-	config = createParameterSummaryPlotConfiguration(symbols)
-	config[[ param ]]
-}
 
 #' Logit Transformations
 #' 
@@ -762,3 +716,130 @@ getSubsampleIterationsToRemove = function(totalIterations, subsamples, subsample
 	
 	subsampleIterationsToRemove
 }
+
+
+#' Credible Intervals for Manifest Condition Effect Priors
+#' 
+#' Which is to say, what prior beliefs do you have about the distribution of condition effects?
+#' This function helps deal with the fact that the interpretation of priors on condition effects 
+#' 1) depends on the value of the participant parameters and
+#' 2) need to be translated from the latent space to the manifest space.
+#' 
+#' Given a vector of participant parameter values and a prior scale for the condition effect parameter,
+#' this:
+#' 1) Samples from the condition effect prior (0 centered).
+#' 2) Calculates the manifest participant parameter values for each sample from the condition effect prior and
+#' 3) Calculates the prior credible interval for the manifest parameter values.
+#' This information can help you choose a prior scale value that captures your beliefs about how much the conditions differ from one another (or, more exactly, how much the non-cornerstone conditions differ from the cornerstone condition).
+#' 
+#' The left plot shows the prior median and the lower and upper credible interval bounds, giving an overall picture of the prior credible interval across the participant parameter values.
+#' 
+#' The right plot gives the total width of the credible interval and the directional widths from the median to the upper and lower bounds.
+#'  
+#' @param param The name of the parameter (e.g. `pMem`).
+#' @param p_i A vector of manifest participant parameter values. Typically a series of numbers (used for x-axis in plotting). For probability parameters, use something like `seq(0, 1, 0.025)` for the whole range of probabilities. For SD parameters, use something like `seq(0, 40, 1)`.
+#' @param ce_scale The scale of the Cauchy prior on the condition effect parameter.
+#' @param cip Proportion of the prior inside of the credible interval.
+#' @param n Number of samples to take from the prior on the credible interval. Use more for a more accurate approximation.
+#' @param minSD Only for standard deviation parameters. The minimum standard deviation (i.e. `config$minSD`).
+#' @param plot Whether to make plots.
+#' 
+#' @return Invisibly, a `data.frame` containing columns:
+#' * `p_i`: The participant parameter value (copied from the `p_i` argument).
+#' * `lower`, `upper`: Lower and upper bounds of the credible interval.
+#' * `median`: The median of the prior.
+#' * `lowerW`, `upperW`: The distance from the median to the lower and upper credible intervals.
+#' 
+#' @export
+conditionEffectPriorCredibleInterval = function(param, p_i, ce_scale, cip = 0.95, n = 1e6, minSD = 1, plot = TRUE, doMFRow = TRUE) {
+	
+	qp = c((1 - cip) / 2, 0.5, (1 + cip) / 2)
+	
+	# Use same samples for each value of x
+	ce = rcauchy(n, 0, ce_scale)
+	
+	res = list(config = list(minSD = minSD)) # Fake res for getting transformations
+	trans = getParameterTransformation(res, param)
+	inverse = getParameterTransformation(res, param, inverse = TRUE)
+	
+	df = data.frame(p_i = p_i)
+	
+	for (i in 1:length(p_i)) {
+		
+		manifest = trans(inverse(p_i[i]) + ce)
+		
+		qs = quantile(manifest, qp)
+		df$lower[i] = qs[1]
+		df$median[i] = qs[2]
+		df$upper[i] = qs[3]
+	}
+	
+	df$lowerW = df$median - df$lower
+	df$upperW = df$upper - df$median
+	df$totalW = df$upper - df$lower
+	
+	if (plot) {
+		
+		lowCol = "red"
+		upCol = "blue"
+		
+		if (doMFRow) {
+			par(mfrow=c(1, 2))
+		}
+		
+		ylimL = range(df[ , c("lower", "median", "upper")])
+		if (param %in% getProbParams(NULL)) {
+			ylimL = c(0, 1)
+		}
+		
+		plot(df$p_i, df$median, ylim=ylimL, type='l', xlab=param, ylab="Manifest Parameter Value")
+		lines(df$p_i, df$lower, col=lowCol)
+		lines(df$p_i, df$upper, col=upCol)
+		
+		ylimR = range(df[ , c("lowerW", "totalW", "upperW")])
+		
+		plot(df$p_i, df$totalW, type = 'l', ylim=ylimR, xlab=param, ylab="Credible Interval Width")
+		lines(df$p_i, df$upperW, col=upCol)
+		lines(df$p_i, df$lowerW, col=lowCol)
+		legend("bottom", legend = c("upper", "total", "lower"), col=c(upCol, "black", lowCol), lty=1)
+		
+		if (doMFRow) {
+			par(mfrow=c(1, 1))
+		}
+	}
+	
+	invisible(df)
+}
+
+#' Plot Manifest Condition Effect Prior Histogram
+#' 
+#' @param param A parameter name.
+#' @param p_i A manifest participant parameter value. E.g., for probability parameters, give a probability.
+#' @param ce_scale The scale of the Cauchy prior on the condition effect parameter.
+#' @param sdCutoff For standard deviation parameters, extremely large sample values are common, so for plotting purposes the plot has to be cut off somewhere. `sdCutoff` sets the cutoff.
+#' @param n Number of samples to take from the prior on the credible interval. Use more for a more accurate approximation.
+#' @param minSD Only for standard deviation parameters. The minimum standard deviation (i.e. `config$minSD`).
+#' 
+#' @return Invisibly, the vector of manifest parameter samples from the condition effect prior that were used for plotting (so some samples are cut off for SD parameters; see the `sdCutoff` argument).
+conditionEffectPriorHist = function(param, p_i, ce_scale, sdCutoff=50, n=1e6, minSD=1) {
+	
+	ce = rcauchy(n, 0, ce_scale)
+	
+	res = list(config = list(minSD = minSD))
+	trans = getParameterTransformation(res, param)
+	inverse = getParameterTransformation(res, param, inverse=TRUE)
+	
+	manifest = trans(inverse(p_i) + ce)
+	if (param %in% getSdParams(NULL)) {
+		manifest = manifest[manifest < sdCutoff]
+	}
+	
+	main = paste0(param, " = ", p_i, ", scale = ", ce_scale)
+	hist(manifest, 
+			 xlab=paste0("Manifest ", param), 
+			 ylab="Prior Density", 
+			 main=main, prob=TRUE)
+	
+	invisible(manifest)
+}
+

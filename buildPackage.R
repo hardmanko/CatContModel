@@ -3,21 +3,27 @@
 # Users should see "installPackage.R" to install the package.
 
 
+baseDir = "G:/Programming/R/CatContModel/"
+
+packagePath = baseDir
+packageName = "CatContModel"
+fullPackagePath = paste0(packagePath, packageName, "/")
+packageLocation = paste0(packagePath, packageName)
+
+
+Sys.setenv("PKG_CXXFLAGS"="-std=c++11")
+
 library(Rcpp)
 library(devtools)
 library(roxygen2)
 
-CatContPackageVersion = "0.8.0"
+CatContPackageVersion = "0.8.1"
 addingDataSets = FALSE
 
-baseDir = "~/../Programming/R/CatContModel/"
 
-packagePath = baseDir
-packageName = "CatContModel"
-fullPackagePath = paste( packagePath, packageName, "/", sep="")
-packageLocation = paste( packagePath, packageName, sep="")
-
-
+###
+# Only run first time:
+###
 
 modelFilesDir = paste(baseDir, "source/cpp/", sep="")
 modelFiles = c("Compilation.h", "CCM_BayesianModel.h", "CCM_BayesianModel.cpp", "CCM_BayesianModel_Misc.cpp","RInterface.cpp", "CCM_Util.h", "CCM_Util.cpp", "CCM_Linear.h", "CCM_Linear.cpp", "CCM_Circular.h", "CCM_Circular.cpp", "VonMisesLut/VonMisesLut.h", "VonMisesLut/VonMisesLut.cpp")
@@ -98,14 +104,16 @@ write.dcf(dcf, file = paste(fullPackagePath, "DESCRIPTION", sep="") )
 autogenToRM = c("man/CatContModel-package.Rd", "Read-and-delete-me", "NAMESPACE")
 file.remove( paste0( fullPackagePath, autogenToRM ) )
 
+###
 # documentation
+###
 roxygen2::roxygenise( packageLocation )
 
 
 #Copy over LICENSE
 dir.create(paste0(fullPackagePath, "inst/"))
 dir.create(paste0(fullPackagePath, "inst/doc/"))
-file.copy(from = paste(baseDir, "LICENSE.md", sep=""), to = paste(fullPackagePath, "LICENSE", sep=""))
+file.copy(from = paste0(baseDir, "LICENSE.md"), to = paste(fullPackagePath, "LICENSE", sep=""))
 
 #Copy over manual and supporting asis file
 file.copy(from = paste0(baseDir, "docs/introduction/Introduction.pdf"), 
@@ -117,12 +125,21 @@ file.copy(from = paste0(baseDir, "docs/toCopy/Introduction.pdf.asis"),
 								 )
 					)
 
+
+
 #####
 # At this point, there should be a proper R package structure in packageLocation
 #####
 
+# Remove object files cuz it's confuzzling to gcc
+srcDir = paste0(packageLocation, "/src/")
+objectFiles = dir( srcDir, recursive = FALSE)
+objectFiles = objectFiles[ grepl("\\.o$", objectFiles) ]
+file.remove( paste0(srcDir, objectFiles) )
+
 #Install the package from source.
-install.packages(pkgs=paste(packagePath, packageName, sep=""), repos=NULL, type="source", build_vignettes=TRUE)
+install.packages(pkgs=packageLocation, repos=NULL, type="source", 
+								 build_vignettes=TRUE, clean=TRUE)
 
 
 
