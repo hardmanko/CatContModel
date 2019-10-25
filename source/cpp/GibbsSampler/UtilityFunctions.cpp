@@ -49,12 +49,14 @@ double normal_muPostSample(const std::vector<double>& y, double data_var, double
 	return normal_muPostSample(mean, y.size(), data_var, mu0, var0);
 }
 
-//goes from [0,1] to (-inf,inf)
+// goes from [0,1] to (-inf,inf)
+// i.e., this is qlogis
 double logitTransform(double unitInterval) {
 	return std::log(unitInterval / (1 - unitInterval));
 }
 
-//goes from (-inf,inf) to [0,1]
+// goes from (-inf,inf) to [0,1]
+// i.e. this is plogis
 double logitInverse(double fullScale) {
 	double ex = exp(fullScale);
 	return ex / (1 + ex);
@@ -76,3 +78,16 @@ double binomialProportionalLogLikelihood(double successes, double trials, double
 
 
 
+#ifdef COMPILING_WITH_CX
+
+void outputDataVector(std::string filename, std::string header, std::vector<double> values) {
+	std::ostringstream ss;
+	ss << std::scientific << std::setprecision(20);
+	ss << header << std::endl;
+	for (unsigned int i = 0; i < values.size(); i++) {
+		ss << values[i] << std::endl;
+	}
+	Util::writeToFile(filename, ss.str(), false);
+}
+
+#endif
