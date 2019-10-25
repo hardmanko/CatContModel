@@ -1,5 +1,5 @@
 
-setwd("~/../Programming/R/CatContModel/examples/factorialMixedDesign")
+setwd("D:/Programming/R/CatContModel/examples/factorialMixedDesign")
 
 source("../DataSimulatingFunctions.R")
 
@@ -51,13 +51,20 @@ betweenData = betweenSim$simulatedData
 betweenParameters = convertParameterListToDataFrame(betweenSim$combinedParam, maxCat = maxCat)
 
 
-#Filter out participants to make between-participant design.
+#####
+# Filter out participants to make between-participant design.
+# The data simulation produces a fully-crossed design with no
+# between-participants factors. We need to create a BP design
+# by dropping participants from the conditions we don't want them in.
+
 condNames = paste(rep(LETTERS[1:4], each=2), 1:2, sep="_")
 betweenData$cond = condNames[ betweenData$cond ]
 betweenParameters$cond = condNames[ betweenParameters$cond ]
 
+# category parameters are marked as not varying by condition (only by participant)
 betweenParameters$cond[ betweenParameters$param %in% c("nCat", "catMu") ] = "ALL_CONDS"
 
+# Participants 1:15 will be put in group A, 16:30 in group B, etc.
 groups = list(A = 1:15, B = 16:30, C = 31:45, D = 46:60)
 
 keepData = rep(FALSE, nrow(betweenData))
@@ -75,6 +82,10 @@ for (gr in names(groups)) {
 
 betweenData = betweenData[ keepData, ]
 betweenParameters = betweenParameters[ keepParam, ]
+
+# Done making the design between-participants
+#####
+
 
 #Check results
 unique(betweenData[, c('pnum', 'cond')])

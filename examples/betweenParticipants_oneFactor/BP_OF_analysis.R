@@ -2,7 +2,7 @@
 # It shows how to test the main effect of the BP factor.
 
 
-setwd("~/../Programming/R/CatContModel/examples/betweenParticipants_oneFactor") #or wherever you are working
+setwd("D:/Programming/R/CatContModel/examples/betweenParticipants_oneFactor") #or wherever you are working
 
 library(CatContModel)
 

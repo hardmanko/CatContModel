@@ -3,7 +3,7 @@
 # there are 2 between-participants factors and 1 within-participants factor.
 # Each factor has two levels.
 
-setwd("~/../Programming/R/CatContModel/examples/factorialMixedDesign") #or wherever you are working
+setwd("D:/Programming/R/CatContModel/examples/factorialMixedDesign") #or wherever you are working
 
 library(CatContModel)
 

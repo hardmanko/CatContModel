@@ -1,5 +1,5 @@
 
-setwd("~/../Programming/R/CatContModel/examples/factorial_betweenItem")
+setwd("D:/Programming/R/CatContModel/examples/factorial_betweenItem")
 
 source("../DataSimulatingFunctions.R")
 

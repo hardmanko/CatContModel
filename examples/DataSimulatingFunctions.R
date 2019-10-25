@@ -63,8 +63,8 @@ sampleSimulatedData = function(conditionEffects, partParam, trialsPerCondition,
 		combinedParam[[cond]] = ppList
 	}
 	
-	probParams = getProbParams(NULL)
-	sdParams = getSdParams(NULL)
+	probParams = getProbParams(modelVariant=modelVariant, filter=TRUE)
+	sdParams = getSdParams(modelVariant=modelVariant, filter=TRUE)
 	
 	#apply condition param
 	for (i in 1:nPart) {
