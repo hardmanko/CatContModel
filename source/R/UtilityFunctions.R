@@ -106,6 +106,10 @@ r2d = function(rad) {
 #' distribution is parameterized in terms of "standard deviation",
 #' the square root of the inverse of precision.
 #' 
+#' For Von Mises density and sampling functions parameterized in terms 
+#' of radians and precision, see the CircStats package, in particular 
+#' the functions `dvm` and `rvm`, which are used internally by `dvmd` and `rvmd`.
+#' 
 #' @param n The number of realizations to draw.
 #' @param x A quantile.
 #' @param mu The center of the von Mises distribution.
@@ -120,8 +124,15 @@ rvmd = function(n, mu, sdDeg) {
 #' @rdname rvmd
 #' @export
 dvmd = function(x, mu, sdDeg) {
-	d = CircStats::dvm(d2r(x), d2r(mu), sdDeg_to_precRad(sdDeg))
-	d * pi / 180 #scale to degree space
+	dens = CircStats::dvm(d2r(x), d2r(mu), sdDeg_to_precRad(sdDeg))
+	
+	# dvm() gives a density for arguments in radians. The width of
+	# the space is 2*PI radians but 360 degrees. This means that the
+	# same Von Mises distribution will have higher density in radians 
+	# than degrees because the numeric circumference is lower for radians
+	# than degrees. Rescale the density to be correct for degrees by multiplying
+	# by 2*pi/360 = pi/180.
+	dens * pi / 180
 }
 
 
@@ -152,151 +163,22 @@ precRad_to_sdDeg = function(precRad) {
 #' Calculate an Optionally Weighted Circular Mean
 #' 
 #' @param angles A vector of angles. If in radians, set `degrees` to `FALSE`.
-#' @param weights A vector of weights.
+#' @param weights A vector of weights. If weights is length 0 or 1, equal weights are used.
 #' @param degrees If `TRUE`, angles are treated as degrees. If `FALSE`, angles are treated as radians.
 #' 
 #' @return The circular mean of the angles.
 #' 
 #' @export
+#' 
 circMean = function(angles, weights=1, degrees=TRUE) {
-	if (degrees) {
-		angles = d2r(angles)
-	}
-	if (length(weights) <= 1) {
-		weights = rep(weights, length(angles))
-	}
-	weights = weights / sum(weights)
-	
-	cosx = sum(cos(angles) * weights)
-	sinx = sum(sin(angles) * weights)
-	
-	rval = atan2(sinx, cosx) %% (2 * pi)
-	if (degrees) {
-		rval = r2d(rval)
-	}
-	rval
+  if (length(weights) <= 1) {
+    weights = rep(1, length(angles))
+  }
+  weights = weights / sum(weights)
+  
+  CatContModel:::.circMeanCPP(angles, weights, degrees)
 }
 
-
-#' Circular Absolute Distance Between Values
-#' 
-#' The cicular absolute distance is the smallest angular distance between two values. It is at most 180 degrees.
-#' 
-#' @param x Vector of values in degrees or radians.
-#' @param y Vector of values in degrees or radians.
-#' @param degrees If `TRUE`, x and y are treated as though they are in degrees. If `FALSE`, x and y are treated as being in radians.
-#' 
-#' @export
-circAbsDist = function(x, y, degrees=TRUE) {
-	offset = 2 * pi
-	if (degrees) {
-		offset = 360
-	}
-	
-	x = x %% offset
-	y = y %% offset
-	
-	d1 = abs(x - y)
-	d2 = abs((x + offset) - y) %% offset
-	d3 = abs(x - (y + offset)) %% offset
-	
-	pmin(d1,d2,d3)
-}
-
-
-
-#' Calculate Probabilities of Assignment to Categories
-#' 
-#' This function is the weights function, given in Equation 5 of the Appendix of Hardman, Vergauwe, and Ricker (2017).
-#' 
-#' @param study A scalar study angle, in degrees.
-#' @param catMu A vector of category means, in degrees.
-#' @param catSelectivity The categorical selectivity parameter, as standard deviation in degrees.
-#' @param dataType One of `"circular"` or `"linear"`.
-#' 
-#' @return A vector of the probabilities that the study angle would be assigned to each of the categories centered on the catMu.
-#' 
-#' @seealso [`plotWeightsFunction`] to plot the weights function for all study angles.
-#' 
-#' @export
-categoryWeightsFunction = function(study, catMu, catSelectivity, dataType = "circular") {
-
-	catDensities = NULL
-	if (dataType == "circular") {
-		catDensities = dvmd(study, catMu, catSelectivity)
-	} else if (dataType == "linear") {
-		catDensities = stats::dnorm(study, catMu, catSelectivity)
-	}
-	
-	#if the sum of the densities is tiny, give all categories equal weight
-	if (sum(catDensities) < 1e-250) {
-		catDensities = rep(1, length(catDensities))
-	}
-	
-	catDensities / sum(catDensities)
-}
-
-#' Plot the Category Weights Function
-#' 
-#' Makes a plot of the weights function, given in Equation 5 of the Appendix of Hardman, Vergauwe, and Ricker (2017).
-#' 
-#' @param catMu A vector of category means.
-#' @param catSelectivity The categorical selectivity parameter.
-#' @param dataType One of `"circular"` or `"linear"`.
-#' @param colors A vector of colors for the different categories.
-#' @param lty A vector of line types for the different categories.
-#' @param lwd A vector of line width for the different categories.
-#' @param study The study angles at which the category weights are plotted (i.e. a grid of x-values).
-#' @param axes Boolean. If `TRUE`, axes are plotted. If `FALSE`, no axes are plotted.
-#' 
-#' @return Invisibly, the densities used to make the plot. Each column is related to one catMu.
-#'  
-#' @seealso [`categoryWeightsFunction`] to get the vector of probabilities for a single study angle.
-#' @export
-#' 
-#' @examples
-#' \dontrun{
-#' plotWeightsFunction(c(30, 90, 120, 200, 210, 220, 300), 15)
-#' }
-plotWeightsFunction = function(catMu, catSelectivity, dataType = "circular",
-															 colors=grDevices::rainbow(length(catMu)), lty=1:length(catMu),
-															 lwd=rep(1, length(catMu)), study = NULL, axes=TRUE) 
-{
-	if (is.null(study)) {
-		if (dataType == "circular") {
-			study = seq(0, 360, length.out=100)
-		} else {
-			stop("If dataType == \"linear\", study must be provided.")
-		}
-	}
-	
-	dens = matrix(0, nrow=length(study), ncol=length(catMu))
-	
-	xlab = if (dataType == "circular") "Study Angle" else "Study Value"
-	
-	graphics::plot(range(study), c(0,1), type='n', axes=FALSE, 
-			 xlab=xlab, ylab="Probability to Select Category")
-	graphics::box()
-	
-	if (axes) {
-		graphics::axis(2)
-		if (dataType == "circular") {
-			graphics::axis(1, at=seq(0, 360, 45))
-		} else if (dataType == "linear") {
-			graphics::axis(1)
-		}
-	}
-	
-	for (i in 1:nrow(dens)) {
-		dens[i,] = categoryWeightsFunction(study[i], catMu, catSelectivity, dataType=dataType)
-	}
-	for (i in 1:ncol(dens)) {
-		graphics::lines(study, dens[,i], col=colors[i], lty=lty[i], lwd=lwd[i])
-	}
-	colnames(dens) = catMu
-	rownames(dens) = study
-	invisible(dens)
-}
 
 
 
@@ -743,6 +625,7 @@ getSubsampleIterationsToRemove = function(totalIterations, subsamples, subsample
 #' @param n Number of samples to take from the prior on the credible interval. Use more for a more accurate approximation.
 #' @param minSD Only for standard deviation parameters. The minimum standard deviation (i.e. `config$minSD`).
 #' @param plot Whether to make plots.
+#' @param doMFRow If `TRUE`, uses `par(mfrow=c(1,2))` to make the two plot panels.
 #' 
 #' @return Invisibly, a `data.frame` containing columns:
 #' * `p_i`: The participant parameter value (copied from the `p_i` argument).
@@ -756,7 +639,7 @@ conditionEffectPriorCredibleInterval = function(param, p_i, ce_scale, cip = 0.95
 	qp = c((1 - cip) / 2, 0.5, (1 + cip) / 2)
 	
 	# Use same samples for each value of x
-	ce = rcauchy(n, 0, ce_scale)
+	ce = stats::rcauchy(n, 0, ce_scale)
 	
 	res = list(config = list(minSD = minSD)) # Fake res for getting transformations
 	trans = getParameterTransformation(res, param)
@@ -768,7 +651,7 @@ conditionEffectPriorCredibleInterval = function(param, p_i, ce_scale, cip = 0.95
 		
 		manifest = trans(inverse(p_i[i]) + ce)
 		
-		qs = quantile(manifest, qp)
+		qs = stats::quantile(manifest, qp)
 		df$lower[i] = qs[1]
 		df$median[i] = qs[2]
 		df$upper[i] = qs[3]
@@ -799,12 +682,12 @@ conditionEffectPriorCredibleInterval = function(param, p_i, ce_scale, cip = 0.95
 		ylimR = range(df[ , c("lowerW", "totalW", "upperW")])
 		
 		plot(df$p_i, df$totalW, type = 'l', ylim=ylimR, xlab=param, ylab="Credible Interval Width")
-		lines(df$p_i, df$upperW, col=upCol)
-		lines(df$p_i, df$lowerW, col=lowCol)
-		legend("bottom", legend = c("upper", "total", "lower"), col=c(upCol, "black", lowCol), lty=1)
+		graphics::lines(df$p_i, df$upperW, col=upCol)
+		graphics::lines(df$p_i, df$lowerW, col=lowCol)
+		graphics::legend("bottom", legend = c("upper", "total", "lower"), col=c(upCol, "black", lowCol), lty=1)
 		
 		if (doMFRow) {
-			par(mfrow=c(1, 1))
+			graphics::par(mfrow=c(1, 1))
 		}
 	}
 	
@@ -823,7 +706,7 @@ conditionEffectPriorCredibleInterval = function(param, p_i, ce_scale, cip = 0.95
 #' @return Invisibly, the vector of manifest parameter samples from the condition effect prior that were used for plotting (so some samples are cut off for SD parameters; see the `sdCutoff` argument).
 conditionEffectPriorHist = function(param, p_i, ce_scale, sdCutoff=50, n=1e6, minSD=1) {
 	
-	ce = rcauchy(n, 0, ce_scale)
+	ce = stats::rcauchy(n, 0, ce_scale)
 	
 	res = list(config = list(minSD = minSD))
 	trans = getParameterTransformation(res, param)
@@ -835,7 +718,7 @@ conditionEffectPriorHist = function(param, p_i, ce_scale, sdCutoff=50, n=1e6, mi
 	}
 	
 	main = paste0(param, " = ", p_i, ", scale = ", ce_scale)
-	hist(manifest, 
+	graphics::hist(manifest, 
 			 xlab=paste0("Manifest ", param), 
 			 ylab="Prior Density", 
 			 main=main, prob=TRUE)

@@ -1,37 +1,34 @@
 #include "CCM_BayesianModel.h"
 
+#include "CCM_Weights.h"
 
 #ifdef COMPILING_WITH_RCPP
 
 namespace CatCont {
 
+	vector<ParticipantData> getParticipantData(Rcpp::DataFrame df, CatCont::DataType dataType, bool verbose) {
 
-vector<ParticipantData> getParticipantData(Rcpp::DataFrame df, CatCont::DataType dataType, bool verbose) {
+		Rcpp::CharacterVector pnumsColRaw = df["pnum"];
+		vector<string> pnumsCol(pnumsColRaw.begin(), pnumsColRaw.end());
 
-	Rcpp::CharacterVector pnumsColRaw = df["pnum"];
-	vector<string> pnumsCol(pnumsColRaw.begin(), pnumsColRaw.end());
+		Rcpp::CharacterVector condsColRaw = df["cond"];
+		vector<string> condsCol(condsColRaw.begin(), condsColRaw.end());
 
-	Rcpp::CharacterVector condsColRaw = df["cond"];
-	vector<string> condsCol(condsColRaw.begin(), condsColRaw.end());
+		Rcpp::NumericVector studyColRaw = df["study"];
+		vector<double> studyCol(studyColRaw.begin(), studyColRaw.end());
 
-	Rcpp::NumericVector studyColRaw = df["study"];
-	vector<double> studyCol(studyColRaw.begin(), studyColRaw.end());
+		Rcpp::NumericVector respColRaw = df["response"];
+		vector<double> respCol(respColRaw.begin(), respColRaw.end());
 
-	Rcpp::NumericVector respColRaw = df["response"];
-	vector<double> respCol(respColRaw.begin(), respColRaw.end());
+		return copyParticipantData(pnumsCol, condsCol, studyCol, respCol, dataType, verbose);
 
-	return copyParticipantData(pnumsCol, condsCol, studyCol, respCol, dataType, verbose);
-
-}
+	}
 
 } // namespace CatCont
 
 CatCont::Linear::LinearConfiguration getLinearConfigurationFromList(Rcpp::List configList) {
 
 	CatCont::Linear::LinearConfiguration lc;
-
-	string modelVariantStr = configList["modelVariant"];
-	lc.modelVariant = CatCont::modelVariantFromString(modelVariantStr);
 
 	Rcpp::NumericVector rr = configList["responseRange"];
 	Rcpp::NumericVector cmr = configList["catMuRange"];
@@ -46,8 +43,8 @@ CatCont::Linear::LinearConfiguration getLinearConfigurationFromList(Rcpp::List c
 }
 
 template <typename T>
-map<string, T> convertListToMap(Rcpp::List list) {
-	map<string, T> rval;
+std::map<std::string, T> convertListToMap(Rcpp::List list) {
+	std::map<std::string, T> rval;
 
 	if (list.size() == 0) {
 		return rval;
@@ -55,7 +52,7 @@ map<string, T> convertListToMap(Rcpp::List list) {
 
 	Rcpp::CharacterVector rawNames = list.names();
 	std::vector<string> names(rawNames.begin(), rawNames.end());
-	for (unsigned int i = 0; i < names.size(); i++) {
+	for (size_t i = 0; i < names.size(); i++) {
 		rval[names[i]] = Rcpp::as<T>(list[names[i]]);
 	}
 
@@ -64,9 +61,9 @@ map<string, T> convertListToMap(Rcpp::List list) {
 
 
 
-CatCont::Bayesian::Configuration readConfigurationFromList(Rcpp::List configList) {
+CatCont::ModelConfiguration readConfigurationFromList(Rcpp::List configList) {
 
-	CatCont::Bayesian::Configuration config;
+	CatCont::ModelConfiguration config;
 
 	config.iterations = configList["iterations"];
 	config.iterationsPerStatusUpdate = configList["iterationsPerStatusUpdate"];
@@ -85,6 +82,9 @@ CatCont::Bayesian::Configuration readConfigurationFromList(Rcpp::List configList
 
 	string dataTypeStr = configList["dataType"];
 	config.dataType = CatCont::dataTypeFromString(dataTypeStr);
+
+	string weightsDistributionStr = configList["weightsDistribution"];
+	config.weightsDistribution = CatCont::weightsDistributionFromString(weightsDistributionStr);
 
 	config.catMuPriorApproximationPrecision = configList["catMuPriorApproximationPrecision"];
 
@@ -138,23 +138,51 @@ CatCont::Bayesian::Configuration readConfigurationFromList(Rcpp::List configList
 	return config;
 }
 
-double curriedBesselFunction(double x) {
-	return R::bessel_i(x, 0, 2); //Exponent scale == true (2 == true, lol)
+double curriedBesselFunction(double kappa) {
+	return R::bessel_i(kappa, 0, 2);
+}
+
+void setupVonMisesLut(bool useLUT, double maxKappa, double stepSize) {
+
+	CatCont::VonMisesLUT::Config cfg;
+	cfg.useLUT = useLUT;
+	cfg.skipRecomputationIfAble = true;
+	cfg.maxKappa = maxKappa;
+	cfg.stepSize = stepSize;
+
+	cfg.besselFun = curriedBesselFunction;
+
+	CatCont::vmLut.setup(cfg);
+
 }
 
 void conditionalConfigureVMLut(double maxValue, double stepSize, bool message = true) {
 
-	bool rangeCorrect = abs(CatCont::vmLut.maxValue() - maxValue) < 0.00001;
-	bool stepSizeCorrect = abs(CatCont::vmLut.stepSize - stepSize) < 0.00001;
+	/*
+	CatCont::VonMisesLUT::Config currentCfg = CatCont::vmLut.getConfig();
+
+	bool rangeCorrect = abs(currentCfg.maxKappa - maxValue) < 0.00001;
+	bool stepSizeCorrect = abs(currentCfg.stepSize - stepSize) < 0.00001;
 
 	if (rangeCorrect && stepSizeCorrect) {
 		//Rcpp::Rcout << "Von Mises look up table already set up." << endl;
-	} else {
-		if (message) {
-			Rcpp::Rcout << "Setting up Von Mises look up table." << endl;
-		}
-		CatCont::vmLut.setup(maxValue, stepSize, &curriedBesselFunction);
+		return;
 	}
+	*/
+
+	if (message) {
+		Rcpp::Rcout << "Setting up Von Mises look up table." << endl;
+	}
+
+	CatCont::VonMisesLUT::Config vmlConfig;
+	vmlConfig.useLUT = true;
+	vmlConfig.skipRecomputationIfAble = true;
+	vmlConfig.maxKappa = maxValue;
+	vmlConfig.stepSize = stepSize;
+
+	vmlConfig.besselFun = curriedBesselFunction;
+
+	CatCont::vmLut.setup(vmlConfig);
 }
 
 
@@ -244,7 +272,7 @@ Rcpp::DataFrame CCM_CPP_calculateWAIC(Rcpp::List resultsObject) {
 	Rcpp::DataFrame data(resultsObject["data"]);
 	Rcpp::List posteriors = resultsObject["posteriors"];
 
-	Bayesian::Configuration config = readConfigurationFromList(configList);
+	ModelConfiguration config = readConfigurationFromList(configList);
 
 	vector<ParticipantData> partData = getParticipantData(data, config.dataType, false);
 
@@ -334,9 +362,11 @@ Rcpp::List CCM_CPP_likelihoodWrapper(Rcpp::List param, Rcpp::DataFrame data, Rcp
 
 	if (dataType == CatCont::DataType::Linear) {
 
-		CatCont::Linear::LinearConfiguration lc = getLinearConfigurationFromList(config);
+		CatCont::ModelConfiguration modelConfig;
+		modelConfig.modelVariant = modelVariant;
+		modelConfig.linearConfiguration = getLinearConfigurationFromList(config);
 
-		likelihoods = CatCont::Linear::betweenAndWithinLikelihood(cp, cd, lc);
+		likelihoods = CatCont::Linear::betweenAndWithinLikelihood(cp, cd, modelConfig);
 
 	} else if (dataType == CatCont::DataType::Circular) {
 
@@ -346,7 +376,7 @@ Rcpp::List CCM_CPP_likelihoodWrapper(Rcpp::List param, Rcpp::DataFrame data, Rcp
 		//Parameters from degrees to radians
 		cp.contSD = CatCont::Circular::sdDeg_to_precRad(cp.contSD);
 		cp.cat.SD = CatCont::Circular::sdDeg_to_precRad(cp.cat.SD);
-		cp.cat.selectivity = CatCont::Circular::sdDeg_to_precRad(cp.cat.selectivity);
+		cp.cat.selectivity = CatCont::Circular::sdDeg_to_precRad(cp.cat.selectivity); // TODO: If using PlatSpline, you don't want precision.
 
 		for (unsigned int i = 0; i < cp.cat.mu.size(); i++) {
 			cp.cat.mu[i] = CatCont::Circular::degreesToRadians(cp.cat.mu[i]);
@@ -363,5 +393,215 @@ Rcpp::List CCM_CPP_likelihoodWrapper(Rcpp::List param, Rcpp::DataFrame data, Rcp
 
 	return rval;
 }
+
+
+
+
+
+
+
+
+// weights should be same length as xs and sum(weights) should be 1 (enforced in R)
+// [[Rcpp::export(name = ".circMeanCPP")]]
+double circMeanCPP(std::vector<double> xs, std::vector<double> weights, bool degrees = true) {
+
+	if (degrees) {
+		xs = CatCont::Circular::degreesToRadians(xs);
+	}
+
+	double m = CatCont::Circular::circularMean(xs, weights);
+
+	if (degrees) {
+		m = CatCont::Circular::radiansToDegrees(m);
+	}
+
+	return m;
+}
+
+//' Circular Distance Between Angle Vectors
+//'
+//' @param xs First vector of angles.
+//' @param ys Second vector of angles.
+//' @param absDist If `TRUE`, absolute distance is calculated. If `FALSE`, signed distance is calculated.
+//' @param degrees Should be `TRUE` if angles are in degrees or `FALSE` if angles are in radians.
+//' @return A vector of distances between `xs` and `ys`.
+//'
+//' @export
+// [[Rcpp::export]]
+std::vector<double> circDist(std::vector<double> xs, std::vector<double> ys, bool absDist = false, bool degrees = true) {
+
+	if (xs.size() != ys.size()) {
+		Rcpp::stop("xs and ys must have the same length.");
+	}
+
+	std::vector<double> rval(xs.size());
+
+	for (size_t i = 0; i < rval.size(); i++) {
+		rval[i] = CatCont::Circular::circularDistance(xs[i], ys[i], absDist, degrees);
+	}
+	
+	return rval;
+}
+
+//' Clamp an Angle to a Range
+//' 
+//' Angles are effectively bounded in the circular space because each rotation returns to the same values.
+//' Most ways of using angles, however, require treating those angles as though they were linear.
+//' This function helps by restricting angles to be within a single rotation of the circle, either
+//' between 0 and 360 degrees, if `pm180` is `FALSE`, or between -180 and 180 if `pm180` is `TRUE`.
+//'
+//' @param xs Vector of angles to clamp.
+//' @param pm180 If `TRUE`, angles are clamped to the interval [-180, 180). If `FALSE`, angles are clamped to [0, 360).
+//' @param degrees Should be `TRUE` if angles are in degrees or `FALSE` if angles are in radians.
+//' @return A vector of clamped angles.
+//'
+//' @export
+// [[Rcpp::export]]
+std::vector<double> clampAngle(std::vector<double> xs, bool pm180 = false, bool degrees = true) {
+
+	for (size_t i = 0; i < xs.size(); i++) {
+		xs[i] = CatCont::Circular::clampAngle(xs[i], pm180, degrees);
+	}
+
+	return xs;
+}
+
+
+
+// [[Rcpp::export]]
+std::vector<double> dZeroDerivSpline(std::vector<double> zs) {
+	std::vector<double> rval(zs.size());
+
+	for (size_t i = 0; i < zs.size(); i++) {
+		rval[i] = CatCont::zeroDerivativeCubicSplineDensity(zs[i]);
+	}
+
+	return rval;
+}
+
+// [[Rcpp::export]]
+double dPlatSplineFull_R(double x, double mu, double platHW, double splineHW, bool linear) {
+	return CatCont::dPlatSplineFull(x, mu, platHW, splineHW, linear, true); // degrees = true
+}
+
+// [[Rcpp::export]]
+double dPlatSpline_R(double absDist, double platHW, double splineHW) {
+	return CatCont::dPlatSpline(absDist, platHW, splineHW);
+}
+
+// [[Rcpp::export]]
+std::vector<double> dPlatSplineWeights_R(double x, std::vector<double> mu, std::vector<double> platHW, double splineHW, bool linear = false) {
+	CatCont::CategoryParameters catPar;
+	catPar.mu = mu;
+	//catPar.SD = catSD;
+	catPar.platHW = platHW;
+	catPar.selectivity = splineHW;
+
+	CatCont::ModelConfiguration modCfg;
+	modCfg.dataType = linear ? CatCont::DataType::Linear : CatCont::DataType::Circular;
+	
+	return CatCont::dPlatSplineWeights(x, catPar, modCfg);
+}
+
+// [[Rcpp::export]]
+std::vector<double> dPlatSpline_WC(double x, std::vector<double> mu, std::vector<double> platHW, double splineHW, bool linear = false) {
+
+	// TODO: Make splineHW a vector
+
+	if (mu.size() != platHW.size()) {
+		Rcpp::stop("length(mu) != length(platHW).");
+	}
+
+	CatCont::ModelConfiguration modCfg;
+	modCfg.weightsDistribution = CatCont::WeightsDistribution::PlatSpline;
+	modCfg.dataType = linear ? CatCont::DataType::Linear : CatCont::DataType::Circular;
+	modCfg.maxCategories = mu.size();
+
+	CatCont::CategoryParameters catPar;
+	if (linear) {
+		catPar.mu = mu;
+		//catPar.SD = catSD;
+		catPar.platHW = platHW;
+		catPar.selectivity = splineHW;
+	} else {
+		// circular
+		x = CatCont::Circular::degreesToRadians(x);
+
+		catPar.mu = CatCont::Circular::degreesToRadians(mu);
+		//catPar.SD = catSD;
+		catPar.platHW = CatCont::Circular::degreesToRadians(platHW);
+
+		// If using PlatSpline, you don't want precision, but do want to convert from deg to rad.
+		catPar.selectivity = CatCont::Circular::degreesToRadians(splineHW);
+		//catPar.selectivity = CatCont::Circular::sdDeg_to_precRad(splineHW);
+	}
+
+	CatCont::WeightsCalculator wc(&modCfg);
+
+	wc.calcWeights(x, catPar);
+
+	// This is ok because weights.size() == modCfg.maxCategories == mu.size() for this function
+	return wc.weights; 
+}
+
+// [[Rcpp::export]]
+double calcPlatSplineLambda_R(std::vector<double> weights, std::string lambdaVariant) {
+
+	CatCont::ModelConfiguration modCfg;
+	modCfg.weightsDistribution = CatCont::WeightsDistribution::PlatSpline;
+	//modCfg.dataType = linear ? CatCont::DataType::Linear : CatCont::DataType::Circular; // doesn't matter for lambda
+	modCfg.lambdaVariant = CatCont::lambdaVariantFromString(lambdaVariant);
+
+	CatCont::WeightsCalculator wc(&modCfg);
+	wc.weights = weights;
+	wc.weightCount = weights.size();
+
+	//return CatCont::calcPlatSplineLambda(weights, CatCont::LambdaVariant::CatWeightSum);
+
+	return wc.calcLambda();
+}
+
+// [[Rcpp::export(name = ".cppFmod")]]
+double cppFmod(double x, double y) {
+	return std::fmod(x, y);
+}
+
+
+
+// [[Rcpp::export(name = "dVonMises")]]
+std::vector<double> dvm(std::vector<double> xs, double mu, double kappa, bool log, bool degrees = true) {
+
+	if (degrees) {
+		xs = CatCont::Circular::degreesToRadians(xs);
+		mu = CatCont::Circular::degreesToRadians(mu);
+		kappa = CatCont::Circular::sdDeg_to_precRad(kappa);
+	}
+
+	// Choose how to calculate dvm
+	CatCont::VonMisesLUT noLut;
+	CatCont::VonMisesLUT& lut = CatCont::vmLut; // Default to using vmLut
+	if (!lut.ready(kappa)) {
+		// Use a LUT without the LUT, just use the bessel function.
+		noLut.setup(&curriedBesselFunction);
+		lut = noLut;
+	}
+
+
+	std::vector<double> rval(xs.size());
+
+	for (size_t i = 0; i < xs.size(); i++) {
+		double dens = lut.dVonMises(xs[i], mu, kappa);
+		if (degrees) {
+			dens *= PI / 180.0;
+		}
+		if (log) {
+			dens = std::log(dens);
+		}
+		rval[i] = dens;
+	}
+
+	return rval;
+}
+
 
 #endif //COMPILING_WITH_RCPP

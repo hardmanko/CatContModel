@@ -2,7 +2,7 @@
 #' Set Parameters to Constant Values
 #' 
 #' This function helps with setting parameters to constant values. It returns a
-#' list mapping from parameter name to parameter value. I sets all participant
+#' list mapping from parameter name to parameter value. It sets all participant
 #' parameters to the same value. It also sets the hierarchical, population
 #' level parameters to constant values (this doesn't really have any effect:
 #' if all of the participant level parameters are constant, the population level
@@ -17,8 +17,8 @@
 #' `zeroConditionEffects` to `FALSE` does not create varying condition effects
 #' in `config$conditionEffects`.
 #' 
-#' If you call this function several times to get multiple lists of fixed parameter
-#' values, know that you can combine the lists with the concatenate function, `c()`.
+#' If you need to call this function several times to get multiple lists of fixed parameter
+#' values, you can combine the lists with the concatenate function, `c()`.
 #' 
 #' @param data The data you will use, in the same format as required by [`runParameterEstimation`].
 #' @param param The parameter to set to a constant value, e.g. `"pMem"`.
@@ -26,7 +26,8 @@
 #' @param zeroConditionEffects Whether condition effects should all be set to 0. (See [`Glossary`].)
 #' @param transformValueToLatent Whether `value` should be transformed to the latent space. If `TRUE` (the default) you should provide parameter values in the manifest space (e.g. probabilities should be between 0 and 1). If `FALSE`, you should provide parameter values in the latent space.
 #' 
-#' @return A list mapping from parameter name to parameter value.
+#' @return A list mapping from parameter name to parameter value. 
+#' This list can be passed as the `constantValueOverrides` argument of [`runParameterEstimation`].
 #' 
 #' @seealso [`setConstantCategoryParameters`] for setting catMu and catActive to constant values.
 #' 

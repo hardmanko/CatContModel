@@ -1,91 +1,124 @@
 
+###
 # This file is useful to developers of the package, not so much for users of the package.
+#
 # Users should see "installPackage.R" to install the package.
+###
 
-
-baseDir = "G:/Programming/R/CatContModel/"
-
-packagePath = baseDir
-packageName = "CatContModel"
-fullPackagePath = paste0(packagePath, packageName, "/")
-packageLocation = paste0(packagePath, packageName)
-
-
-Sys.setenv("PKG_CXXFLAGS"="-std=c++11")
 
 library(Rcpp)
 library(devtools)
 library(roxygen2)
+library(usethis)
 
-CatContPackageVersion = "0.8.1"
+# Configuration options
+packageName = "CatContModel"
+CatContPackageVersion = "0.9.0"
 addingDataSets = FALSE
+
+
+baseDir = "D:/Programming/R/CatContModel/"
+
+# Location of the properly formatted R package version of CatContModel
+fullPackagePath = paste0(baseDir, packageName, "/")
+packageLocation = paste0(baseDir, packageName)
+
+# Things now force the assumption that you are in the package dir. Progress!
+setwd(packageLocation)
+
+# Compile using C++11
+Sys.setenv("PKG_CXXFLAGS"="-std=c++11")
+
+
+
 
 
 ###
 # Only run first time:
 ###
 
-modelFilesDir = paste(baseDir, "source/cpp/", sep="")
-modelFiles = c("Compilation.h", "CCM_BayesianModel.h", "CCM_BayesianModel.cpp", "CCM_BayesianModel_Misc.cpp","RInterface.cpp", "CCM_Util.h", "CCM_Util.cpp", "CCM_Linear.h", "CCM_Linear.cpp", "CCM_Circular.h", "CCM_Circular.cpp", "VonMisesLut/VonMisesLut.h", "VonMisesLut/VonMisesLut.cpp")
-modelFiles = paste(modelFilesDir, modelFiles, sep="")
+cppHS = function(name) {
+  c(paste0(name, ".h"), paste0(name, ".cpp"))
+}
 
-gsBase = paste(modelFilesDir, "GibbsSampler/", sep="")
-gsFiles = c("GibbsSampler.h", "GibbsSampler.cpp", "UtilityFunctions.h", "UtilityFunctions.cpp")
-gsFiles = paste( gsBase, gsFiles, sep="" )
+modelFilesDir = paste0(baseDir, "source/cpp/")
+modelFiles = c("Compilation.h", "RInterface.cpp", 
+               "CCM_BayesianModel.h", "CCM_BayesianModel.cpp", "CCM_BayesianModel_Misc.cpp",
+               cppHS("CCM_Util"), 
+               cppHS("CCM_Weights"), 
+               cppHS("CCM_Circular"), 
+               cppHS("CCM_Linear"),
+               cppHS("CCM_EqualityConstraints"), 
+               cppHS("CCM_DistributionLUTs")
+               )
 
-cpp_files = c(modelFiles, gsFiles)
+gsBase = paste0(modelFilesDir, "GibbsSampler/")
+gsFiles = c(cppHS("GibbsSampler"), 
+            cppHS("GibbsParameters"), 
+            cppHS("UtilityFunctions")
+            )
 
-rFilesDir = paste(baseDir, "/source/R/", sep="")
-rFiles = dir( rFilesDir )
-rFiles = paste( rFilesDir, rFiles, sep="" )
+cpp_files = c(paste0(modelFilesDir, modelFiles), 
+              paste0( gsBase, gsFiles)
+)
+
+rFilesDir = paste0(baseDir, "/source/R/")
+rFiles = dir(rFilesDir)
+rFiles = paste0(rFilesDir, rFiles)
 
 
 
-#include the package documentation
-rFiles = c(rFiles, paste(packagePath, "docs/toCopy/CatContModel-package.R", sep="") )
-#And the data set documentation
+# Include the package documentation
+rFiles = c(rFiles, paste0(baseDir, "docs/toCopy/CatContModel-package.R") )
+# And the data set documentation
 if (addingDataSets) {
-	rFiles = c(rFiles, paste(packagePath, "examples/betweenItem/betweenDataDoc.R", sep="") )
+  rFiles = c(rFiles, paste0(baseDir, "examples/betweenItem/betweenDataDoc.R") )
 }
 
 
 # Delete the old files
 packageFiles = dir( packageLocation, recursive = TRUE)
-file.remove( paste0(fullPackagePath, packageFiles) )
+file.remove( packageFiles )
+#file.remove( paste0(fullPackagePath, packageFiles) )
 
 # Move new files
-Rcpp.package.skeleton(packageName, path=packagePath, cpp_files=cpp_files, code_files=rFiles, 
-											force=TRUE, example_code=FALSE, 
-											author="Kyle O Hardman", license="MIT + file LICENSE", email="kylehardman@gmail.com")
+Rcpp.package.skeleton(packageName, path=baseDir, cpp_files=cpp_files, code_files=rFiles, 
+                      force=TRUE, example_code=FALSE, 
+                      author="Kyle O Hardman", license="MIT + file LICENSE", email="kylehardman@gmail.com")
 
 
 #Data sets
 if (addingDataSets) {
-	betweenItemData = read.delim( paste(packagePath, "examples/betweenItem/betweenItemData.txt", sep="") )
-	devtools::use_data(betweenItemData, pkg = packageLocation)
-	betweenItemParameters = read.delim( paste(packagePath, "examples/betweenItem/betweenItemParameters.txt", sep="") )
-	devtools::use_data(betweenItemParameters, pkg = packageLocation)
+  betweenItemData = read.delim( paste0(baseDir, "examples/betweenItem/betweenItemData.txt") )
+  devtools::use_data(betweenItemData, pkg = packageLocation)
+  betweenItemParameters = read.delim( paste0(baseDir, "examples/betweenItem/betweenItemParameters.txt") )
+  devtools::use_data(betweenItemParameters, pkg = packageLocation)
 }
 
 
+###########################
+# Append Imports and Suggests to DESCRIPTION
 
-#Append Imports and Suggests to DESCRIPTION
-devtools::use_package("CircStats", pkg=packageLocation)
-devtools::use_package("polspline", pkg=packageLocation)
-devtools::use_package("msm", pkg=packageLocation)
-devtools::use_package("abind", pkg=packageLocation)
-devtools::use_package("LineChart", pkg=packageLocation)
-devtools::use_package("CMBBHT", pkg=packageLocation)
+usethis::use_package("CircStats")
+usethis::use_package("polspline")
+usethis::use_package("msm")
+usethis::use_package("abind")
+usethis::use_package("LineChart")
+usethis::use_package("CMBBHT")
 
-devtools::use_package("R.rsp", type = "Suggests", pkg=packageLocation)
+usethis::use_package("R.rsp", type = "Suggests")
+# OR use Introduction.Rnw
 
-#Modify the DESCRIPTION
+
+###########################
+# Modify the DESCRIPTION
+
 addDcfElement = function(dcf, name, value) {
-	m = matrix(value, nrow=1, ncol=1, dimnames = list(c(), name))
-	cbind(dcf, m)
+  m = matrix(value, nrow=1, ncol=1, dimnames = list(c(), name))
+  cbind(dcf, m)
 }
 
-dcf = read.dcf( paste(fullPackagePath, "DESCRIPTION", sep="") )
+dcf = read.dcf("DESCRIPTION")
 dcf[,"Title"] = "Categorical and Continuous Working Memory Models for Delayed-Estimation Tasks"
 dcf[,"Description"] = "Perform parameter estimation, posterior distribution analysis, and model comparison with the models used by Hardman, Vergauwe, & Ricker (2017). The models in this package are for delayed-estimation tasks that are commonly used in the working memory literature. The models a difficult to implement and work with for a variety of reasons, hence the value of this package. Hierarchical Bayesian implementations of between-item and within-item model variants used by Hardman, Vergauwe, and Ricker are included, as is the Zhang & Luck (2008) model. For any of these models, functions in this package allow you to relatively easily estimate the model parameters, plot parameter values, calculate posterior means and credible intervals, perform tests of the effect of task conditions on parameters, and calculate model fit statistics, among other things."
 dcf[,"Author"] = "Kyle O Hardman"
@@ -94,36 +127,88 @@ dcf[,"Version"] = CatContPackageVersion
 
 
 dcf = addDcfElement(dcf, "Roxygen", "list(markdown = TRUE)")
-dcf = addDcfElement(dcf, "Depends", "R (>= 3.4)")
+dcf = addDcfElement(dcf, "Depends", "R (>= 3.6)")
 dcf = addDcfElement(dcf, "VignetteBuilder", "R.rsp")
 
-write.dcf(dcf, file = paste(fullPackagePath, "DESCRIPTION", sep="") )
+write.dcf(dcf, file="DESCRIPTION")
 
 
-#get rid of the autogenerated package documentation
-autogenToRM = c("man/CatContModel-package.Rd", "Read-and-delete-me", "NAMESPACE")
-file.remove( paste0( fullPackagePath, autogenToRM ) )
+##############
+# Get rid of the autogenerated package documentation
+autogenToRM = c("man/CatContModel-package.Rd", "Read-and-delete-me") #"NAMESPACE"
+file.remove( autogenToRM )
 
-###
+
+######
+# Basic install without documentation
+devtools::install(args="--no-multiarch")
+
+
+
+
+
+
+
+
+
+
+#####################
+# quick and dirty update files and recompile
+# Doesn't properly reinstall the package if it is already loaded
+
+quickAndDirtyRebuild = function() {
+  
+  file.copy(from=paste0(modelFilesDir, modelFiles), 
+            to=paste0("src/", modelFiles),
+            overwrite=TRUE
+  )
+  
+  file.copy(from=paste0(gsBase, gsFiles), 
+            to=paste0("src/", gsFiles),
+            overwrite=TRUE
+  )
+  
+  if ("package:CatContModel" %in% search()) {
+    detach("package:CatContModel", character.only = TRUE)
+  }
+  
+  devtools::install(args="--no-multiarch")
+  
+}
+
+if (FALSE) {
+  
+  quickAndDirtyRebuild()
+  
+}
+
+######
 # documentation
-###
-roxygen2::roxygenise( packageLocation )
+
+# For some reason, the dll needs to be compiled before documentation???
+pkgbuild::compile_dll()
+devtools::document()
+
+# Install with documentation
+devtools::install(args="--no-multiarch")
+
+
+###################################################################
 
 
 #Copy over LICENSE
-dir.create(paste0(fullPackagePath, "inst/"))
-dir.create(paste0(fullPackagePath, "inst/doc/"))
-file.copy(from = paste0(baseDir, "LICENSE.md"), to = paste(fullPackagePath, "LICENSE", sep=""))
+dir.create("inst/")
+dir.create("inst/doc/")
+file.copy(from = paste0(baseDir, "LICENSE.md"), to="LICENSE")
 
 #Copy over manual and supporting asis file
 file.copy(from = paste0(baseDir, "docs/introduction/Introduction.pdf"), 
-					to = paste0(fullPackagePath, "inst/doc/Introduction.pdf"))
+          to = "inst/doc/Introduction.pdf")
 
 file.copy(from = paste0(baseDir, "docs/toCopy/Introduction.pdf.asis"), 
-					to = c(paste0(fullPackagePath, "inst/doc/Introduction.pdf.asis"),
-								 paste0(fullPackagePath, "vignettes/Introduction.pdf.asis")
-								 )
-					)
+          to = c("inst/doc/Introduction.pdf.asis"  #, "vignettes/Introduction.pdf.asis"
+          )
+)
 
 
 
@@ -137,9 +222,9 @@ objectFiles = dir( srcDir, recursive = FALSE)
 objectFiles = objectFiles[ grepl("\\.o$", objectFiles) ]
 file.remove( paste0(srcDir, objectFiles) )
 
-#Install the package from source.
+# Install the package from source. This is the full installation.
 install.packages(pkgs=packageLocation, repos=NULL, type="source", 
-								 build_vignettes=TRUE, clean=TRUE)
+                 build_vignettes=TRUE, clean=TRUE)
 
 
 
@@ -156,23 +241,25 @@ install.packages(pkgs=packageLocation, repos=NULL, type="source",
 
 
 #Check the package (as for submission to CRAN).
-devtools::check(packageLocation)
+devtools::check()
 
 
-#Note to self: Make sure that you remember to increment the version number before you
-#run either of the following commands!!!
+#############
+# Note: Make sure to increment the version number before you
+# run either of the following commands!!!
 
 #Build source archive of package
-devtools::build(packageLocation, path=paste(baseDir, "packaged/", sep="") )
+devtools::build(packageLocation, path=paste0(baseDir, "packaged/") )
 
 #Build binary archive of package
-devtools::build(packageLocation, path=paste(baseDir, "packaged/", sep=""), binary = TRUE)
+devtools::build(packageLocation, path=paste0(baseDir, "packaged/"), binary = TRUE)
 
-
+#
+#############
 
 
 #Test installation
-install.packages( paste0(packagePath, "/packaged/CatContModel_0.8.0.tar.gz"), repos=NULL)
-install.packages( paste0(packagePath, "/packaged/CatContModel_0.8.0.zip"), repos=NULL)
+install.packages( paste0(baseDir, "/packaged/CatContModel_0.8.1.tar.gz"), repos=NULL)
+install.packages( paste0(baseDir, "/packaged/CatContModel_0.8.1.zip"), repos=NULL)
 
 

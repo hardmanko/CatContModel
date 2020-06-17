@@ -103,77 +103,8 @@ namespace CatCont {
 
 
 
-	//TODO: This is unfinished and maybe wrongheaded
-	void Bayesian::_doParameterEqualityConstraints(void) {
-
-		//assume that you have this
-		map<string, string> mapping;
-
-
-		using namespace std::placeholders;
-
-		vector<GibbsParameter*> param = this->gibbs.getParameters();
-		vector<string> paramNames(param.size());
-		for (unsigned int i = 0; i < param.size(); i++) {
-			paramNames[i] = param[i]->name;
-		}
-
-		EqualityConstraints eq;
-		eq.setup(mapping, paramNames, this->data.conditionNames);
-
-		for (GibbsParameter* target : param) {
-			string source = eq.getSourceParameter(target->name);
-			if (source == "FREE_PARAMETER") {
-
-
-				//If a condition effect, get the condition group indices
-				if (target->name.find("_cond[") != string::npos) {
-
-					string baseName = extractBaseParameterName(target->name);
-					string condName = extractIndex(target->name);
-
-					if (condName == config.cornerstoneConditionName) {
-						//Don't change anything for the cornerstone condition
-						continue;
-					}
-
-					//Get the index of this condition. Consider putting this into a function...
-					unsigned int condIndex = -1;
-					for (unsigned int i = 0; i < data.conditionNames.size(); i++) {
-						if (data.conditionNames[i] == condName) {
-							condIndex = i;
-							break;
-						}
-					}
-
-					vector<unsigned int> conditionIndices = eq.getEqualConditionIndices(baseName, condIndex);
-
-					MH_Parameter par;
-					par.name = target->name;
-					par.group = target->group;
-
-					par.deviateFunction = bind(normalDeviate, _1, mhTuningSd.at(par.group));
-					par.llFunction = std::bind(&Bayesian::multiConditionParameter_ll, this, _1, _2, conditionIndices, baseName);
-
-					gibbs.replaceParameter(target->name, par, 0);
-
-				}
-
-			} else {
-				DependentParameter dp;
-				dp.name = target->name;
-				dp.group = target->group;
-				dp.sourceParameter = source; //set this parameter to use the source
-				gibbs.replaceParameter(target->name, dp);
-			}
-		}
-
-
-	}
-
-
 	map<string, map<string, double>> calculateWAIC(const vector<ParticipantData>& allData,
-		const Bayesian::Configuration& modelConfig,
+		const ModelConfiguration& modelConfig,
 		const vector< ParameterList >& posteriorIterations)
 	{
 
@@ -198,11 +129,11 @@ namespace CatCont {
 
 				const ConditionData& condData = pData.condData[condIndex];
 
+				//Initialize to 0
+				vector< double > currentLikelihoodSum(condData.study.size(), 0); 
+				vector< double > currentLogLikelihoodSum = currentLikelihoodSum;
 
-				vector< double > currentLikelihoodSum(condData.study.size(), 0); //Initialize to 0
-				vector< double > currentLogLikelihoodSum = currentLikelihoodSum; //Also initialize to 0
-
-																				 //First index is the observation, second is the iteration.
+				//First index is the observation, second is the iteration.
 				vector< vector< double > > currentLogLikelihoods;
 
 				currentLogLikelihoods.resize(condData.study.size());
@@ -211,7 +142,7 @@ namespace CatCont {
 				}
 
 
-				for (unsigned int iteration = 0; iteration < posteriorIterations.size(); iteration++) {
+				for (size_t iteration = 0; iteration < posteriorIterations.size(); iteration++) {
 
 					const ParameterList& param = posteriorIterations[iteration];
 
@@ -226,11 +157,11 @@ namespace CatCont {
 					if (modelConfig.dataType == DataType::Circular) {
 						likelihoods = Circular::betweenAndWithinLikelihood(combinedParam, condData, modelConfig.modelVariant);
 					} else if (modelConfig.dataType == DataType::Linear) {
-						likelihoods = Linear::betweenAndWithinLikelihood(combinedParam, condData, modelConfig.linearConfiguration);
+						likelihoods = Linear::betweenAndWithinLikelihood(combinedParam, condData, modelConfig);
 					}
 
 					//Store the likelihoods
-					for (unsigned int obs = 0; obs < condData.study.size(); obs++) {
+					for (size_t obs = 0; obs < condData.study.size(); obs++) {
 
 						currentLikelihoodSum[obs] += likelihoods[obs];
 
@@ -243,7 +174,7 @@ namespace CatCont {
 				}
 
 				//Process the likelihoods
-				for (unsigned int obs = 0; obs < condData.study.size(); obs++) {
+				for (size_t obs = 0; obs < condData.study.size(); obs++) {
 
 					//Convert from sum to mean
 					double logOfMeanL = log(currentLikelihoodSum[obs] / posteriorIterations.size());
@@ -263,7 +194,7 @@ namespace CatCont {
 					//Add on to P_2: sample variance of LL
 					double varOfLLAccum = 0;
 
-					for (unsigned int iteration = 0; iteration < posteriorIterations.size(); iteration++) {
+					for (size_t iteration = 0; iteration < posteriorIterations.size(); iteration++) {
 						double dOfLL = currentLogLikelihoods[obs][iteration] - meanOfLogL;
 						varOfLLAccum += dOfLL * dOfLL;
 					}
@@ -310,194 +241,10 @@ namespace CatCont {
 
 
 
-
-	/////////////////////////////////
-	// EqualityConstraints
-	/////////////////////////////////
-
-	string Bayesian::EqualityConstraints::FreeParameter = "FREE_PARAMETER";
-
-	bool Bayesian::EqualityConstraints::setup(const IndividualMappings& mappings, const vector<string>& conditionNames, const vector<string>& allParameterNames) {
-		individualMappings = mappings;
-
-		if (allParameterNames.size() > 0) {
-			vector<string> keysToErase;
-
-			for (auto it = individualMappings.begin(); it != individualMappings.end(); it++) {
-
-				bool firstNotFound = find(allParameterNames.begin(), allParameterNames.end(), it->first) == allParameterNames.end();
-				bool secondNotFound = find(allParameterNames.begin(), allParameterNames.end(), it->second) == allParameterNames.end();
-
-				if (it->first == FreeParameter) {
-					firstNotFound = false;
-				}
-				if (it->second == FreeParameter) {
-					secondNotFound = false;
-				}
-
-				if (firstNotFound) {
-					logMessage("EqualityConstraints", "Parameter " + it->first + " does not exist and will be ignored.");
-				}
-
-				if (secondNotFound) {
-					logMessage("EqualityConstraints", "Parameter " + it->second + " does not exist and will be ignored.");
-				}
-
-				if (firstNotFound || secondNotFound) {
-					keysToErase.push_back(it->first);
-				}
-			}
-
-			for (string s : keysToErase) {
-				individualMappings.erase(s);
-			}
-		}
-
-		bool simplifySuccess = simplifyIndividualMappings(&individualMappings);
-		if (!simplifySuccess) {
-			return false;
-		}
-
-		groupMappings = calculateEqualConditionIndices(individualMappings, conditionNames);
-		return true;
-	}
-
-
-
-	//This should include the given condition
-	const vector<unsigned int>& Bayesian::EqualityConstraints::getEqualConditionIndices(string param, unsigned int cond) const {
-		return groupMappings.at(param).at(cond);
-	}
-
-	//Basically, read out of individualMappings
-	string Bayesian::EqualityConstraints::getSourceParameter(string parameter) const {
-		if (individualMappings.find(parameter) == individualMappings.end()) {
-			return "PARAMETER_NOT_FOUND";
-		}
-
-		return individualMappings.at(parameter);
-	}
-
-	//Account for parameters not yet mentioned(?)
-	Bayesian::EqualityConstraints::IndividualMappings Bayesian::EqualityConstraints::incorporateAdditionalParameters(IndividualMappings mappings, const vector<string>& allNames) const {
-		for (string s : allNames) {
-			if (mappings.find(s) == mappings.end()) {
-				mappings[s] = FreeParameter;
-			}
-		}
-		return mappings;
-	}
-
-	//Reduce to simplest form
-	bool Bayesian::EqualityConstraints::simplifyIndividualMappings(IndividualMappings* mapping) const {
-
-		//get parameter names
-		vector<string> names;
-		for (auto it = mapping->begin(); it != mapping->end(); it++) {
-			names.push_back(it->first);
-		}
-
-		bool mappingChanged = false;
-		for (const string& currentTarget : names) {
-
-			string currentSource = mapping->at(currentTarget);
-
-			if (currentSource == FreeParameter) {
-				continue;
-			}
-
-			set<string> cycleHistory;
-			cycleHistory.insert(currentSource);
-
-			string mostSimpleSource = currentSource;
-			while (true) {
-				string nextPossibleSource = mapping->at(mostSimpleSource);
-
-				if (cycleHistory.find(nextPossibleSource) != cycleHistory.end()) {
-					logMessage("EqualityConstraints::simplifyIndividualMappings()", "Error: Equality constraint cycle detected.");
-					return false;
-				} else {
-					cycleHistory.insert(nextPossibleSource);
-				}
-
-				if (nextPossibleSource != FreeParameter) {
-					mostSimpleSource = nextPossibleSource;
-				} else {
-					break;
-				}
-			}
-			if (mostSimpleSource != currentSource) {
-				mapping->at(currentTarget) = mostSimpleSource;
-				mappingChanged = true;
-			}
-
-		}
-
-		if (mappingChanged) {
-			return simplifyIndividualMappings(mapping);
-		}
-
-		return true;
-	}
-
-
-
-	//conditionNames comes from the Data struct.
-	Bayesian::EqualityConstraints::GroupMappings Bayesian::EqualityConstraints::calculateEqualConditionIndices(const IndividualMappings& mapping, const vector<string>& conditionNames) const {
-
-		GroupMappings rval;
-
-		map<string, unsigned int> cnameToIndex;
-		for (unsigned int i = 0; i < conditionNames.size(); i++) {
-			cnameToIndex[conditionNames[i]] = i;
-		}
-
-		vector<string> names;
-		for (auto it = mapping.begin(); it != mapping.end(); it++) {
-			if (it->first.find("_cond[") != string::npos) {
-				names.push_back(it->first);
-			}
-		}
-
-		for (const string& possibleSource : names) {
-
-			string baseParameterName = extractBaseParameterName(possibleSource);
-
-			string sourceCondName = extractIndex(possibleSource);
-
-			vector<string> cNames;
-			vector<unsigned int> cInds;
-
-			//If this is a free parameter, add it to its own group
-			if (mapping.at(possibleSource) == FreeParameter) {
-				string sourceCondName = extractIndex(possibleSource);
-
-				cNames.push_back(sourceCondName);
-				cInds.push_back(cnameToIndex.at(sourceCondName));
-			}
-
-			for (const string& possibleTarget : names) {
-
-				if (mapping.at(possibleTarget) == possibleSource) {
-					string targetCondName = extractIndex(possibleTarget);
-
-					cNames.push_back(targetCondName);
-					cInds.push_back(cnameToIndex.at(targetCondName));
-				}
-
-			}
-
-			unsigned int sourceConditionIndex = cnameToIndex.at(sourceCondName);
-			rval[baseParameterName][sourceConditionIndex] = cInds;
-		}
-
-		return rval;
-	}
-
-
-
-	//The decorrelating stuff should work in theory, but it doesn't seem to work well in practice, at least
-	//not all of the time. I don't recommend using it.
+	
+	///////////////////////////////////////////
+	// The decorrelating stuff should work in theory, but it doesn't seem to work well in practice, at least
+	// not all of the time. I don't recommend using it.
 	ParameterList Bayesian::_getDecorrelatingValues(const ParameterList& param, string paramSetName, double deviate) const {
 		ParameterList rval;
 

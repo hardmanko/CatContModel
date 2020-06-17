@@ -29,14 +29,15 @@ void VonMisesLut::setup(double rangeUpper_, double stepSize_, double (*besselFun
 		x = step * stepSize; //This is better
 	}
 
-	//TODO: The LUT is biased because the function is monotonically decreasing.
-	//Adjust by taking the midpoint between two LUT values, calculate the bessel there, then adjust the LUT
-	//endpoints to something like half the distance between the midpoint lerp and midpoint bessel.
+	// TODO: The LUT is biased because the bessel function is an exponential-type scoop shape.
+	// This means that the curvature of the function always undershoots the straight line linear interpolation.
+	// Adjust by taking the midpoint between two LUT values, calculate the bessel there, then adjust the LUT
+	// endpoints to something like half the distance between the midpoint lerp and midpoint bessel.
 }
 
-//x must be non-negative and must be less than rangeUpper/maxValue(). It is up to the user to verify this.
+// x must be non-negative and must be less than rangeUpper/maxValue(). It is up to the user to verify this.
 double VonMisesLut::besselLerp(double x) {
-	x /= stepSize; //so this helps with precision vs doing just fmod(x, stepSize)...
+	x /= stepSize; // This helps with precision vs doing just fmod(x, stepSize).
 
 	int i = (int)x;
 	double rem = fmod(x, 1);
@@ -44,8 +45,8 @@ double VonMisesLut::besselLerp(double x) {
 	return _lut[i] + rem * (_lut[i + 1] - _lut[i]);
 }
 
-//Calculates likelihood, not log likelihood
-//x and mu are in radians, kappa is precision
+// Calculates likelihood, not log likelihood
+// x and mu are in radians, kappa is precision
 double VonMisesLut::dVonMises(double x, double mu, double kappa) {
 
 	double bessel = this->besselLerp(kappa);

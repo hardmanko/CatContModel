@@ -37,10 +37,10 @@ verifyConfigurationList = function(config, data, immediateWarnings = FALSE) {
 	usedConfigKeys = names(config)
 	
 	allAllowedConfigKeys = c("iterations", "modelVariant", "iterationsPerStatusUpdate", 
-													 "cornerstoneConditionName", "maxCategories", "minSD", 
-													 "catMuPriorApproximationPrecision",
-													 "calculateParticipantLikelihoods", "conditionEffects",
-													 "dataType", "responseRange", "catMuRange", "factors")
+		"cornerstoneConditionName", "maxCategories", "minSD", 
+		"catMuPriorApproximationPrecision", "weightsDistribution",
+		"calculateParticipantLikelihoods", "conditionEffects",
+		"dataType", "responseRange", "catMuRange", "factors")
 	
 	disallowedConfigKeys = usedConfigKeys[ !(usedConfigKeys %in% allAllowedConfigKeys) ]
 	
@@ -148,6 +148,13 @@ verifyConfigurationList = function(config, data, immediateWarnings = FALSE) {
 	if (is.null(config$catMuPriorApproximationPrecision)) {
 		config$catMuPriorApproximationPrecision = 60
 		cat(paste("Note: config$catMuPriorApproximationPrecision not set. Set to ", config$catMuPriorApproximationPrecision, " points at which the prior is evaluated.\n", sep=""))
+	}
+
+	##########################################
+	# weightsDistribution
+	if (is.null(config$weightsDistribution)) {
+		config$weightsDistribution = "Default"
+		cat("Note: config$weightsDistribution not set. Set to the default distribution for the data type.\n")
 	}
 	
 	###########################################
@@ -411,13 +418,15 @@ runParameterEstimation = function(config, data, mhTuningOverrides=list(),
 	}
 
 
-	results = CCM_CPP_runParameterEstimation(generalConfig = config, 
-												data = data, 
-												mhTuningOverrides = mhTuningOverrides, 
-												priorOverrides = priorOverrides,
-												startingValueOverrides = startingValueOverrides,
-												constantValueOverrides = constantValueOverrides,
-												equalityConstraints = equalityConstraints) 
+	results = CCM_CPP_runParameterEstimation(
+		generalConfig = config, 
+		data = data, 
+		mhTuningOverrides = mhTuningOverrides, 
+		priorOverrides = priorOverrides,
+		startingValueOverrides = startingValueOverrides,
+		constantValueOverrides = constantValueOverrides,
+		equalityConstraints = equalityConstraints
+	) 
 	
 	results$config = config
 	results$data = data
