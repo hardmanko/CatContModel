@@ -565,7 +565,7 @@ getFactorTypes = function(factors) {
 #'
 #' @param res A generic results object (see [`Glossary`]).
 #' @param params A vector of parameter names. If `NULL`, the default, all valid parameters are used. Unlike most function, `"catActive"` can be used as a parameter.
-#' @param cip The credible interval proportion. Defaults to 95\% credible intervals.
+#' @param cip The credible interval proportion. Defaults to 95% credible intervals.
 #' @param addMu See [`getConditionEffects`].
 #' @param manifest See [`getConditionEffects`].
 #' 
@@ -629,7 +629,7 @@ posteriorMeansAndCredibleIntervals = function(res, params=NULL, cip=0.95, addMu=
 				
 				# If ceFactors is empty, assume that baseUniqueFL
 				# already has collapsed factor levels in it.
-				for (i in 1:length(baseUniqueFL)) {
+				for (i in 1:nrow(baseUniqueFL)) {
 					cce$uniqueFL[i,fn] = baseUniqueFL[1,fn]
 				}
 				

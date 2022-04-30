@@ -186,6 +186,7 @@ circMean = function(angles, weights=1, degrees=TRUE) {
 
 # For the following functions, the equation numbers correspond 
 # to equations in the Appendix of Hardman, Vergauwe, and Ricker (2017).
+# k is a vector of active category indices.
 h_eq20 = function(mu_k, nu_k, mu_kp, nu_kp, catMuPriorSD, dataType) {
 	
 	if (dataType == "circular") {
@@ -667,7 +668,7 @@ conditionEffectPriorCredibleInterval = function(param, p_i, ce_scale, cip = 0.95
 		upCol = "blue"
 		
 		if (doMFRow) {
-			par(mfrow=c(1, 2))
+		  graphics::par(mfrow=c(1, 2))
 		}
 		
 		ylimL = range(df[ , c("lower", "median", "upper")])
@@ -676,8 +677,8 @@ conditionEffectPriorCredibleInterval = function(param, p_i, ce_scale, cip = 0.95
 		}
 		
 		plot(df$p_i, df$median, ylim=ylimL, type='l', xlab=param, ylab="Manifest Parameter Value")
-		lines(df$p_i, df$lower, col=lowCol)
-		lines(df$p_i, df$upper, col=upCol)
+		graphics::lines(df$p_i, df$lower, col=lowCol)
+		graphics::lines(df$p_i, df$upper, col=upCol)
 		
 		ylimR = range(df[ , c("lowerW", "totalW", "upperW")])
 		

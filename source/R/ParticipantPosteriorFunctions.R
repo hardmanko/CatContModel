@@ -379,7 +379,7 @@ abind1 = function(x, y, along) {
 #' 
 #' @param res A generic results object (see [`Glossary`]).
 #' @param params A vector of parameter names. If `NULL`, all valid parameters are used. `"catActive"` is a valid parameter for this function.
-#' @param cip The credible interval proportion. Defaults to 95\% credible intervals.
+#' @param cip The credible interval proportion. Defaults to 95% credible intervals.
 #' @param fun A user provided function that will be passed a vector of group X participant X condition posterior values to summarize (i.e. the kind of function you would pass to `stats::aggregate()`).
 #' @param removeNoDataCells Remove parameter summaries for group X participant X condition cells of the design for which there is no data.
 #' 

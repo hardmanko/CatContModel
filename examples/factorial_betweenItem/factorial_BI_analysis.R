@@ -1,5 +1,5 @@
 
-setwd("~/../Programming/R/CatContModel/examples/factorial_betweenItem") #or wherever you are working
+setwd("D:/Programming/R/CatContModel/examples/factorial_betweenItem") #or wherever you are working
 
 library(CatContModel)
 

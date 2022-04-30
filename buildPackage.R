@@ -13,7 +13,7 @@ library(usethis)
 
 # Configuration options
 packageName = "CatContModel"
-CatContPackageVersion = "0.9.0"
+CatContPackageVersion = "0.8.1"
 addingDataSets = FALSE
 
 
@@ -120,7 +120,7 @@ addDcfElement = function(dcf, name, value) {
 
 dcf = read.dcf("DESCRIPTION")
 dcf[,"Title"] = "Categorical and Continuous Working Memory Models for Delayed-Estimation Tasks"
-dcf[,"Description"] = "Perform parameter estimation, posterior distribution analysis, and model comparison with the models used by Hardman, Vergauwe, & Ricker (2017). The models in this package are for delayed-estimation tasks that are commonly used in the working memory literature. The models a difficult to implement and work with for a variety of reasons, hence the value of this package. Hierarchical Bayesian implementations of between-item and within-item model variants used by Hardman, Vergauwe, and Ricker are included, as is the Zhang & Luck (2008) model. For any of these models, functions in this package allow you to relatively easily estimate the model parameters, plot parameter values, calculate posterior means and credible intervals, perform tests of the effect of task conditions on parameters, and calculate model fit statistics, among other things."
+dcf[,"Description"] = "Perform parameter estimation, posterior distribution analysis, and model comparison with the models used by Hardman, Vergauwe, & Ricker (2017). The models in this package are for delayed-estimation tasks that are commonly used in the working memory literature. The models are difficult to implement and work with for a variety of reasons, hence the value of this package. Hierarchical Bayesian implementations of between-item and within-item model variants used by Hardman, Vergauwe, and Ricker are included, as is the Zhang & Luck (2008) model. For any of these models, functions in this package allow you to relatively easily estimate the model parameters, plot parameter values, calculate posterior means and credible intervals, perform tests of the effect of task conditions on parameters, and calculate model fit statistics, among other things."
 dcf[,"Author"] = "Kyle O Hardman"
 dcf[,"Maintainer"] = "Kyle O Hardman <kylehardman@gmail.com>"
 dcf[,"Version"] = CatContPackageVersion
@@ -139,16 +139,11 @@ autogenToRM = c("man/CatContModel-package.Rd", "Read-and-delete-me") #"NAMESPACE
 file.remove( autogenToRM )
 
 
+
+
 ######
 # Basic install without documentation
 devtools::install(args="--no-multiarch")
-
-
-
-
-
-
-
 
 
 
@@ -224,7 +219,7 @@ file.remove( paste0(srcDir, objectFiles) )
 
 # Install the package from source. This is the full installation.
 install.packages(pkgs=packageLocation, repos=NULL, type="source", 
-                 build_vignettes=TRUE, clean=TRUE)
+                 build_vignettes=TRUE, clean=FALSE)
 
 
 

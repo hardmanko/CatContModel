@@ -10,3 +10,6 @@
 /examples/betweenAndWithin/*
 /examples/misc/*
 
+*.json
+*.ipch
+*.sqlite
