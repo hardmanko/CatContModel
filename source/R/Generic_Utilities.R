@@ -564,7 +564,7 @@ getFactorTypes = function(factors) {
 #' because in the model, condition effects are not added to population means, but participant means.
 #'
 #' @param res A generic results object (see [`Glossary`]).
-#' @param params A vector of parameter names. If `NULL`, the default, all valid parameters are used. Unlike most function, `"catActive"` can be used as a parameter.
+#' @param params A vector of parameter names. If `NULL`, the default, all valid parameters are used. Unlike most functions, `"catActive"` can be used as a parameter.
 #' @param cip The credible interval proportion. Defaults to 95% credible intervals.
 #' @param addMu See [`getConditionEffects`].
 #' @param manifest See [`getConditionEffects`].
@@ -582,7 +582,9 @@ posteriorMeansAndCredibleIntervals = function(res, params=NULL, cip=0.95, addMu=
 	
 	if (is.null(params)) {
 		params = getAllParams(res, filter=TRUE)
-		params = c(params, "catActive")
+		if (res$config$modelVariant != "ZL") {
+		  params = c(params, "catActive")
+		}
 	}
 
 	
@@ -613,6 +615,7 @@ posteriorMeansAndCredibleIntervals = function(res, params=NULL, cip=0.95, addMu=
 		
 	}
 	
+	# The rest of the parameters
 	for (param in params) {
 		
 		condEff = getConditionEffects(res, param, prior = FALSE, posterior = TRUE, 
@@ -621,28 +624,19 @@ posteriorMeansAndCredibleIntervals = function(res, params=NULL, cip=0.95, addMu=
 		ceFactors = getFactorsForConditionEffect(res, param)
 		cce = collapseConditionEffects(condEff, factors, usedFactors = ceFactors)
 		
-		# Copy over missing factors
-		baseUniqueFL = cce$uniqueFL
-		for (fn in allFN[ !(allFN %in% ceFactors) ]) {
-			
-			if (length(ceFactors) == 0) {
-				
-				# If ceFactors is empty, assume that baseUniqueFL
-				# already has collapsed factor levels in it.
-				for (i in 1:nrow(baseUniqueFL)) {
-					cce$uniqueFL[i,fn] = baseUniqueFL[1,fn]
-				}
-				
-			} else {
-				
-				matchingFL = getMatchingFactorLevels(factors, baseUniqueFL, fn, collapse="/")
-				for (i in 1:length(matchingFL)) {
-					cce$uniqueFL[i,fn] = matchingFL[i]
-				}
-				
-			}
-			
+		# If any factors are used, copy over missing factors
+		if (length(ceFactors) > 0) {
+		  baseUniqueFL = cce$uniqueFL # Make a copy so that you can modify the original
+		  unusedFactors = allFN[ !(allFN %in% ceFactors) ]
+		  for (fn in unusedFactors) {
+		    
+	      matchingFL = getMatchingFactorLevels(factors, baseUniqueFL, fn, collapse="/")
+	      for (i in 1:length(matchingFL)) {
+	        cce$uniqueFL[i,fn] = matchingFL[i]
+	      }
+		  }
 		}
+		# If no factors are used, cce$uniqueFL will already have collapsed factor levels in it
 		
 		df = reshapeMatrixToDF(cce$condEff$post, cce$uniqueFL)
 		
