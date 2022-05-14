@@ -5,14 +5,17 @@ install.packages(c("devtools", "R.rsp"))
 # Install other dependencies from CRAN. 
 install.packages(c("Rcpp", "polspline", "CircStats", "msm", "abind"))
 
+
 # Install the LineChart and CMBBHT packages from github.
-devtools::install_github("hardmanko/LineChart-package@v0.3.1", build_vignettes=TRUE)
+devtools::install_github("hardmanko/LineChart-package@v0.3.2", build_vignettes=TRUE)
 devtools::install_github("hardmanko/CMBBHT@v0.1.3", build_vignettes=TRUE)
+
 
 # Set the C++ compiler to use C++11 features.
 # Only neccessary if you are installing from source (.tar.gz extension),
 # but should be fine to run even if you are installing the .zip or .tgz versions.
 Sys.setenv("PKG_CXXFLAGS"="-std=c++11")
+
 
 # Install this package.
 #
@@ -28,7 +31,7 @@ Sys.setenv("PKG_CXXFLAGS"="-std=c++11")
 #
 # Windows binary: .zip
 # OSx binary:     .tgz
-# Source:         .tar.gz (Any OS, but requires C++ compiler)
+# Source:         .tar.gz (Any OS, but requires C++ compiler, like RTools)
 #
 # Change PACKAGE_LOCATION to the location of the package file. 
 # Change "V.V.V" to the version you want to install.

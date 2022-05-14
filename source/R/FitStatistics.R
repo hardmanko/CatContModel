@@ -182,11 +182,13 @@ calculateWAIC_aggregate = function(res, allWAIC, onlyTotal, summarize = TRUE) {
 #' the hierarchical parameters as free parameters. All of this combined, the effective number 
 #' of free parameters is far less than the actual number of free parameters.
 #' 
-#' An appropriate fit statistc for these models is WAIC, which estimates the effective 
+#' An appropriate fit statistic for these models is WAIC, which estimates the effective 
 #' number of free parameters. See the [`calculateWAIC`] function of this package.
 #' WAIC is relatively straightforward to calculate for models for which Bayesian parameter 
 #' estimation was done.
 #' 
+#' Although AIC and BIC have an overly heavy penalty term, there can still be some value in using
+#' those statistics to compare to other models in a back-of-the-envelope way.
 #' The way that this function calculates the fit statistics is by evenly dividing the number
 #' of free parameters in the whole between the participants, so each participant has the same
 #' penalty term. For each iteration of the Gibbs sampler, the likelihoods of the model are

@@ -127,7 +127,7 @@ dcf[,"Version"] = CatContPackageVersion
 
 
 dcf = addDcfElement(dcf, "Roxygen", "list(markdown = TRUE)")
-dcf = addDcfElement(dcf, "Depends", "R (>= 3.6)")
+dcf = addDcfElement(dcf, "Depends", "R (>= 4.1)")
 dcf = addDcfElement(dcf, "VignetteBuilder", "R.rsp")
 
 write.dcf(dcf, file="DESCRIPTION")
@@ -149,7 +149,7 @@ devtools::install(args="--no-multiarch")
 
 #####################
 # quick and dirty update files and recompile
-# Doesn't properly reinstall the package if it is already loaded
+# Doesn't properly re-install the package if it is already loaded
 
 quickAndDirtyRebuild = function() {
   
@@ -181,7 +181,8 @@ if (FALSE) {
 # documentation
 
 # For some reason, the dll needs to be compiled before documentation???
-pkgbuild::compile_dll()
+#pkgbuild::compile_dll()
+
 devtools::document()
 
 # Install with documentation

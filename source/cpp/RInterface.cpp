@@ -83,8 +83,13 @@ CatCont::ModelConfiguration readConfigurationFromList(Rcpp::List configList) {
 	string dataTypeStr = configList["dataType"];
 	config.dataType = CatCont::dataTypeFromString(dataTypeStr);
 
-	string weightsDistributionStr = configList["weightsDistribution"];
-	config.weightsDistribution = CatCont::weightsDistributionFromString(weightsDistributionStr);
+	//if (configList.containsElementNamed("weightsDistribution")) {
+		string weightsDistributionStr = configList["weightsDistribution"];
+		config.weightsDistribution = CatCont::weightsDistributionFromString(weightsDistributionStr);
+	//} else {
+	//	config.weightsDistribution = WeightsDistribution::Default;
+	//}
+
 
 	config.catMuPriorApproximationPrecision = configList["catMuPriorApproximationPrecision"];
 

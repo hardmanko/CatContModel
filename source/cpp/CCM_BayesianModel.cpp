@@ -757,11 +757,13 @@ void Bayesian::_setPriors(void) {
 
 	for (const string& s : probParams) {
 
+		// Hierarchical priors on participant parameters
 		priors[s + ".mu.mu"] = 0;
 		priors[s + ".mu.var"] = pow(1.2, 2); //sd = 1.2, var = 1.44
 		priors[s + ".var.a"] = 1.5;
 		priors[s + ".var.b"] = 1.5;
 
+		// Priors on condition effects
 		priors[s + "_cond.loc"] = 0;
 		priors[s + "_cond.scale"] = 0.3;
 
@@ -774,11 +776,13 @@ void Bayesian::_setPriors(void) {
 
 	for (const string& s : sdParams) {
 
+		// Hierarchical priors on participant parameters
 		priors[s + ".mu.mu"] = 35;
 		priors[s + ".mu.var"] = pow(15, 2); //sd = 15
 		priors[s + ".var.a"] = 0.75;
 		priors[s + ".var.b"] = 0.75;
 
+		// Priors on condition effects
 		priors[s + "_cond.loc"] = 0;
 		priors[s + "_cond.scale"] = 3;
 
