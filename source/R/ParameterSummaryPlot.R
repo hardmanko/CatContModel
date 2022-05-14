@@ -509,7 +509,10 @@ plotCatMu.WP = function(results, precision = 2, pnums = results$pnums, type = "p
 	catMu = post$catMu[ pnums, , ]
 	catActive = post$catActive[ pnums, , ]
 	
-	plotData = catMu_getPlotData(catMu, catActive, precision = precision, dataType = results$config$dataType, responseRange = results$config$responseRange, colorGeneratingFunction = results$colorGeneratingFunction)
+	plotData = catMu_getPlotData(catMu, catActive, precision = precision, 
+	                             dataType = results$config$dataType, 
+	                             responseRange = results$config$responseRange, 
+	                             colorGeneratingFunction = results$colorGeneratingFunction)
 	
 	catMu_plotSetup(plotData, results$config$dataType)
 	catMu_plotData(plotData$x, plotData$y, col = plotData$color, type = type, lwd = lwd, lty = lty)
@@ -636,9 +639,11 @@ catMu_getPlotData = function(catMu, catActive, precision, dataType, responseRang
 	heights = rep(0, length(angles))
 	colors = rep("", length(angles))
 	for (i in 1:(length(angles) - 1)) {
-		heights[i] = mean(activeCatMu >= angles[i] & activeCatMu < (angles[i] + 1))
+		heights[i] = mean(activeCatMu >= angles[i] & activeCatMu < angles[i + 1])
 		colors[i] = cgf(angles[i] + precision/2)
 	}
+	
+	# The last point is the first point. Copy the first point to the last point.
 	heights[length(heights)] = heights[1]
 	colors[length(colors)] = colors[1]
 	
