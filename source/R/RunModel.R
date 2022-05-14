@@ -381,6 +381,7 @@ checkConstantValueOverrides = function(config, cvo) {
 #' 	`calculateParticipantLikelihoods` \tab Boolean. Whether (log) likelihoods should be calculated on each iteration for each participant. See [`calculateInappropriateFitStatistics`] for a poor reason to set this to `TRUE`.  Defaults to `FALSE`. \cr
 #' 	`responseRange` \tab Only used if using the `"linear"` `dataType`, the possible range of response values as a length 2 vector, where the first value in the vector is the lower limit and the second the upper limit. By default, this is taken to be the range of the response values from the data set.
 #' }
+#' You can check your `config` with [`verifyConfigurationList`].
 #' 
 #' @section Prior Overrides:
 #' Some things about the priors can be adjusted with the `priorOverrides` argument. The default priors and the prior distributions are specified in Hardman, Vergauwe, and Ricker (2017). Most participant level parameters have a hierarchical Normal prior with estimated mean, `mu`, and variance, `sigma2`. The prior on `mu` is Normal with fixed mean and variance. The prior on `sigma2` is Inverse Gamma with fixed alpha and beta. To set the priors, use the `priorOverrides` argument. For example, to set the priors on the distribution of `pMem`, you would set `pMem.mu.mu`, `pMem.mu.var`, `pMem.var.a`, and/or `pMem.var.b`. For all of the parameters, the priors are set in the latent space. See the Priors section of the manual for more information.
@@ -456,36 +457,60 @@ runParameterEstimation = function(config, data, mhTuningOverrides=list(),
 		results$posteriors[[n]] = results$posteriors[[n]][-1] #strip off the start value (mainly so that the number of iterations is correct)
 	}
 	
+	# Store package version in the results object
+	results$info$packageVersion = packageVersion("CatContModel")
+	
+	# Set the class of results object to within-participants (WP)
 	class(results) = c(class(results), "CCM_WP")
+	
+	
 	results
 	
 }
 
 #' Sample Additional Iterations of the Gibbs Sampler
 #' 
-#' After running the parameter estimation with [`runParameterEstimation`] and analyzing the results, you may decide that you want more iterations to be sampled. This function allows you to continue sampling iterations from where the parameter estimation left off.
+#' After running the parameter estimation with [`runParameterEstimation`] and analyzing the results, 
+#' you may decide that you want more iterations to be sampled. 
+#' This function allows you to continue sampling iterations from where the parameter estimation left off.
 #' 
 #' @param results The results from the [`runParameterEstimation`] function.
 #' @param iterations The number of new iterations to sample.
+#' @param combinedOnly If `TRUE`, only the combined results (old and new) will be returned. If `FALSE`, the old, new, and combined results will be returned in a list.
 #' 
-#' @return A list with three elements: The `oldResults` (what you passed in), the `newResults` (the additional iterations), and the `combinedResults` (the `oldResults` and `newResults` merged together).
+#' @return A list with three elements: The `oldResults` (what you passed in), the `newResults` (the additional iterations), and the `combinedResults` (the `oldResults` and `newResults` combined using [`mergeResults`]).
 #' 
 #' @family WP functions
 #' 
 #' @export
-continueSampling = function(results, iterations) {
-	lastIteration = removeBurnIn(results, results$config$iterations - 1)
-	startValues = lastIteration$posteriors
+continueSampling = function(results, iterations, combinedOnly=FALSE) {
+  
+  if (results$config$iterations < 1) {
+    stop("No existing iterations from which to continue.")
+  }
+  
+  # The starting values are the last value in the previous posterior chain.
+  startValues = list()
+  for (parName in names(results$posteriors)) {
+    startValues[[parName]] = results$posteriors[[parName]][results$config$iterations]
+  }
+
 	
+	# Copy the old config but with the new number of iterations.
 	config = results$config
 	config$iterations = iterations
 	
 	newResults = runParameterEstimation(config=config, data=results$data, 
-																			mhTuningOverrides = results$mhTuning, priorOverrides = results$priors,
+																			mhTuningOverrides = results$mhTuning, 
+																			priorOverrides = results$priors,
 																			constantValueOverrides = results$constantValueOverrides,
-																			startingValueOverrides=startValues)
-	
-	list(oldResults=results, newResults=newResults, combinedResults=mergeResults(results, newResults))
+																			startingValueOverrides = startValues)
+
+	rval = mergeResults(results, newResults)
+	if (!combinedOnly) {
+	  rval = list(oldResults=results, newResults=newResults, combinedResults=rval)
+	}
+	rval
 }
 
 
@@ -494,19 +519,19 @@ continueSampling = function(results, iterations) {
 #' Note that you must remove burn-in iterations before merging results.
 #' 
 #' @param ... Multiple results objects from the [`runParameterEstimation`] function.
-#' @param doIntegrityChecks If `TRUE`, check that all of the results are comparable in terms of priors, Metropolis-Hastings tuning paramters, etc. The only time you should set this to FALSE is if you think there is a bug in the integrity checks.
-#' @param rList Instead of providing individual results objects as `...`, you can use `rList` to provide a list of results objects.
+#' @param doIntegrityChecks If `TRUE`, check that all of the results are comparable in terms of priors, Metropolis-Hastings tuning paramters, etc. The only time you should set this to `FALSE` is if you think there is a bug in the integrity checks.
+#' @param resList Instead of providing individual results objects as `...`, you can use `resList` to provide a list of results objects.
 #'
 #' @return The merged results.
 #' 
 #' @family WP functions
 #'
 #' @export
-mergeResults = function(..., doIntegrityChecks=TRUE, rList=NULL) {
+mergeResults = function(..., doIntegrityChecks=TRUE, resList=NULL) {
 
 	resultsList = list(...)
-	if (!is.null(rList)) {
-		resultsList = rList
+	if (!is.null(resList)) {
+		resultsList = resList
 	}
 
 	merged = resultsList[[1]]
