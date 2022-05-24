@@ -11,16 +11,27 @@
 # Although the values 90, 270, etc might look like degrees in a half circle, 
 # the model works by treating them as being linear (no wrap-around at 360).
 
-setwd("~/../Programming/R/CatContModel/examples/linear_betweenItem") #or wherever you are working
+setwd("D:/Programming/R/CatContModel/examples/linear_betweenItem") #or wherever you are working
 
 library(CatContModel)
 
 data = read.delim("linear_BI_data.txt")
 
+range(data$study)
+range(data$response)
+plot(data$study, data$response)
+plot(data$study[data$cond==1], data$response[data$cond==1])
+
+plot(data$study[data$pnum == 1], data$response[data$pnum == 1])
+hist(data$response,breaks=100)
+
+
+
 # Set up a basic configuration. 
 # Note dataType = "linear" (defaults to "circular").
-config = list(iterations = 500, modelVariant = "betweenItem", 
-							dataType = "linear", maxCategories = 7)
+config = list(modelVariant = "betweenItem", iterations = 500,
+							dataType = "linear", 
+							maxCategories = 10)
 
 # Optional: Specify the response range. If not specified, it is taken to be range(data$response).
 config$responseRange = c(90, 270)
@@ -53,7 +64,7 @@ results = continueResults$combinedResults
 
 
 # And save the results
-#saveRDS(results, file="linear_BI_results.RDS")
+# saveRDS(results, file="linear_BI_results.RDS")
 
 # So that you can read them back in later
 results = readRDS("linear_BI_results.RDS")
@@ -66,7 +77,7 @@ plot(activeCats, type='l')
 
 
 plot(results$posteriors[[ "pMem_cond[2]" ]], type='l')
-plot(results$posteriors[[ "pContBetween_cond[2]" ]], type='l')
+plot(results$posteriors[[ "pContBetween_cond[3]" ]], type='l')
 
 
 # Convergence looks pretty fast, so do only 500 burn-in iterations
@@ -106,10 +117,10 @@ source("../DataSimulatingFunctions.R")
 
 trueParam = read.delim("linear_BI_parameters.txt")
 
-comp = compareTrueAndRecovered(results, trueParam)
-whichRound = c("true", "rec", "cor", "slope", "dif", "percentDif")
-comp[ , whichRound ] = round(comp[ , whichRound ], 2)
+comp = compareTrueAndRecovered(results, trueParam, roundDigits = 2)
 comp
+mean(abs(comp$percentDif))
+median(abs(comp$percentDif))
 
 
 

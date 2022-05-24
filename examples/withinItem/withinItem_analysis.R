@@ -1,12 +1,12 @@
 
-setwd("~/../Programming/R/CatContModel/examples/withinItem") #or wherever you are working
+setwd("D:/Programming/R/CatContModel/examples/withinItem") #or wherever you are working
 
 library(CatContModel)
 
 data = read.delim("withinItem_data.txt")
 
 # Set up a basic configuration
-config = list(iterations=500, modelVariant="withinItem", maxCategories=15)
+config = list(modelVariant="withinItem", iterations=500, maxCategories=15)
 
 
 # MH tuning steps
@@ -29,11 +29,11 @@ examineMHAcceptance(results)
 
 
 # Once the MH tuning is good, sample more iterations
-tempRes = continueSampling(results, 2500)
-results = tempRes$combinedResults
+continueRes = continueSampling(results, 3000)
+results = continueRes$combinedResults
 
 # And save the results
-#saveRDS(results, file="withinItem_results.RDS")
+# saveRDS(results, file="withinItem_results.RDS")
 
 # So that you can read them back in later
 results = readRDS("withinItem_results.RDS")
@@ -72,6 +72,7 @@ source("../DataSimulatingFunctions.R")
 
 trueParam = read.delim("withinItem_parameters.txt")
 
-compareTrueAndRecovered(results, trueParam)
-
-
+comp = compareTrueAndRecovered(results, trueParam, roundDigits = 2)
+comp
+mean(abs(comp$percentDif))
+median(abs(comp$percentDif))

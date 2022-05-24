@@ -5,19 +5,22 @@
 # 2. An unbalanced design, where neither the within-participant nor the between-participant factors are fully crossed.
 
 
-setwd("~/../Programming/R/CatContModel/examples/unbalancedFactorialMixedDesign") #or wherever you are working
+setwd("D:/Programming/R/CatContModel/examples/unbalancedFactorialMixedDesign") #or wherever you are working
 
 library(CatContModel)
 
 data = read.delim("UFMD_data.txt")
 
+# What are the conditions?
+data$cond = as.character(data$cond)
+unique(data$cond)
+
+# Read out the group letter and number from cond
 data$group = gsub("_\\d", "", data$cond)
 data$num = gsub("\\S_", "", data$cond)
 
 
 # Modify the basic data to make the design unbalanced in interesting ways
-
-data$cond = as.character(data$cond)
 
 # Drop B_2
 data = data[ data$cond != "B_2", ] 
@@ -27,7 +30,7 @@ data$group[ data$group == "D" ] = "C"
 data$num[ data$cond == "D_1" ] = 3
 data$num[ data$cond == "D_2" ] = 4
 
-# Redo cond
+# Redo cond from group and num
 data$cond = paste(data$group, data$num, sep="_") 
 
 # Check out the resulting design

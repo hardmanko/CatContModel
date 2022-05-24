@@ -57,7 +57,7 @@ continueResults = continueSampling(results, 2500)
 results = continueResults$combinedResults
 
 # And save the results
-#saveRDS(results, file="factorial_BI_results.RDS")
+# saveRDS(results, file="factorial_BI_results.RDS")
 
 # So that you can read them back in later
 results = readRDS("factorial_BI_results.RDS")
