@@ -3,7 +3,7 @@ library(CatContModel)
 library(msm) #for rtnorm
 
 
-makeCategories = function(nCat, maxCat, noiseScale = 1, catRange = c(0, 360)) {
+makeCategories = function(nCat, maxCat, noiseScale = 1, catRange = c(0, 360), linear=FALSE) {
 	if (nCat == 0) {
 		return(NULL)
 	}
@@ -16,9 +16,12 @@ makeCategories = function(nCat, maxCat, noiseScale = 1, catRange = c(0, 360)) {
 	
 	noiseRange = noiseScale * rangeWidth / maxCat / 2
 
-	baseLocations = seq(catRange[1], catRange[2] * (maxCat - 1)/maxCat, length.out=maxCat)
+	gridLocations = seq(catRange[1], catRange[2] * (maxCat - 1)/maxCat, length.out=maxCat)
+	if (linear) {
+	  gridLocations = seq(catRange[1] + noiseRange, catRange[2] - noiseRange, length.out=maxCat)
+	}
 	
-	catMu = sample(baseLocations, nCat)
+	catMu = sample(gridLocations, nCat)
 	
 	catMu = catMu + runif(nCat, -noiseRange, noiseRange)
 
@@ -174,7 +177,7 @@ convertParameterListToDataFrame = function(paramList, maxCat) {
 	df
 }
 
-compareTrueAndRecovered = function(results, trueParam) {
+compareTrueAndRecovered = function(results, trueParam, roundDigits=NULL) {
 	recPart = participantPosteriorSummary(results)
 	
 	recPart$pnum = as.character(recPart$pnum)
@@ -207,7 +210,11 @@ compareTrueAndRecovered = function(results, trueParam) {
 			corr = cor(rec, true)
 			slope = as.numeric(coef(lm(rec ~ true))[2])
 			dif = mean(rec - true)
-			percentDif = mean(rec - true) / mean((rec + true) / 2) * 100
+			
+			# I don't know why I was doing percent error relative to the average, 
+			# but it should be relative to true values.
+			#percentDif = mean(rec - true) / mean((rec + true) / 2) * 100
+			percentDif = mean((rec - true) / true) * 100
 			
 			temp = data.frame(param = param, cond = cond, 
 												true = mean(true), rec = mean(rec),
@@ -218,6 +225,11 @@ compareTrueAndRecovered = function(results, trueParam) {
 			df = rbind(df, temp)
 		}
 		
+	}
+	
+	if (!is.null(roundDigits)) {
+  	whichRound = c("true", "rec", "cor", "slope", "dif", "percentDif")
+  	df[ , whichRound ] = round(df[ , whichRound ], roundDigits)
 	}
 	
 	df

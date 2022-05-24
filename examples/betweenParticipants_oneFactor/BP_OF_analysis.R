@@ -1,5 +1,7 @@
 # This example is for a one-factor between-participants (BP) design.
 # It shows how to test the main effect of the BP factor.
+#
+# TODO: This example is out of date. See factorialMixedDesign.
 
 
 setwd("D:/Programming/R/CatContModel/examples/betweenParticipants_oneFactor") #or wherever you are working
@@ -43,6 +45,7 @@ for (cond in c('A', 'B', 'C')) {
 
 # Check MH acceptance for the different groups
 examineMHAcceptance(resList$A)
+# ...
 
 # Sample more
 for (n in names(resList)) {
@@ -67,7 +70,7 @@ library(CMBBHT)
 # Pick a parameter. It can be any parameter in the model other than catMu and catActive.
 # Note that it was not necessary to specify which condition effects are used. This is 
 # because in a between-participants design each group has its parameters estimated
-# independently, so they are always allowed to different between groups.
+# independently, so they are always allowed to differ between groups.
 param = "pContBetween" 
 
 # You should be sure that all results have same number of iterations
