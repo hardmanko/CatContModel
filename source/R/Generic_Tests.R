@@ -164,7 +164,13 @@ testMEI_singleParameter = function(res, param, priorSamples = res$config$iterati
 #' parameter values are used. If `FALSE`, latent parameter values are used. If `NULL` (default), latent
 #' parameter values are used for the probability parameters and manifest parameter values are used for standard deviation parameters.
 #' 
-#' These tests are not totally ideal because tests are based on dummy parameters that are the sum of the grand mean of the participant-level parameters (the hierarchical mean parameter) and the condition effect parameters. These dummy parameters are created for the purposes of the test, but are not to be found anywhere in the models. Thus, the values used by the test are a very good but slightly inexact approximation of the values that would be ideal to use. For more discussion of this issue, see the the Binomial Tutorial part of the documentation for CMBBHT: https://github.com/hardmanko/CMBBHT/releases/download/v0.1.3/BinomialTutorial.pdf Focus on the Between-Participants Design section beginning on page 15, but earlier material provides important context.
+#' These tests are not totally ideal because tests are based on dummy parameters that are the sum of the 
+#' grand mean of the participant-level parameters (the hierarchical mean parameter, e.g. `pMem.mu`) and the condition effect parameters (e.g. `pMem_cond[1]`). 
+#' These dummy parameters are created for the purposes of the test, but are not to be found anywhere in the models. 
+#' Thus, the values used by the test are a very good but slightly inexact approximation of the values that would be ideal to use. 
+#' For more discussion of this issue, see the the Binomial Tutorial part of the documentation for 
+#' CMBBHT: https://github.com/hardmanko/CMBBHT/releases/download/v0.1.3/BinomialTutorial.pdf 
+#' Focus on the Between-Participants Design section beginning on page 15, but earlier material provides important context.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
 #' @param param Optional. Character vector of names of parameters to perform tests for. If `NULL` (default), is set to all parameters with condition effects.

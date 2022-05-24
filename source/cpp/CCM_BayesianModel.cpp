@@ -114,7 +114,7 @@ double Bayesian::_catMuPenaltyDensity(const vector<double>& mus, const vector<un
 }
 
 //This is an approximation of the S function from the article
-//mus are not reference because they are modified
+//mus are copied not referenced because they are modified
 double Bayesian::_estimateCatMuScaleFactor(vector<double> mus, const vector<unsigned int>& catActives, unsigned int k, unsigned int steps) const {
 	//circular
 	double stepSize = 2 * PI / steps; 
@@ -140,7 +140,8 @@ double Bayesian::_estimateCatMuScaleFactor(vector<double> mus, const vector<unsi
 double Bayesian::_scaledCatMuDensity(const vector<double>& mus, const vector<unsigned int>& catActives, unsigned int k, unsigned int steps) const {
 
 	if (config.dataType == DataType::Linear) {
-		//This is the uniform distribution that is multiplied by the rest of the prior.
+		// The range of catMu defines a uniform distribution that is multiplied by the rest of the prior.
+		// If mu[k] is out of range, it has 0 density.
 		if (mus[k] < config.linearConfiguration.catMu.lower || mus[k] > config.linearConfiguration.catMu.upper) {
 			return 0;
 		}
