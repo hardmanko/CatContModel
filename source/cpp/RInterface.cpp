@@ -83,12 +83,16 @@ CatCont::ModelConfiguration readConfigurationFromList(Rcpp::List configList) {
 	string dataTypeStr = configList["dataType"];
 	config.dataType = CatCont::dataTypeFromString(dataTypeStr);
 
+#ifdef USING_CAT_SPLINE
 	if (configList.containsElementNamed("weightsDistribution")) {
 		string weightsDistributionStr = configList["weightsDistribution"];
 		config.weightsDistribution = CatCont::weightsDistributionFromString(weightsDistributionStr);
 	} else {
 		config.weightsDistribution = CatCont::WeightsDistribution::Default;
 	}
+#else
+	config.weightsDistribution = CatCont::WeightsDistribution::Default;
+#endif
 
 
 	config.catMuPriorApproximationPrecision = configList["catMuPriorApproximationPrecision"];
@@ -147,6 +151,7 @@ double curriedBesselFunction(double kappa) {
 	return R::bessel_i(kappa, 0, 2);
 }
 
+/*
 void setupVonMisesLut(bool useLUT, double maxKappa, double stepSize) {
 
 	CatCont::VonMisesLUT::Config cfg;
@@ -158,8 +163,8 @@ void setupVonMisesLut(bool useLUT, double maxKappa, double stepSize) {
 	cfg.besselFun = curriedBesselFunction;
 
 	CatCont::vmLut.setup(cfg);
-
 }
+*/
 
 void conditionalConfigureVMLut(double maxValue, double stepSize, bool message = true) {
 
@@ -401,11 +406,6 @@ Rcpp::List CCM_CPP_likelihoodWrapper(Rcpp::List param, Rcpp::DataFrame data, Rcp
 
 
 
-
-
-
-
-
 // weights should be same length as xs and sum(weights) should be 1 (enforced in R)
 // [[Rcpp::export(name = ".circMeanCPP")]]
 double circMeanCPP(std::vector<double> xs, std::vector<double> weights, bool degrees = true) {
@@ -471,7 +471,52 @@ std::vector<double> clampAngle(std::vector<double> xs, bool pm180 = false, bool 
 	return xs;
 }
 
+// [[Rcpp::export(name = ".cppFmod")]]
+double cppFmod(double x, double y) {
+	return std::fmod(x, y);
+}
 
+// [[Rcpp::export(name = "dVonMises")]]
+std::vector<double> dvm(std::vector<double> xs, double mu, double sd, bool log, bool degrees = true) {
+
+	double kappa = sd;
+
+	if (degrees) {
+		xs = CatCont::Circular::degreesToRadians(xs);
+		mu = CatCont::Circular::degreesToRadians(mu);
+		kappa = CatCont::Circular::sdDeg_to_precRad(sd);
+	}
+
+	// Choose how to calculate dvm
+	CatCont::VonMisesLUT noLut;
+	CatCont::VonMisesLUT& lut = CatCont::vmLut; // Default to using vmLut
+	if (!lut.ready(kappa)) {
+		// Use a LUT without the LUT, just use the bessel function.
+		noLut.setup(&curriedBesselFunction);
+		lut = noLut;
+	}
+
+
+	std::vector<double> rval(xs.size());
+
+	for (size_t i = 0; i < xs.size(); i++) {
+		double dens = lut.dVonMises(xs[i], mu, kappa);
+
+		if (degrees) {
+			dens *= PI / 180.0;
+		}
+
+		if (log) {
+			dens = std::log(dens);
+		}
+		rval[i] = dens;
+	}
+
+	return rval;
+}
+
+
+#ifdef USING_CAT_SPLINE
 
 // [[Rcpp::export]]
 std::vector<double> dZeroDerivSpline(std::vector<double> zs) {
@@ -566,47 +611,6 @@ double calcPlatSplineLambda_R(std::vector<double> weights, std::string lambdaVar
 	return wc.calcLambda();
 }
 
-// [[Rcpp::export(name = ".cppFmod")]]
-double cppFmod(double x, double y) {
-	return std::fmod(x, y);
-}
+#endif // USING_CAT_SPLINE
 
-
-
-// [[Rcpp::export(name = "dVonMises")]]
-std::vector<double> dvm(std::vector<double> xs, double mu, double kappa, bool log, bool degrees = true) {
-
-	if (degrees) {
-		xs = CatCont::Circular::degreesToRadians(xs);
-		mu = CatCont::Circular::degreesToRadians(mu);
-		kappa = CatCont::Circular::sdDeg_to_precRad(kappa);
-	}
-
-	// Choose how to calculate dvm
-	CatCont::VonMisesLUT noLut;
-	CatCont::VonMisesLUT& lut = CatCont::vmLut; // Default to using vmLut
-	if (!lut.ready(kappa)) {
-		// Use a LUT without the LUT, just use the bessel function.
-		noLut.setup(&curriedBesselFunction);
-		lut = noLut;
-	}
-
-
-	std::vector<double> rval(xs.size());
-
-	for (size_t i = 0; i < xs.size(); i++) {
-		double dens = lut.dVonMises(xs[i], mu, kappa);
-		if (degrees) {
-			dens *= PI / 180.0;
-		}
-		if (log) {
-			dens = std::log(dens);
-		}
-		rval[i] = dens;
-	}
-
-	return rval;
-}
-
-
-#endif //COMPILING_WITH_RCPP
+#endif // COMPILING_WITH_RCPP

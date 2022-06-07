@@ -15,7 +15,7 @@ public:
 	struct Config {
 
 		// A bessel i function of the 0th order with the exponent scaled:
-		// e.g. R::bessel_i(x, 0, 2); // where 2 = true
+		// e.g. R::bessel_i(x, 0, 2); // where 2 == true
 		std::function<double(double)> besselFun;
 
 		bool useLUT = true;

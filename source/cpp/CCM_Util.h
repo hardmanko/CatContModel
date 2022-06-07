@@ -7,6 +7,8 @@
 #include "ofxRMath.h"
 #endif
 
+#define USING_CAT_SPLINE
+
 
 #include <vector>
 #include <map>
@@ -41,7 +43,7 @@ namespace CatCont {
 	};
 	WeightsDistribution weightsDistributionFromString(string weightsDistStr);
 	
-	
+#ifdef USING_CAT_SPLINE
 	enum class LambdaVariant : int {
 		None, // lambda is always 0
 		CatWeightSum, // 0 to 1, increases with cat weight
@@ -49,6 +51,8 @@ namespace CatCont {
 		Minus1to1 // -1 to 1, increases with cat weight
 	};
 	LambdaVariant lambdaVariantFromString(string lambdaVariantStr);
+#endif
+
 
 	double normalLL(double x, double mu, double var);
 	double cauchyLL(double x, double loc, double scale);
@@ -116,7 +120,7 @@ namespace CatCont {
 		double contSD;
 	};
 
-
+#ifdef USING_CAT_SPLINE
 	struct PlatSplineParameters {
 		vector<double> platHW; // half width
 
@@ -136,6 +140,7 @@ namespace CatCont {
 			return platHW.size() == splineHW.size() && platHW.size() == height.size();
 		}
 	};
+#endif
 	
 
 	struct CategoryParameters {
@@ -149,9 +154,11 @@ namespace CatCont {
 		vector<double> mu; // catMu: Location of the category
 		double selectivity; // catSel: How categories transition into one another
 		
+#ifdef USING_CAT_SPLINE
 		vector<double> platHW; // PlatSpline plateau half width
 		//double beta; // PlatSpline lambda multiplier. Not really a category parameter, but closely related to categorization.
 		//PlatSplineParameters psPar;
+#endif
 
 		// Parameters related to memory.
 

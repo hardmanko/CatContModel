@@ -233,7 +233,7 @@ vector<double> zlLikelihood(const zlParameters& par, const ConditionData& data) 
 
 		likelihoods[i] = memDens + guessDens;
 
-		likelihoods[i] *= (PI / 180.0);
+		likelihoods[i] *= (PI / 180.0); // Scale likelihood
 	}
 	return likelihoods;
 }

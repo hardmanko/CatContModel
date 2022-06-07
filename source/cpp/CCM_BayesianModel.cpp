@@ -683,7 +683,7 @@ double Bayesian::_sdParameterTransformation(double sd, const SDRanges& ranges, D
 
 		return kappa;
 	} else if (dataType == DataType::Linear) {
-		sd = CatCont::clamp(sd, ranges.minSd, ranges.maxSd); //This should be treated differently for normal. The minSd can be small.
+		sd = CatCont::clamp(sd, ranges.minSd, ranges.maxSd); // TODO: This should be treated differently for normal. The minSd can be small.
 		return sd;
 	}
 
