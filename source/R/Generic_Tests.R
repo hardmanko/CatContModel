@@ -282,24 +282,26 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 #' However, this means that the number of subsamples and the proportion of iterations in each subsample to be 
 #' inversely related, which means that you have to choose between a low number of subsamples or a low number of iterations per subsample.
 #' 
+#' Note that the return value is different if subsamples are used (`subsamples > 1`) and the results 
+#' are summarized (`summarize = TRUE`). See [`summarizeSubsampleResults`] for the return value format in that case.
+#' 
 #' @param res A generic results object (see [`Glossary`]).
 #' @param param A vector of basic parameter names for which to perform condition tests (e.g. "pMem"). If NULL (the default), tests are performed for all parameters with condition effects.
 #' @param addMu Passed to same argument of [`getConditionEffects`]. If using a Between-Participants design, `addMu` must be `TRUE`.
 #' @param manifest Passed to same argument of [`getConditionEffects`].
-#' @param credP Credible interval proportion for the posterior difference between the tested conditions. If `credP` is provided and between 0 and 1, the mean and credible interval are calculated and returned in columns `difCILower`, `difMean`, and `difCIUpper`. Ignored if `subsamples != 1`.
+#' @param credP Credible interval proportion for the posterior difference between the tested conditions. Ignored if `subsamples != 1`.
 #' @param subsamples Number of subsamples of the posterior chains to take. See details. If greater than 1, subsampleProportion should be set to a value between 0 and 1 (exclusive).
 #' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should probably only be less than 1 if \code{subsamples} is greater than 1. If \code{NULL}, \code{subsampleProportion} will be set to \code{1 / subsamples} and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
 #' @param summarize Boolean. Should the results be summarized with \code{\link{summarizeSubsampleResults}}?
 #' 
-#' @return A data frame containing test results. It has the following columns (some columns are only included if using subsamples):
+#' @return A data frame containing test results with the following columns (see details for info about different return value if using subsamples and summarizing):
 #' \tabular{ll}{
 #' 	\code{param} \tab The name of the parameter being tested.\cr
-#' 	\code{cond} \tab The zero-indexed condition indices being compared.\cr
-#' 	\code{bfType} \tab The type of Bayes factor in the "bf" column. "10" means that the Bayes factor is in favor of the alternative hypothesis that the two conditions differed. "01" means that the Bayes factor is in favor of the null hypothesis that the two conditions did not differ.\cr
-#' 	\code{bf} \tab The Bayes factor. If using multiple subsamples, this is the mean Bayes factor. \cr
-#' 	\code{sd} \tab Standard deviation of the Bayes factors. \cr
-#' 	\code{min, median, max} \tab The minimum, median, and maximum of the Bayes factors. \cr
-#' 	\code{p2.5, p97.5} \tab The 2.5 and 97.5 percentiles of the Bayes factors. 	
+#' 	\code{key} \tab The conditions being compared, like cond1 - cond2, where "-" can be interpreted as a minus sign.\cr
+#' 	\code{bf01} \tab Bayes factor in favor of the null hypothesis of no difference between the conditions.\cr
+#' 	\code{bf10} \tab Bayes factor in favor of the alternative hypothesis of there being a difference between the conditions. Note: `bf10 * bf01 = 1`.\cr
+#' 	\code{success} \tab `TRUE` if the Bayes factor was calculated successfully.
+#'  \code{difMean, difLower, difUpper} \tab Based on `credP` and the posterior distribution of the difference between conditions. The lower and upper ends of the credible interval (`ciLower` and `ciUpper`) and the mean difference (`postMean`).
 #' }
 #'
 #' @family test functions
@@ -307,25 +309,32 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 #'
 #' @rdname testConditionEffects
 #' @export
-testConditionEffects = function(res, param = NULL, addMu = TRUE, manifest = TRUE, subsamples = 1, subsampleProportion = 1, summarize = TRUE, credP = NULL) {
+testConditionEffects = function(res, param = NULL, credP = 0.95, addMu = TRUE, manifest = TRUE, subsamples = 1, subsampleProportion = 1, summarize = FALSE) {
 	
   if (resultIsType(res, "BP") && !addMu) {
     stop("For Between-Participants designs, addMu must be TRUE.")
   }
   
   if (!is.null(credP)) {
-    if (credP < 0 || credP > 1) {
-      warning("credP is outside of [0,1] and will be ignored.")
-      credP = NULL
-    }
-    if (subsamples == 1) {
-      summarize = FALSE
-    } else {
-      warning("credP is ignored if subsamples != 1.")
+    if (credP <= 0 || credP >= 1) {
+      warning("credP is outside of the interval (0,1) and will be ignored.")
       credP = NULL
     }
   }
   
+  if (subsamples > 1) {
+    if (!is.null(credP)) {
+      warning("credP is ignored if subsamples != 1.")
+      credP = NULL
+    }
+    if (!summarize) {
+      message("Note: if using subsamples, you probably want to set summarize to TRUE.")
+    }
+  } else if (subsamples == 1) {
+    summarize = FALSE
+  } else {
+    stop("Invalid value for the subsamples argument.")
+  }
 	
 	subsampleIterationsToRemove = getSubsampleIterationsToRemove(res$config$iterations, subsamples, subsampleProportion)
 	
@@ -362,15 +371,14 @@ testConditionEffects = function(res, param = NULL, addMu = TRUE, manifest = TRUE
 			for (grp in names(groups)) {
 				
 				eqCond = getEqualConditionParameters(groups[[grp]], p)
-				eqCond$eq = eqCond$group
 				eqCond$group = grp
 				
 				eqCond$key = paste(grp, eqCond$cond, sep=":")
 				
 				equalConds[[ grp ]] = eqCond
-				unique_eq = unique(eqCond$eq)
+				unique_eq = unique(eqCond$equalityGroup)
 				
-				unique_groupEq = rbind(unique_groupEq, data.frame(group = grp, eq = unique_eq, stringsAsFactors = FALSE))
+				unique_groupEq = rbind(unique_groupEq, data.frame(group = grp, equalityGroup = unique_eq, stringsAsFactors = FALSE))
 			}
 			
 			pairs = expand.grid(i = 1:nrow(unique_groupEq), j = 1:nrow(unique_groupEq) )
@@ -388,10 +396,10 @@ testConditionEffects = function(res, param = NULL, addMu = TRUE, manifest = TRUE
 					eqCond_i = equalConds[[ unique_groupEq$group[ i ] ]]
 					eqCond_j = equalConds[[ unique_groupEq$group[ j ] ]]
 					
-					eqKeys_i = eqCond_i[ eqCond_i$eq == unique_groupEq$eq[ i ], "key" ]
-					eqKeys_j = eqCond_j[ eqCond_j$eq == unique_groupEq$eq[ j ], "key" ]
+					eqKeys_i = eqCond_i[ eqCond_i$equalityGroup == unique_groupEq$equalityGroup[ i ], "key" ]
+					eqKeys_j = eqCond_j[ eqCond_j$equalityGroup == unique_groupEq$equalityGroup[ j ], "key" ]
 					
-					# Use first key because all keys are in the same equality group (eq)
+					# Use first key because all keys are in the same equality group
 					difPrior = condEff$prior[ , eqKeys_i[1] ] - condEff$prior[ , eqKeys_j[1] ]
 					difPost = condEff$post[ , eqKeys_i[1] ] - condEff$post[ , eqKeys_j[1] ]
 					
@@ -409,9 +417,9 @@ testConditionEffects = function(res, param = NULL, addMu = TRUE, manifest = TRUE
 					  difPostQs = stats::quantile(difPost, c(credLowerPercentile, 1 - credLowerPercentile))
 					  names(difPostQs) = NULL
 					  
-					  temp$difCILower = difPostQs[1]
 					  temp$difMean = mean(difPost)
-					  temp$difCIUpper = difPostQs[2]
+					  temp$difLower = difPostQs[1]
+					  temp$difUpper = difPostQs[2]
 					}
 					
 					allSubsamples = rbind(allSubsamples, temp)
@@ -432,7 +440,12 @@ testConditionEffects = function(res, param = NULL, addMu = TRUE, manifest = TRUE
 		allSubsamples$key = gsub(paste0(defaultGroupName(), ":"), "", allSubsamples$key)
 	}
 	
-	rval = cleanAndSummarizeMEIResults(allSubsamples, summarize = summarize, aggregateBy = c("param", "key"))
+	if (summarize) {
+	  rval = cleanAndSummarizeMEIResults(allSubsamples, summarize = summarize, aggregateBy = c("param", "key"))
+	} else {
+	  rval = allSubsamples
+	}
+	
 	rval
 }
 

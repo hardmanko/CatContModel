@@ -13,3 +13,15 @@
 *.json
 *.ipch
 *.sqlite
+*.db
+*.opendb
+source/cpp/CCM_Database.cpp
+source/cpp/CCM_Database.h
+source/cpp/CCM_Likelihood.cpp
+source/cpp/CCM_Likelihood.h
+packaged/CatContModel_0.8.0.zip
+packaged/CatContModel_0.8.0.tgz
+packaged/CatContModel_0.8.0.tar.gz
+packaged/CatContModel_0.7.5.zip
+packaged/CatContModel_0.7.5.tgz
+packaged/CatContModel_0.7.5.tar.gz
