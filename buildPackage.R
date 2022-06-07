@@ -105,6 +105,7 @@ usethis::use_package("msm")
 usethis::use_package("abind")
 usethis::use_package("LineChart")
 usethis::use_package("CMBBHT")
+#usethis::use_package("parallel")
 
 usethis::use_package("R.rsp", type = "Suggests")
 # OR use Introduction.Rnw
