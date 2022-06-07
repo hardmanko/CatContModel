@@ -345,16 +345,22 @@ likelihood = function(param, data, modelVariant, dataType = "circular",
 											responseRange = NULL, minSD = NULL) 
 {
 	
-	tr = list(config = list(modelVariant = modelVariant))
-	
-	allParam = getAllParams(tr, filter=TRUE)
+	mvUsedParam = getAllParams(NULL, modelVariant = modelVariant, filter=TRUE)
 	if (modelVariant != "ZL") {
-		allParam = c(allParam, "catMu")
-	}
-	if (!all(allParam %in% names(param))) {
-		stop("Not all parameters were provided.")
+	  mvUsedParam = c(mvUsedParam, "catMu")
 	}
 	
+	missingParamNames = mvUsedParam[ !(mvUsedParam %in% names(param)) ]
+	if (length(missingParamNames) > 0) {
+		stop(paste0("Some needed parameters were missing: ", paste(missingParamNames, collapse=", ")))
+	}
+	
+	# Add NA parameters not used by the modelVariant to the list
+	unusedParam = c("catMu", getAllParams(NULL, "betweenAndWithin", filter=TRUE))
+	unusedParam = unusedParam[ !(unusedParam %in% mvUsedParam) ]
+	for (up in unusedParam) {
+	  param[[up]] = NA
+	}
 	
 	config = list(modelVariant = modelVariant, dataType = dataType)
 	if (dataType == "circular") {
