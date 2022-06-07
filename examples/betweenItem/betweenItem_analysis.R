@@ -52,9 +52,11 @@ results = readRDS("betweenItem_results.RDS")
 # Examine convergence by plotting parameter chains to determine how many burn-in iterations to remove.
 # It is good to check the slowest parameters to converge.
 
+
 # Condition effect parameters are often slowest to converge.
 plot(results$posteriors[[ "pMem_cond[2]" ]], type='l')
 plot(results$posteriors[[ "pContBetween_cond[2]" ]], type='l')
+
 
 # It takes a couple of steps to plot catActive in a useful way.
 # catActive is slow to converge because it depends on the catMu finding their way to the category locations.
@@ -62,6 +64,9 @@ post = convertPosteriorsToMatrices(results, "catActive")
 activeCats = apply(post$catActive, 3, mean) * results$config$maxCategories
 plot(activeCats, type='l')
 
+
+# Make a huge pdf with convergence plots for all parameter chains
+convergencePlots(results, "Convergence_BetweenItem.pdf")
 
 ########################
 # Remove burn-in iterations
@@ -111,9 +116,11 @@ posteriorMeansAndCredibleIntervals(results)
 # Hypothesis tests of differences between task conditions (pairwise tests between levels of data$cond).
 testConditionEffects(results)
 
+
 # Hypothesis tests of main effects and interactions
 mei = testMainEffectsAndInteractions(results, subsamples = 20)
 mei[ mei$bfType == "10", ]
+
 
 # Test model validity by comparing data sampled from the fitted model to real data.
 posteriorPredictivePlot(results, "1", alpha=0.3)

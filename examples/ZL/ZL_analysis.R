@@ -9,6 +9,8 @@ library(CatContModel)
 
 data = read.delim("ZL_data.txt")
 
+plot(data$study, data$response, pch=20, col=rgb(0,0,0,0.2))
+
 # Set up a basic configuration
 config = list(iterations=500, modelVariant="ZL")
 
@@ -40,6 +42,8 @@ results = readRDS("ZL_results.RDS")
 
 
 # Examine convergence for some stuff
+
+convergencePlots(results, "Convergence_ZL.pdf")
 
 plot(results$posteriors[[ "pMem.mu" ]], type='l')
 plot(results$posteriors[[ "contSD.mu" ]], type='l')
@@ -86,8 +90,14 @@ biRes = runParameterEstimation(biConfig, data)
 # saveRDS(biRes, file="betweenItem_results.RDS")
 # biRes = readRDS("betweenItem_results.RDS")
 
+# Note that the between-item model does not converge properly. Many parameters show problems, especially catMu.
+# Given that the model did not converge, it is not really appropriate to calculate WAIC for the between-item model,
+# but it is being done as a test.
+convergencePlots(biRes, "Convergence_BI_on_ZL_data.pdf")
+
 biRes = removeBurnIn(biRes, 500)
 
+plotParameterSummary(biRes)
 
 # Calculate WAIC for both model variants
 biWAIC = calculateWAIC(biRes)
