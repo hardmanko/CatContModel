@@ -139,6 +139,12 @@ plotCatMu(bpRes)
 # Plot any parameter with default settings
 plotParameter(bpRes, "catActive")
 
+# Condition effects
+
+ce = testConditionEffects(bpRes, credP = 0.95)
+ce[ ce$param == "pMem", ]
+
+
 #############
 # Test main effects and interactions for the factors of the design.
 # Due to the very large number of tests, a small number of subsamples is used
@@ -180,6 +186,8 @@ mei
 
 # Also make plots for subsetted design
 plotParameterSummary(resCopy, asPdf = TRUE)
+
+
 
 
 

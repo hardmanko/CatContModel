@@ -159,18 +159,18 @@ getRootSourceConditionParameter = function(results, param, cond, fullParam = NUL
 	
 }
 
-
+# WP only
 getEqualConditionParameters = function(results, param) {
 	
 	fcopy = results$config$factors
-	fcopy$group = 0
+	fcopy$equalityGroup = 0
 	
 	for (i in 1:nrow(fcopy)) {
 		target = paste(param, "_cond[", fcopy$cond[i], "]", sep="")
 		rootSource = getRootSourceConditionParameter(results, param, fcopy$cond[i])
 		
 		if (target == rootSource) {
-			fcopy[i,"group"] = max(fcopy$group) + 1
+			fcopy$equalityGroup[i] = max(fcopy$equalityGroup) + 1
 		}
 		
 	}
@@ -183,12 +183,12 @@ getEqualConditionParameters = function(results, param) {
 			
 			sourceCond = getConditionParameterParts(rootSource)$cond
 			
-			fcopy[i,"group"] = fcopy$group[ fcopy$cond == sourceCond ]
+			fcopy$equalityGroup[i] = fcopy$equalityGroup[ fcopy$cond == sourceCond ]
 		}
 		
 	}
 	
-	fcopy[ , c("cond", "group") ]
+	fcopy[ , c("cond", "equalityGroup") ]
 }
 
 

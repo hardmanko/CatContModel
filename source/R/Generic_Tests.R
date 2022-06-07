@@ -261,23 +261,37 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 
 #' Test Differences Between Conditions
 #' 
-#' Tests the differences between the conditions in the experiment for different parameters. This test does all pairwise comparisons between all conditions. For omnibus tests, see \code{\link{testMainEffectsAndInteractions}}.
+#' Tests the differences between the conditions in the experiment for different parameters. 
+#' This test does all pairwise comparisons between all conditions. For omnibus tests, see \code{\link{testMainEffectsAndInteractions}}.
 #' 
-#' You can estimate how much the variability in the posterior chains affects the Bayes factors by using the \code{subsamples} and \code{subsampleProportion} arguments. If \code{subsamples} is greater than 1, multiple subsamples from the posterior chains will be taken and the standard deviation (and other measures) of the Bayes factors across the subsamples will be calculated. The number of iterations used in each subsample is a proportion of the total number of iterations and is set by \code{subsampleProportion}. Note that this is not the standard deviation of the Bayes factors over repeated samples of data sets, so it tells you nothing about what would happen if you had different data. It essentially tells you whether or not you ran enough iterations to have a stable Bayes factor estimate. The closer \code{subsampleProportion} is to 1, the less independent the subsamples will be, so you should use a reasonably low value of \code{subsampleProportion}. The degree to which the subsamples are independent influences to what extent the standard deviation is underestimated: The less independent, the larger the underestimate will be. If you want fully independent subsamples, you can set \code{subsampleProportion} to \code{NULL}. However, this means that the number of subsamples and the proportion of iterations in each subsample to be inversely related, which means that you have to choose between a low number of subsamples or a low number of iterations per subsample.
+#' @details
 #' 
-#' @section testConditionEffects.BP:
-#' `testConditionEffects.BP` has the additional `manifest` argument. If `TRUE`, manifest
-#' parameter values are used. If `FALSE`, latent parameter values are used.
+#' You can estimate how much the variability in the posterior chains affects the Bayes factors by using the 
+#' \code{subsamples} and \code{subsampleProportion} arguments. If \code{subsamples} is greater than 1, 
+#' multiple subsamples from the posterior chains will be taken and the standard deviation (and other measures) 
+#' of the Bayes factors across the subsamples will be calculated. The number of iterations used in each subsample 
+#' is a proportion of the total number of iterations and is set by \code{subsampleProportion}. 
+#' Note that this is not the standard deviation of the Bayes factors over repeated samples of data sets, 
+#' so it tells you nothing about what would happen if you had different data. 
+#' It essentially tells you whether or not you ran enough iterations to have a stable Bayes factor estimate. 
+#' The closer \code{subsampleProportion} is to 1, the less independent the subsamples will be, 
+#' so you should use a reasonably low value of \code{subsampleProportion}. 
+#' The degree to which the subsamples are independent influences to what extent the standard deviation is underestimated: 
+#' The less independent, the larger the underestimate will be. 
+#' If you want fully independent subsamples, you can set \code{subsampleProportion} to \code{NULL}. 
+#' However, this means that the number of subsamples and the proportion of iterations in each subsample to be 
+#' inversely related, which means that you have to choose between a low number of subsamples or a low number of iterations per subsample.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
 #' @param param A vector of basic parameter names for which to perform condition tests (e.g. "pMem"). If NULL (the default), tests are performed for all parameters with condition effects.
-#' @param addMu Passed to same argument of [`getConditionEffects`].
+#' @param addMu Passed to same argument of [`getConditionEffects`]. If using a Between-Participants design, `addMu` must be `TRUE`.
 #' @param manifest Passed to same argument of [`getConditionEffects`].
-#' @param subsamples Number of subsamples of the posterior chains to take. If greater than 1, subsampleProportion should be set to a value between 0 and 1 (exclusive).
+#' @param credP Credible interval proportion for the posterior difference between the tested conditions. If `credP` is provided and between 0 and 1, the mean and credible interval are calculated and returned in columns `difCILower`, `difMean`, and `difCIUpper`. Ignored if `subsamples != 1`.
+#' @param subsamples Number of subsamples of the posterior chains to take. See details. If greater than 1, subsampleProportion should be set to a value between 0 and 1 (exclusive).
 #' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should probably only be less than 1 if \code{subsamples} is greater than 1. If \code{NULL}, \code{subsampleProportion} will be set to \code{1 / subsamples} and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
 #' @param summarize Boolean. Should the results be summarized with \code{\link{summarizeSubsampleResults}}?
 #' 
-#' @return A data frame containing test results. It has the following columns:
+#' @return A data frame containing test results. It has the following columns (some columns are only included if using subsamples):
 #' \tabular{ll}{
 #' 	\code{param} \tab The name of the parameter being tested.\cr
 #' 	\code{cond} \tab The zero-indexed condition indices being compared.\cr
@@ -293,8 +307,25 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 #'
 #' @rdname testConditionEffects
 #' @export
-testConditionEffects = function(res, param = NULL, addMu = TRUE, manifest = TRUE, subsamples = 1, subsampleProportion = 1, summarize = TRUE) {
+testConditionEffects = function(res, param = NULL, addMu = TRUE, manifest = TRUE, subsamples = 1, subsampleProportion = 1, summarize = TRUE, credP = NULL) {
 	
+  if (resultIsType(res, "BP") && !addMu) {
+    stop("For Between-Participants designs, addMu must be TRUE.")
+  }
+  
+  if (!is.null(credP)) {
+    if (credP < 0 || credP > 1) {
+      warning("credP is outside of [0,1] and will be ignored.")
+      credP = NULL
+    }
+    if (subsamples == 1) {
+      summarize = FALSE
+    } else {
+      warning("credP is ignored if subsamples != 1.")
+      credP = NULL
+    }
+  }
+  
 	
 	subsampleIterationsToRemove = getSubsampleIterationsToRemove(res$config$iterations, subsamples, subsampleProportion)
 	
@@ -361,16 +392,27 @@ testConditionEffects = function(res, param = NULL, addMu = TRUE, manifest = TRUE
 					eqKeys_j = eqCond_j[ eqCond_j$eq == unique_groupEq$eq[ j ], "key" ]
 					
 					# Use first key because all keys are in the same equality group (eq)
-					prior = condEff$prior[ , eqKeys_i[1] ] - condEff$prior[ , eqKeys_j[1] ]
-					post = condEff$post[ , eqKeys_i[1] ] - condEff$post[ , eqKeys_j[1] ]
+					difPrior = condEff$prior[ , eqKeys_i[1] ] - condEff$prior[ , eqKeys_j[1] ]
+					difPost = condEff$post[ , eqKeys_i[1] ] - condEff$post[ , eqKeys_j[1] ]
 					
-					ht = CMBBHT::valueTest_SDDR(prior, post, testVal = 0)
+					ht = CMBBHT::valueTest_SDDR(difPrior, difPost, testVal = 0)
 					
 					keyLabel = paste0( paste(eqKeys_i, collapse="/"), " - ", paste(eqKeys_j, collapse="/"))
 					
 					temp = data.frame(param=p, key=keyLabel, 
 														bf01=ht$bf01, bf10=ht$bf10, success = ht$success, 
 														stringsAsFactors=FALSE)
+					
+					if (!is.null(credP)) {
+					  credLowerPercentile = (1 - credP) / 2
+					  
+					  difPostQs = stats::quantile(difPost, c(credLowerPercentile, 1 - credLowerPercentile))
+					  names(difPostQs) = NULL
+					  
+					  temp$difCILower = difPostQs[1]
+					  temp$difMean = mean(difPost)
+					  temp$difCIUpper = difPostQs[2]
+					}
 					
 					allSubsamples = rbind(allSubsamples, temp)
 					
