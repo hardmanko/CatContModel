@@ -69,6 +69,18 @@ getParameterPosterior.BP = function(bpRes, param, pnum, cond, group, manifest=TR
 	getParameterPosterior.WP(bpRes$groups[[ group ]], param=param, pnum=pnum, cond=cond, manifest = manifest)
 }
 
+
+
+###############################################################################
+
+# Trivial wrapper around getParameterPosterior
+getParameterCredibleInterval = function(results, param, cip=0.95, pnum=NULL, cond=NULL, manifest=TRUE) {
+  post = getParameterPosterior(results, param, pnum=pnum, cond=cond, manifest=manifest)
+  
+  stats::quantile(post, c((1 - cip)/2, (1 + cip)/2))
+}
+
+
 ###############################################################################
 
 #' Participant-Level Posterior Parameter Chains for all Participants, Conditions, and Groups
@@ -125,7 +137,7 @@ getAllParameterPosteriors.WP = function(results, param, manifest = FALSE) {
 	
 	design = unique(subset(results$data, select=c("pnum", "cond")))
 	
-	postCombined = matrix(NA, nrow=results$config$iterations, ncol=nrow(design))
+	postCombined = matrix(NA, nrow=results$runConfig$iterations, ncol=nrow(design))
 	colnames(postCombined) = paste(design$pnum, design$cond, sep=":")
 	
 	for (i in 1:nrow(design)) {
@@ -184,10 +196,11 @@ getSingleIterationParameters = function(res, pnum, cond, iteration, group = NULL
 
 getSingleIterationParameters.WP = function(results, pnum, cond, iteration, removeInactiveCategories = TRUE) {
 	
-	allParam = getAllParams(results, filter=TRUE)
+	allParam = getParamNames(results$config$modelVariant)
+	standardParam = getParamNames(results$config$modelVariant, types=c("prob", "sd"))
 	
 	combinedParam = list()
-	for (pp in allParam) {
+	for (pp in standardParam) {
 		condParam = results$posteriors[[ paste(pp, "_cond[", cond, "]", sep="") ]][iteration]
 		
 		partParam = results$posteriors[[ paste(pp, "[", pnum, "]", sep="") ]][iteration]
@@ -198,22 +211,24 @@ getSingleIterationParameters.WP = function(results, pnum, cond, iteration, remov
 	}
 	
 	#Do catMu
-	ca = cm = rep(NA, results$config$maxCategories)
-	for (i in 1:results$config$maxCategories) {
-		istr = paste("[", pnum, ",", i - 1, "]", sep="")
-		cm[i] = results$posteriors[[ paste("catMu", istr, sep="") ]][iteration]
-		ca[i] = results$posteriors[[ paste("catActive", istr, sep="") ]][iteration]
-	}
-	
-	if (removeInactiveCategories) {
-		combinedParam$catMu = cm[ ca == 1 ]
-	} else {
-		combinedParam$catMu = cm
-		combinedParam$catActive = ca
-	}
-	
-	if (results$config$dataType == "circular") {
-		combinedParam$catMu = combinedParam$catMu %% 360 #limit to the interval [0, 360)
+	if ("catMu" %in% allParam) {
+  	ca = cm = rep(NA, results$config$maxCategories)
+  	for (i in 1:results$config$maxCategories) {
+  		istr = paste("[", pnum, ",", i - 1, "]", sep="")
+  		cm[i] = results$posteriors[[ paste("catMu", istr, sep="") ]][iteration]
+  		ca[i] = results$posteriors[[ paste("catActive", istr, sep="") ]][iteration]
+  	}
+  	
+  	if (removeInactiveCategories) {
+  		combinedParam$catMu = cm[ ca == 1 ]
+  	} else {
+  		combinedParam$catMu = cm
+  		combinedParam$catActive = ca
+  	}
+  	
+  	if (results$config$dataType == "circular") {
+  		combinedParam$catMu = combinedParam$catMu %% 360 #limit to the interval [0, 360)
+  	}
 	}
 	
 	combinedParam
@@ -264,11 +279,11 @@ convertPosteriorsToMatrices.WP = function(results, param = NULL) {
 	
 	post = list()
 	for (mp in matrixParams) {
-		post[[mp]] = matrix(0, nrow=results$config$iterations, ncol=length(results$pnums))
+		post[[mp]] = matrix(0, nrow=results$runConfig$iterations, ncol=length(results$pnums))
 		colnames(post[[mp]]) = results$pnums
 	}
 	for (ap in arrayParams) {
-		post[[ap]] = array(0, dim=c(length(results$pnums), results$config$maxCategories, results$config$iterations))
+		post[[ap]] = array(0, dim=c(length(results$pnums), results$config$maxCategories, results$runConfig$iterations))
 		dimnames(post[[ap]]) = list(results$pnums)
 	}
 	
@@ -337,6 +352,7 @@ convertPosteriorsToMatrices.BP = function(bpRes, param=NULL) {
 	post
 }
 
+# This function might be able to remove dependency on abind package
 abind1 = function(x, y, along) {
 	
 	newdim = dim(x)
@@ -405,8 +421,10 @@ participantPosteriorSummary = function(res, params=NULL, cip=0.95, fun=NULL, rem
 		aggFuns$fun = fun
 	}
 	
+	validParams = getParamNames(res$config$modelVariant)
+	validParams = validParams[ validParams != "catMu" ]
 	if (is.null(params)) {
-		params = c(getAllParams(res, filter=TRUE), "catActive")
+	  params = validParams
 	}
 	
 	baseFormula = stats::formula(x ~ pnum * cond * group)

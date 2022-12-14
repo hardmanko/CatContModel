@@ -5,11 +5,13 @@ namespace CatCont {
 
 	void Bayesian::_doMhOverrides(void) {
 
-		stringstream ss;
-		ss << "Number of MH overrides: " << overrides.mhTunings.size();
-		logMessage("", ss.str());
+		if (this->runConfig.verbose) {
+			stringstream ss;
+			ss << "Number of MH overrides: " << config.overrides.mhTunings.size();
+			logMessage("", ss.str());
+		}
 
-		for (auto it = overrides.mhTunings.begin(); it != overrides.mhTunings.end(); it++) {
+		for (auto it = config.overrides.mhTunings.begin(); it != config.overrides.mhTunings.end(); it++) {
 
 			string name = it->first;
 
@@ -24,16 +26,18 @@ namespace CatCont {
 
 	void Bayesian::_doPriorOverrides(void) {
 
-		stringstream ss;
-		ss << "Number of prior overrides: " << overrides.priors.size();
-		logMessage("", ss.str());
+		if (this->runConfig.verbose) {
+			stringstream ss;
+			ss << "Number of prior overrides: " << config.overrides.priors.size();
+			logMessage("", ss.str());
+		}
 
-		for (auto it = overrides.priors.begin(); it != overrides.priors.end(); it++) {
+		for (auto it = config.overrides.priors.begin(); it != config.overrides.priors.end(); it++) {
 
 			string name = it->first;
 
-			if (priors.find(name) != priors.end()) {
-				priors[name] = it->second;
+			if (this->priors.find(name) != this->priors.end()) {
+				this->priors[name] = it->second;
 			} else {
 				logMessage("_doPriorOverrides", "Warning: Invalid prior override key: \"" + name + "\" ignored.");
 			}
@@ -43,29 +47,30 @@ namespace CatCont {
 
 	void Bayesian::_doConstantParameterOverrides(void) {
 
-		stringstream ss;
-		ss << "Number of constant parameter value overrides: " << overrides.constantValues.size();
-		logMessage("", ss.str());
-
+		if (this->runConfig.verbose) {
+			stringstream ss;
+			ss << "Number of constant parameter value overrides: " << config.overrides.constantValues.size();
+			logMessage("", ss.str());
+		}
 
 		vector<GibbsParameter*> parameters = gibbs.getParameters();
 		for (unsigned int i = 0; i < parameters.size(); i++) {
 			GibbsParameter* par = parameters[i];
 
-			map<string, double>::iterator it = overrides.constantValues.find(par->name);
+			map<string, double>::iterator it = config.overrides.constantValues.find(par->name);
 
-			if (it != overrides.constantValues.end()) {
+			if (it != config.overrides.constantValues.end()) {
 				gibbs.replaceParameter(par->name, ConstantParameter(it->second, par->name, par->group));
 			}
 
 		}
 
 		//Also check which values are provided but for which there is no parameter.
-		for (map<string, double>::iterator it = overrides.constantValues.begin(); it != overrides.constantValues.end(); it++) {
+		for (map<string, double>::iterator it = config.overrides.constantValues.begin(); it != config.overrides.constantValues.end(); it++) {
 			if (!gibbs.hasParameter(it->first)) {
 				std::stringstream ss;
 				ss << "Note: Constant value provided for \"" << it->first << "\", but there is no parameter by that name.";
-				logMessage("setParameterStartingValues", ss.str());
+				logMessage("_doConstantParameterOverrides", ss.str());
 			}
 		}
 
@@ -74,35 +79,39 @@ namespace CatCont {
 	//This function must be called after createParameters().
 	void Bayesian::_doStartingValueOverrides(void) {
 
-		stringstream ss;
-		ss << "Number of starting parameter value overrides: " << overrides.startingValues.size();
-		logMessage("", ss.str());
+		if (this->runConfig.verbose) {
+			stringstream ss;
+			ss << "Number of starting parameter value overrides: " << config.overrides.startingValues.size();
+			logMessage("", ss.str());
+		}
 
 		vector<GibbsParameter*> parameters = gibbs.getParameters();
 		for (unsigned int i = 0; i < parameters.size(); i++) {
 			GibbsParameter* par = parameters[i];
 
-			if (overrides.startingValues.find(par->name) != overrides.startingValues.end()) {
+			if (config.overrides.startingValues.find(par->name) != config.overrides.startingValues.end()) {
 				//Found
 				vector<double>& samples = par->getSamples();
 				samples.clear();
-				samples.push_back(overrides.startingValues.at(par->name));
+				samples.push_back(config.overrides.startingValues.at(par->name));
 			}
 		}
 
 		//Also check which values are provided but for which there is no parameter.
-		for (map<string, double>::iterator it = overrides.startingValues.begin(); it != overrides.startingValues.end(); it++) {
+		for (map<string, double>::iterator it = config.overrides.startingValues.begin(); it != config.overrides.startingValues.end(); it++) {
 			if (!gibbs.hasParameter(it->first)) {
 				std::stringstream ss;
 				ss << "Note: Starting value provided for \"" << it->first << "\", but there is no parameter by that name.";
-				logMessage("setParameterStartingValues", ss.str());
+				logMessage("_doStartingValueOverrides", ss.str());
 			}
 		}
 
 	}
 
 
-
+	// Note that this function does all calculations at the level of the participants. 
+	// This is because the data is at the level of the participants.
+	// In R, the participant level WAICs are aggregated to get a whole model WAIC.
 	map<string, map<string, double>> calculateWAIC(const vector<ParticipantData>& allData,
 		const ModelConfiguration& modelConfig,
 		const vector< ParameterList >& posteriorIterations)
@@ -215,7 +224,7 @@ namespace CatCont {
 		double WAIC_1 = -2 * (LPPD - P_1);
 		double WAIC_2 = -2 * (LPPD - P_2);
 
-		//These insertions do nothing because the sort order is changed when put into the map. They could just be push_back.
+		//These insertions do nothing special because the sort order is changed when put into the map. They could just be push_back.
 		pnums.insert(pnums.begin(), "Total");
 		WAIC_1_part.insert(WAIC_1_part.begin(), WAIC_1);
 		WAIC_2_part.insert(WAIC_2_part.begin(), WAIC_2);

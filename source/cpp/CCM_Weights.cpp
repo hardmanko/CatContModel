@@ -5,6 +5,8 @@
 
 namespace CatCont {
 
+#ifdef USING_PLAT_SPLINE
+
 	/*
 	double calcPlatSplineLambda(const std::vector<double>& weights, LambdaVariant variant) {
 
@@ -404,7 +406,7 @@ namespace CatCont {
 		return dPlatSpline(d, platHW, splineHW);
 	}
 
-
+#endif
 
 	///////////////////////
 	// WeightsCalculator //
@@ -421,16 +423,21 @@ namespace CatCont {
 
 		this->weightCount = catPar.mu.size();
 
+#ifdef USING_PLAT_SPLINE
 		if (modCfg->weightsDistribution == WeightsDistribution::PlatSpline) {
 			_calcWeights_platSpline(study, catPar);
-		} else if (modCfg->weightsDistribution == WeightsDistribution::Default) {
+		} else 
 
+		if (modCfg->weightsDistribution == WeightsDistribution::Default) {
+#endif
 			if (modCfg->dataType == DataType::Linear) {
 				_calcWeights_linear(study, catPar);
 			} else if (modCfg->dataType == DataType::Circular) {
 				_calcWeights_circular(study, catPar);
 			}
-		}
+#ifdef USING_PLAT_SPLINE
+		} // if(modCfg->weightsDistribution ...
+#endif
 
 	}
 
@@ -442,6 +449,15 @@ namespace CatCont {
 		return wSum;
 	}
 
+	vector<double> WeightsCalculator::copyFilledWeights(void) const {
+		return vector<double>(weights.begin(), weights.begin() + weightCount);
+	}
+
+	void WeightsCalculator::reset(void) {
+		this->weightCount = 0;
+	}
+
+#ifdef USING_PLAT_SPLINE
 
 	double WeightsCalculator::calcLambda(void) const {
 
@@ -463,14 +479,6 @@ namespace CatCont {
 		}
 
 		return lambda;
-	}
-
-	vector<double> WeightsCalculator::copyFilledWeights(void) const {
-		return vector<double>(weights.begin(), weights.begin() + weightCount);
-	}
-
-	void WeightsCalculator::reset(void) {
-		this->weightCount = 0;
 	}
 
 	void WeightsCalculator::_calcWeights_platSpline(double study, const CategoryParameters& catPar) {
@@ -502,6 +510,8 @@ namespace CatCont {
 		// No need to rescale weights for PlatSpline. In fact, 0 weight is ok.
 		// Or maybe make sure total weight < 1, but I'm pretty sure that can't happen.
 	}
+
+#endif
 
 	void WeightsCalculator::_calcWeights_linear(double study, const CategoryParameters& catPar) {
 

@@ -40,37 +40,56 @@ convolveFuns = function(f, g, t, range=c(-Inf, Inf)) {
 #' Test the Amount of Categorical Responding Present in the Data
 #' 
 #' Test the amount of categorical responding present in the data in each condition.
-#' To do this test, you must have run the "betweenItem" model variant. Then, use this function on the results from that run to test whether categorical responding is or is not present in the data. A lack of categorical responding is the same as fully continuous responding, which happens when pContBetween = 1 and pCatGuess = 0. As explained in Hardman, Vergauwe, and Ricker (2017), testing 1 and 0 is not possible, so values near 1 and 0 should be tested instead. The test is performed in each condition separately.
+#' To do this test, you must have run one of the "betweenItem" or "withinItem" model variants. 
+#' Then, use this function on the results from that run to test whether categorical responding is or is not present in the data. 
+#' A lack of categorical responding is the same as fully continuous responding, which happens when `pContBetween = 1` and `pCatGuess = 0`. 
+#' As explained in Hardman, Vergauwe, and Ricker (2017), testing 1 and 0 is not possible, so values near 1 and 0 (0.99 or 0.01) should be tested instead. 
+#' The test is performed in each condition separately.
 #' 
-#' @param results The results from the \code{\link{runParameterEstimation}} function.
-#' @param pContBetween_test Value of pContBetween to test.
-#' @param pCatGuess_test Value of pCatGuess to test.
+#' @param results Results from [`runParameterEstimation`].
+#' @param pCatGuess_test Values of pCatGuess to test.
+#' @param pContBetween_test Values of pContBetween to test.
+#' @param pContWithin_test Values of pContWithin to test.
 #' 
-#' @return A data.frame with the results of the tests.
+#' @return A `data.frame` with the results of the tests. 
 #' 
-#' @seealso [`testMeanParameterValue`] for a more general way to do these kinds of hypothesis tests.
+#' @seealso [`testMeanParameterValue`] for a more general way to do these kinds of hypothesis tests. [`posteriorMeansAndCredibleIntervals`] for means and credible intervals.
 #' 
 #' @family test functions
 #' @family WP functions
 #' 
 #' @export
-testCategoricalResponding = function(results, pContBetween_test = 0.99, pCatGuess_test = 0.01) {
+testCategoricalResponding = function(results, pCatGuess_test = c(0.01, 0.99), pContBetween_test = c(0.01, 0.99), pContWithin_test = c(0.01, 0.99)) {
 
 	if (!resultIsType(results, "WP")) {
 		stop("testCategoricalResponding only accepts WP results objects. See the Glossary (listed in the package functions index).")
 	}
 	
-	H0_test = list(pContBetween = pContBetween_test, pCatGuess = pCatGuess_test)
+	H0_test = list(pCatGuess = pCatGuess_test)
+	if (results$config$modelVariant == "betweenItem") {
+	  H0_test$pContBetween = pContBetween_test
+	  
+	} else if (results$config$modelVariant == "withinItem") {
+	  H0_test$pContWithin = pContWithin_test
+	  
+	} else if (results$config$modelVariant == "betweenAndWithin") {
+	  H0_test$pContBetween = pContBetween_test
+	  H0_test$pContWithin = pContWithin_test
+	  
+	} else {
+	  stop("Invalid modelVariant.")
+	}
 	
 	rval = NULL
-	for (param in c("pContBetween", "pCatGuess")) {
-		for (cond in results$config$factors$cond) {
-			
-			res = testMeanParameterValue(results, param = param, cond = cond, H0_value = H0_test[[param]])
-
-			rval = rbind(rval, res)
-			
-		}
+	for (param in names(H0_test)) {
+	  for (testVal in H0_test[[param]]) {
+  		for (cond in results$config$factors$cond) {
+  			
+  			testRes = testMeanParameterValue(results, param = param, cond = cond, H0_value = testVal)
+  
+  			rval = rbind(rval, testRes)
+  		}
+	  }
 	}
 	
 	rval
@@ -81,7 +100,7 @@ testCategoricalResponding = function(results, pContBetween_test = 0.99, pCatGues
 #' Perform the test of whether the mean of the parameter is equal to some value. 
 #' This test is performed in a condition.
 #' 
-#' @param results The results from the [`runParameterEstimation`] function.
+#' @param results Results from [`runParameterEstimation`].
 #' @param param The name of the parameter to test.
 #' @param cond The condition in which to test the value.
 #' @param H0_value The null hypothesized value of the parameter. This should be provided in the manifest space (e.g., if testing a probability parameter, this should be between 0 and 1).
@@ -98,7 +117,7 @@ testCategoricalResponding = function(results, pContBetween_test = 0.99, pCatGues
 testMeanParameterValue = function(results, param, cond, H0_value) {
 	
 	if (!resultIsType(results, "WP")) {
-		stop("testMeanParameterValue only accepts WP results objects. See the Glossary (listed in the package functions index).")
+		stop("testMeanParameterValue only accepts WP results objects. See the Glossary (listed in the package index).")
 	}
 	
 	transformInverse = getParameterTransformation(results, param, inverse=TRUE)
@@ -135,6 +154,9 @@ testMeanParameterValue = function(results, param, cond, H0_value) {
 	combinedPosterior = popMu + condEffect
 	
 	res = savageDickey(combinedPosterior, h0_val=inverseH0, priorDensAtH0 = priorDensAtH0)
+	
+	# Option: Use a prior sampling approach instead?
+	#CMBBHT::valueTest_SDDR()
 	
 	temp = data.frame(param = param, cond = cond, H0_value = H0_value, 
 										bf01 = res$bf01, bf10 = res$bf10, success = res$success, stringsAsFactors = FALSE)

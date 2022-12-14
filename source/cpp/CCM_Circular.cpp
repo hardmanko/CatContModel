@@ -280,7 +280,7 @@ vector<double> betweenAndWithinLikelihood(const CombinedParameters& par, const C
 
 	for (unsigned int i = 0; i < data.study.size(); i++) {
 
-		//Category weights apply to both the between and with components of the model
+		//Category weights apply to both the between and within components of the model
 		categoryWeights(data.study[i], par, weights.data());
 
 		//Within component

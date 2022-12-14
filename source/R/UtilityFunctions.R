@@ -9,6 +9,14 @@ CatContModelManual = function() {
 }
 
 
+valueIfNull = function(x, value) {
+  if (is.null(x)) {
+    x = value
+  }
+  x
+}
+
+
 substituteValues = function(x, xvals, subvals) {
 	y = rep(subvals[1], length(x)) #to get the type right
 	for (i in 1:length(xvals)) {
@@ -17,9 +25,9 @@ substituteValues = function(x, xvals, subvals) {
 	y
 }
 
-#' Get a list of parameter symbols for plotting
+#' Get a list of parameter symbols for mathy plotting
 #'
-#' @param modelVariant String giving the name of the model variant to use. Can be accessed from \code{results$config$modelVariant}.
+#' @param modelVariant String giving the name of the model variant to use. See [`makeModelConfig`] for choices.
 #' 
 #' @return The list of symbols.
 #'
@@ -58,12 +66,12 @@ getParameterSymbols = function(modelVariant) {
 #' 
 #' The logit transformation is `log(p/(1 - p))`.
 #' 
-#' The inverse logit transformation is `exp(f)/(1 + exp(f)))`.
+#' The inverse logit transformation is `exp(q)/(1 + exp(q)))`.
 #' 
-#' @param p A probability (value in the interval `[0,1]`) to transform to `(-Inf, Inf)`.
-#' @param f A value in the interval `(-Inf, Inf)` to transform to `[0,1]`.
+#' @param p Probabilities in the interval `[0,1]` to transform to `(-Inf, Inf)`.
+#' @param q Quantiles in the interval `(-Inf, Inf)` to transform to `[0,1]`.
 #' 
-#' @return The transformed value.
+#' @return The transformed values.
 #' 
 #' @seealso The functions `qlogis` and `plogis` in the `stats` namespace..
 #' 
@@ -74,11 +82,13 @@ logit = function(p) {
 
 #' @rdname logit
 #' @export
-logitInverse = function(f) { 
-	stats::plogis(f)
+logitInverse = function(q) { 
+	stats::plogis(q)
 }
 
 #' Convert Between Degrees and Radians
+#' 
+#' Degrees to radians is `deg * pi / 180`. Radians to degrees is `rad * 180 / pi`.
 #'
 #' @param rad A numeric vector of angles in radians.
 #' @param deg A numeric vector of angles in degrees.
@@ -97,51 +107,18 @@ r2d = function(rad) {
 	rad * 180 / pi
 }
 
-
-
-#' Von Mises Distribution Functions
-#' 
-#' These functions are little wrappers that parameterize the Von Mises
-#' distribution in terms of degrees. Instead of precision, the von Mises
-#' distribution is parameterized in terms of "standard deviation",
-#' the square root of the inverse of precision.
-#' 
-#' For Von Mises density and sampling functions parameterized in terms 
-#' of radians and precision, see the CircStats package, in particular 
-#' the functions `dvm` and `rvm`, which are used internally by `dvmd` and `rvmd`.
-#' 
-#' @param n The number of realizations to draw.
-#' @param x A quantile.
-#' @param mu The center of the von Mises distribution.
-#' @param sdDeg The standard deviation.
-#' 
-#' @export
-rvmd = function(n, mu, sdDeg) {
-	sampledRad = CircStats::rvm(n, d2r(mu), sdDeg_to_precRad(sdDeg))
-	r2d(sampledRad)
-}
-
-#' @rdname rvmd
-#' @export
-dvmd = function(x, mu, sdDeg) {
-	dens = CircStats::dvm(d2r(x), d2r(mu), sdDeg_to_precRad(sdDeg))
-	
-	# dvm() gives a density for arguments in radians. The width of
-	# the space is 2*PI radians but 360 degrees. This means that the
-	# same Von Mises distribution will have higher density in radians 
-	# than degrees because the numeric circumference is lower for radians
-	# than degrees. Rescale the density to be correct for degrees by multiplying
-	# by 2*pi/360 = pi/180.
-	dens * pi / 180
-}
-
-
 #' Convert Between Precision in Radians and Standard Deviation in Degrees
 #' 
-#' The Von Mises density function is parameterized in terms of precision in radians. The models in this package are isntead parameterized in terms of standard deviation (square root of the inverse of precision) in degrees. These functions go back and forth between the two representations of precision.
+#' The Von Mises density function is typically parameterized in terms of precision in radians. 
+#' The models in this package are instead parameterized in terms of standard deviation (square root of the inverse of precision) in degrees. 
+#' These functions go back and forth between the two representations of precision.
+#' 
+#' If precision is `kappa` (radians) and `sd` is standard deviation (degrees):
+#' + `precRad_to_sdDeg`: `sd = 1 / sqrt(kappa) * 180 / pi`. 
+#' + `sdDeg_to_precRad`: `kappa = 1 / (sd * pi / 180)^2`
 #' 
 #' @param sdDeg A standard deviation in degrees.
-#' @param precRad A precision in radians.
+#' @param precRad A precision in radians (i.e. `kappa`).
 #' 
 #' @export
 #' @examples 
@@ -149,16 +126,104 @@ dvmd = function(x, mu, sdDeg) {
 #' precRad_to_sdDeg(0.05)
 #' precRad_to_sdDeg(sdDeg_to_precRad(10)) == 10
 sdDeg_to_precRad = function(sdDeg) {
-	sdRad = d2r(sdDeg) #degrees to rad
-	1/sdRad^2 #sd to precision
+  sdRad = d2r(sdDeg) #degrees to rad
+  1/sdRad^2 #sd to precision
 }
 
 #' @rdname sdDeg_to_precRad
 #' @export
 precRad_to_sdDeg = function(precRad) {
-	sdRad = 1 / sqrt(precRad) #precision to sd
-	r2d(sdRad) #rad to deg
+  sdRad = 1 / sqrt(precRad) #precision to sd
+  r2d(sdRad) #rad to deg
 }
+
+
+#' Von Mises Distribution Functions
+#' 
+#' These functions are wrappers that parameterize the von Mises distribution in terms of degrees. 
+#' 
+#' Instead of precision, the von Mises distribution is parameterized in terms of "standard deviation",
+#' the square root of the inverse of precision.
+#' See [`sdDeg_to_precRad`] and [`precRad_to_sdDeg`].
+#' 
+#' For Von Mises density and sampling functions parameterized in terms 
+#' of radians and precision, see the CircStats package, in particular 
+#' the functions `dvm` and `rvm`, which are used internally by `dVonMises` and `rVonMises`.
+#' Or set the `degrees` argument to `FALSE`.
+#' 
+#' @param n The number of realizations to draw.
+#' @param xs A vector of quantiles.
+#' @param mu The center of the von Mises distribution.
+#' @param sd The standard deviation in degrees. If `degrees=FALSE`, `sd` is precision in radians (`kappa`).
+#' @param log If true, the log density is returned.
+#' @param degrees If `FALSE`, functions use radians instead of degrees. That means that `xs` and `mu` are radians and `sd` is precision (`kappa`).
+#' @param impl Von Mises density implementation. The first value is used. LUT and noLUT use the C++ implementation.
+#' 
+#' @return A realization (`rVonMises`) or a density (`dVonMises`).
+#' 
+#' @export
+dVonMises = function(xs, mu, sd, log=FALSE, degrees=TRUE, impl=c("CircStats", "LUT", "noLUT")) {
+  
+  impl = impl[1]
+  
+  if (impl == "CircStats") {
+    
+    if (degrees) {
+      xs = d2r(xs)
+      mu = d2r(mu)
+      sd = sdDeg_to_precRad(sd)
+    }
+    
+    dens = CircStats::dvm(xs, mu, sd)
+    
+    if (degrees) {
+      # dvm() gives a density for arguments in radians. The width of
+      # the space is 2*PI radians but 360 degrees. This means that the
+      # same Von Mises distribution will have higher density in radians 
+      # than degrees because the numeric circumference is lower for radians
+      # than degrees. Rescale the density to be correct for degrees by multiplying
+      # by 2*pi/360 = pi/180.
+      dens = dens * pi / 180
+    }
+    
+    if (log) {
+      dens = log(dens)
+    }
+    
+  } else if (impl == "LUT") {
+    
+    dens = CCM_CPP_dVonMises(xs, mu, sd, log=log, degrees=degrees, useLUT=TRUE)
+    
+  } else if (impl == "noLUT") {
+    
+    dens = CCM_CPP_dVonMises(xs, mu, sd, log=log, degrees=degrees, useLUT=FALSE)
+    
+  }
+  
+  dens
+}
+
+#' @rdname dVonMises
+#' @export
+rVonMises = function(n, mu, sd, degrees=TRUE) {
+  
+  if (degrees) {
+    mu = d2r(mu)
+    kappa = sdDeg_to_precRad(sd)
+  } else {
+    kappa = sd
+  }
+  
+  sampled = CircStats::rvm(n, mu, kappa)
+  
+  if (degrees) {
+    sampled = r2d(sampled)
+  }
+  
+  sampled
+}
+
+
 
 #' Calculate an Optionally Weighted Circular Mean
 #' 
@@ -176,7 +241,7 @@ circMean = function(angles, weights=1, degrees=TRUE) {
   }
   weights = weights / sum(weights)
   
-  CatContModel:::.circMeanCPP(angles, weights, degrees)
+  CatContModel:::CCM_CPP_circMean(angles, weights, degrees)
 }
 
 
@@ -190,8 +255,11 @@ circMean = function(angles, weights=1, degrees=TRUE) {
 h_eq20 = function(mu_k, nu_k, mu_kp, nu_kp, catMuPriorSD, dataType) {
 	
 	if (dataType == "circular") {
-		numDens = dvmd(mu_k - mu_kp, 0, catMuPriorSD)
-		denDens = dvmd(0, 0, catMuPriorSD)
+		#numDens = dvmd(mu_k - mu_kp, 0, catMuPriorSD)
+		numDens = dVonMises(mu_k - mu_kp, 0, catMuPriorSD, degrees=TRUE)
+		
+		#denDens = dvmd(0, 0, catMuPriorSD)
+		denDens = dVonMises(0, 0, catMuPriorSD, degrees=TRUE)
 	} else if (dataType == "linear") {
 		numDens = stats::dnorm(mu_k - mu_kp, 0, catMuPriorSD)
 		denDens = stats::dnorm(0, 0, catMuPriorSD)
@@ -345,7 +413,7 @@ likelihood = function(param, data, modelVariant, dataType = "circular",
 											responseRange = NULL, minSD = NULL) 
 {
 	
-	mvUsedParam = getAllParams(NULL, modelVariant = modelVariant, filter=TRUE)
+	mvUsedParam = getParamNames(modelVariant, types=c("prob", "sd"))
 	if (modelVariant != "ZL") {
 	  mvUsedParam = c(mvUsedParam, "catMu")
 	}
@@ -356,7 +424,9 @@ likelihood = function(param, data, modelVariant, dataType = "circular",
 	}
 	
 	# Add NA parameters not used by the modelVariant to the list
-	unusedParam = c("catMu", getAllParams(NULL, "betweenAndWithin", filter=TRUE))
+	unusedParam = getParamNames(NULL)
+	unusedParam = unusedParam[ unusedParam != "catActive"] # Exclude catActive
+	
 	unusedParam = unusedParam[ !(unusedParam %in% mvUsedParam) ]
 	for (up in unusedParam) {
 	  param[[up]] = NA
@@ -389,171 +459,6 @@ likelihood = function(param, data, modelVariant, dataType = "circular",
 	
 }
 
-
-valueIfNull = function(x, value) {
-	if (is.null(x)) {
-		x = value
-	}
-	x
-}
-
-getDefaultParametersWithConditionEffects = function(modelVariant) {
-	pce = c("pMem", "contSD") #ZL and all other models
-	
-	if (modelVariant == "betweenAndWithin") {
-		pce = c(pce, "pBetween", "pContBetween", "pContWithin")
-		
-	} else if (modelVariant == "betweenItem") {
-		pce = c(pce, "pContBetween")
-		
-	} else if (modelVariant == "withinItem") {
-		pce = c(pce, "pContWithin")
-	}
-	
-	pce
-}
-
-
-
-#' Sample Data from Model with Specific Parameter Values
-#' 
-#' Samples data from the model given the provided parameter values. This is useful for observing the patterns of data generated by the model and for sampling from the posterior predictive distribution of the data.
-#' 
-#' @param study A vector of study angles in degrees.
-#' @param param A list of parameter values. The values to include are `pMem`, `pBetween`, `pContBetween`, `pContWithin`, `pCatGuess`, `contSD`, `catMu`, `catSelectivity`, `catSD`. `catMu` should be a vector. If there are no categories, `catMu` should be `NULL`.
-#' @param modelVariant The model variant, as a string. Should be one of "betweenItem", "withinItem", and "ZL".
-#' @param dataType One of `"circular"` or `"linear"`.
-#' @param responseRange A length 2 vector giving the theoretical minimum and maximum values of a response. Should be provided if `dataType` is `"linear"`.
-#' 
-#' @return A data frame containing the `study` angles, the sampled `response` angles, the response `type` (e.g. continuous memory response), and, if the response was categorical in nature, the category it was from (`cat`).
-#'  
-#' @export
-sampleDataFromModel = function(study, param, modelVariant, dataType = "circular", responseRange = NULL) {
-	
-	trials = length(study)
-	
-	if (modelVariant == "betweenItem") {
-		param$pBetween = 1
-	} else if (modelVariant == "withinItem") {
-		param$pBetween = 0
-	} else if (modelVariant == "ZL") {
-		param$pBetween = 1
-		param$pContBetween = 1
-		param$pCatGuess = 0
-		param$catMu = NULL
-	}
-	
-	realzationFunction = NULL
-	unifGuessFunction = NULL
-	if (dataType == "circular") {
-		
-		realzationFunction = function(mu, sd) {
-			CatContModel::rvmd(1, mu, sd)
-		}
-		unifGuessFunction = function() {
-			stats::runif(1, 0, 360)
-		}
-		
-	} else if (dataType == "linear") {
-		
-		realzationFunction = function(mu, sd) {
-			msm::rtnorm(1, mu, sd, responseRange[1], responseRange[2])
-		}
-		unifGuessFunction = function() {
-			stats::runif(1, responseRange[1], responseRange[2])
-		}
-	}
-	
-	
-	catCount = length(param$catMu)
-	
-	
-	response = rep(0, trials)
-	
-	cat = rep(0, trials)
-	type = rep("none", trials)
-	
-	for (i in 1:trials) {
-		
-		inMemory = (stats::rbinom(1, 1, param$pMem) == 1)
-		
-		if (!inMemory) {
-			
-			isCatGuess = (stats::rbinom(1, 1, param$pCatGuess) == 1)
-			
-			if (isCatGuess && (catCount > 0)) {
-				cat[i] = sample(1:catCount, size=1)
-				
-				response[i] = realzationFunction(param$catMu[cat[i]], param$catSD)
-				type[i] = "catGuess"
-			} else {
-				response[i] = unifGuessFunction()
-				type[i] = "unifGuess"
-			}
-			
-		} else {
-			
-			
-			# Pick an error for the continuous representation
-			
-			contLocation = realzationFunction(study[i], param$contSD)
-			
-			if (dataType == "circular") {
-				contLocation = contLocation %% 360
-			}
-			
-			if (catCount == 0) {
-				response[i] = contLocation
-				type[i] = "continuous"
-				
-			} else {
-				
-				# Pick a category for the color
-				catWeights = categoryWeightsFunction(study[i], param$catMu, param$catSelectivity, dataType = dataType)
-				catEgory = sample(1:catCount, size=1, prob=catWeights)
-				cat[i] = catEgory
-				
-				
-				# Get the categorical response location
-				catLocation = realzationFunction(param$catMu[catEgory], param$catSD)
-				if (dataType == "circular") {
-					catLocation = catLocation %% 360
-				}
-				
-				isBetween = (stats::rbinom(1, 1, param$pBetween) == 1)
-				
-				if (isBetween) {
-					# This is a between response
-					isContinuous = (stats::rbinom(1, 1, param$pContBetween) == 1)
-					
-					if (isContinuous) {
-						response[i] = contLocation
-						type[i] = "continuous"
-					} else {
-						response[i] = catLocation
-						type[i] = "categorical"
-					}
-				} else {
-					# This is a within response
-					
-					locMix = NA
-					if (dataType == "circular") {
-						locMix = circMean(c(contLocation, catLocation), c(param$pContWithin, 1 - param$pContWithin))
-						locMix = locMix %% 360
-					} else if (dataType == "linear") {
-						locMix = param$pContWithin * contLocation + (1 - param$pContWithin) * catLocation
-					}
-					
-					response[i] = locMix
-					
-					type[i] = "within"
-				}
-			}
-		}
-		
-	}
-	data.frame(study=study, response=response, type=type, cat=cat)
-}
 
 
 # each column of mat corresponds to one row of design.
@@ -607,129 +512,120 @@ getSubsampleIterationsToRemove = function(totalIterations, subsamples, subsample
 }
 
 
-#' Credible Intervals for Manifest Condition Effect Priors
-#' 
-#' Which is to say, what prior beliefs do you have about the distribution of condition effects?
-#' This function helps deal with the fact that the interpretation of priors on condition effects 
-#' 1) depends on the value of the participant parameters and
-#' 2) need to be translated from the latent space to the manifest space.
-#' 
-#' Given a vector of participant parameter values and a prior scale for the condition effect parameter,
-#' this:
-#' 1) Samples from the condition effect prior (0 centered).
-#' 2) Calculates the manifest participant parameter values for each sample from the condition effect prior and
-#' 3) Calculates the prior credible interval for the manifest parameter values.
-#' This information can help you choose a prior scale value that captures your beliefs about how much the conditions differ from one another (or, more exactly, how much the non-cornerstone conditions differ from the cornerstone condition).
-#' 
-#' The left plot shows the prior median and the lower and upper credible interval bounds, giving an overall picture of the prior credible interval across the participant parameter values.
-#' 
-#' The right plot gives the total width of the credible interval and the directional widths from the median to the upper and lower bounds.
-#'  
-#' @param param The name of the parameter (e.g. `pMem`).
-#' @param p_i A vector of manifest participant parameter values. Typically a series of numbers (used for x-axis in plotting). For probability parameters, use something like `seq(0, 1, 0.025)` for the whole range of probabilities. For SD parameters, use something like `seq(0, 40, 1)`.
-#' @param ce_scale The scale of the Cauchy prior on the condition effect parameter.
-#' @param cip Proportion of the prior inside of the credible interval.
-#' @param n Number of samples to take from the prior on the credible interval. Use more for a more accurate approximation.
-#' @param minSD Only for standard deviation parameters. The minimum standard deviation (i.e. `config$minSD`).
-#' @param plot Whether to make plots.
-#' @param doMFRow If `TRUE`, uses `par(mfrow=c(1,2))` to make the two plot panels.
-#' 
-#' @return Invisibly, a `data.frame` containing columns:
-#' * `p_i`: The participant parameter value (copied from the `p_i` argument).
-#' * `lower`, `upper`: Lower and upper bounds of the credible interval.
-#' * `median`: The median of the prior.
-#' * `lowerW`, `upperW`: The distance from the median to the lower and upper credible intervals.
-#' 
-#' @export
-conditionEffectPriorCredibleInterval = function(param, p_i, ce_scale, cip = 0.95, n = 1e6, minSD = 1, plot = TRUE, doMFRow = TRUE) {
-	
-	qp = c((1 - cip) / 2, 0.5, (1 + cip) / 2)
-	
-	# Use same samples for each value of x
-	ce = stats::rcauchy(n, 0, ce_scale)
-	
-	res = list(config = list(minSD = minSD)) # Fake res for getting transformations
-	trans = getParameterTransformation(res, param)
-	inverse = getParameterTransformation(res, param, inverse = TRUE)
-	
-	df = data.frame(p_i = p_i)
-	
-	for (i in 1:length(p_i)) {
-		
-		manifest = trans(inverse(p_i[i]) + ce)
-		
-		qs = stats::quantile(manifest, qp)
-		df$lower[i] = qs[1]
-		df$median[i] = qs[2]
-		df$upper[i] = qs[3]
-	}
-	
-	df$lowerW = df$median - df$lower
-	df$upperW = df$upper - df$median
-	df$totalW = df$upper - df$lower
-	
-	if (plot) {
-		
-		lowCol = "red"
-		upCol = "blue"
-		
-		if (doMFRow) {
-		  graphics::par(mfrow=c(1, 2))
-		}
-		
-		ylimL = range(df[ , c("lower", "median", "upper")])
-		if (param %in% getProbParams(NULL)) {
-			ylimL = c(0, 1)
-		}
-		
-		plot(df$p_i, df$median, ylim=ylimL, type='l', xlab=param, ylab="Manifest Parameter Value")
-		graphics::lines(df$p_i, df$lower, col=lowCol)
-		graphics::lines(df$p_i, df$upper, col=upCol)
-		
-		ylimR = range(df[ , c("lowerW", "totalW", "upperW")])
-		
-		plot(df$p_i, df$totalW, type = 'l', ylim=ylimR, xlab=param, ylab="Credible Interval Width")
-		graphics::lines(df$p_i, df$upperW, col=upCol)
-		graphics::lines(df$p_i, df$lowerW, col=lowCol)
-		graphics::legend("bottom", legend = c("upper", "total", "lower"), col=c(upCol, "black", lowCol), lty=1)
-		
-		if (doMFRow) {
-			graphics::par(mfrow=c(1, 1))
-		}
-	}
-	
-	invisible(df)
+
+# Used to convert catMu between degrees and radians (and other operations)
+convertCatMuUnits = function(results, conversionFun) {
+  
+  for (p in unique(results$data$pnum)) {
+    for (i in 1:results$config$maxCategories) {
+      cmName = paste("catMu[", p, ",", i-1, "]", sep="")
+      results$posteriors[[ cmName ]] = conversionFun(results$posteriors[[ cmName ]])
+    }
+  }
+  
+  results
 }
 
-#' Plot Manifest Condition Effect Prior Histogram
+
+#' Plot Data by Condition and Participant
 #' 
-#' @param param A parameter name.
-#' @param p_i A manifest participant parameter value. E.g., for probability parameters, give a probability.
-#' @param ce_scale The scale of the Cauchy prior on the condition effect parameter.
-#' @param sdCutoff For standard deviation parameters, extremely large sample values are common, so for plotting purposes the plot has to be cut off somewhere. `sdCutoff` sets the cutoff.
-#' @param n Number of samples to take from the prior on the credible interval. Use more for a more accurate approximation.
-#' @param minSD Only for standard deviation parameters. The minimum standard deviation (i.e. `config$minSD`).
+#' Make scatterplots and (optionally) histograms of data.
 #' 
-#' @return Invisibly, the vector of manifest parameter samples from the condition effect prior that were used for plotting (so some samples are cut off for SD parameters; see the `sdCutoff` argument).
-conditionEffectPriorHist = function(param, p_i, ce_scale, sdCutoff=50, n=1e6, minSD=1) {
-	
-	ce = stats::rcauchy(n, 0, ce_scale)
-	
-	res = list(config = list(minSD = minSD))
-	trans = getParameterTransformation(res, param)
-	inverse = getParameterTransformation(res, param, inverse=TRUE)
-	
-	manifest = trans(inverse(p_i) + ce)
-	if (param %in% getSdParams(NULL)) {
-		manifest = manifest[manifest < sdCutoff]
-	}
-	
-	main = paste0(param, " = ", p_i, ", scale = ", ce_scale)
-	graphics::hist(manifest, 
-			 xlab=paste0("Manifest ", param), 
-			 ylab="Prior Density", 
-			 main=main, prob=TRUE)
-	
-	invisible(manifest)
+#' @param data Data to plot. Formatted with `pnum`, `cond`, `study`, and `response` columns.
+#' @param byCond Make plots for each condition (collapsing across participants).
+#' @param byPnum Make plots for each participant (collapsing across conditions).
+#' @param pnumByCond Make plots for each pnum * cond cell.
+#' @param pdfFile Optional. Name of pdf file to plot to.
+#' @param pdfPanelWH A length 2 vector giving width and height in inches of panels in pdf file.
+#' @param histograms If `TRUE`, response histograms are plotted along with scatterplots.
+#' 
+#' @family plotting functions
+#' @export
+plotData = function(data, allData=TRUE, byCond=TRUE, byPnum=TRUE, pnumByCond=TRUE, plotRange=NULL, pdfFile=NULL, pdfPanelWH=c(6,6), histograms=TRUE) {
+  
+  
+  #whichPlots = c("all", "cond", "pnum", "pnum*cond")
+  
+  plotToFile = !is.null(pdfFile) && (pdfFile != "")
+  
+  if (histograms) {
+    pdfPanelWH[1] = pdfPanelWH[1] * 2
+  }
+  
+  if (plotToFile) {
+    grDevices::pdf(pdfFile, width=pdfPanelWH[1], height=pdfPanelWH[2])
+  }
+  
+  if (is.null(plotRange)) {
+    plotRange = range(c(data$study, data$response))
+    
+    # If almost circular, make circular
+    if (abs(plotRange[1] - 0) < 2 && abs(plotRange[2] - 360) < 2) {
+      plotRange = c(0, 360)
+    }
+  }
+  
+  alphaFun = function(nObs) {
+    alpha = 6 / sqrt(nObs)
+    max(0, min(alpha, 1))
+  }
+  
+  if (histograms) {
+    graphics::par(mfrow=c(1,2))
+  }
+  
+  if (allData) {
+    scatterplotWithColorBars(data, alpha=alphaFun(nrow(data)), xlim=plotRange, ylim=plotRange)
+    graphics::title("All cond and pnum")
+    
+    if (histograms) {
+      graphics::hist(data$response, breaks=60, main="response")
+    }
+  }
+  
+  if (byCond) {
+    for (cond in unique(data$cond)) {
+      condData = data[ data$cond == cond, ]
+      scatterplotWithColorBars(condData, alpha=alphaFun(nrow(condData)), xlim=plotRange, ylim=plotRange)
+      graphics::title(paste0("cond=", cond, " (all pnums)"))
+      
+      if (histograms) {
+        graphics::hist(condData$response, breaks=60, main="response")
+      }
+    }
+  }
+  
+  if (byPnum) {
+    for (pnum in unique(data$pnum)) {
+      pnumData = data[ data$pnum == pnum, ]
+      scatterplotWithColorBars(pnumData, alpha=alphaFun(nrow(pnumData)), xlim=plotRange, ylim=plotRange)
+      graphics::title(paste0("pnum=", pnum, " (all conds)"))
+      
+      if (histograms) {
+        graphics::hist(pnumData$response, breaks=60, main="response")
+      }
+    }
+  }
+  
+  if (pnumByCond) {
+    
+    for (pnum in unique(data$pnum)) {
+      for (cond in unique(data$cond)) {
+        pcData = data[ data$pnum == pnum & data$cond == cond, ]
+        scatterplotWithColorBars(pcData, alpha=alphaFun(nrow(pcData)), xlim=plotRange, ylim=plotRange)
+        graphics::title(paste0("pnum*cond=", pnum, "*", cond))
+        
+        if (histograms) {
+          graphics::hist(pcData$response, breaks=60, main="response")
+        }
+      }
+    }
+  }
+  
+  if (plotToFile) {
+    grDevices::dev.off()
+  }
+  
 }
+
 

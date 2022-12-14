@@ -38,10 +38,12 @@
 #' @export
 setConstantParameterValue = function(data, param, value, zeroConditionEffects = TRUE, transformValueToLatent = TRUE) {
 	
+  paramParts = splitParamName(param)
+  
 	if (transformValueToLatent) {
-		trans = getParameterTransformation(NULL, param, inverse=TRUE)
+		trans = getParameterTransformation(NULL, paramParts$baseName, inverse=TRUE, minSD=0)
 		value = trans(value)
-		if (param %in% getProbParams(NULL)) {
+		if ("probParam" %in% paramParts$types) {
 			value = min(max(value, -100), 100) #clamp probability parameters to be finite.
 		}
 	}
@@ -50,17 +52,24 @@ setConstantParameterValue = function(data, param, value, zeroConditionEffects = 
 	conds = sort(unique(data$cond))
 	
 	rval = list()
-	for (pnum in pnums) {
-		partParam = paste( param, "[", pnum, "]", sep="")
-		rval[[ partParam ]] = value
-	}
 	
-	rval[[ paste( param, ".mu", sep="" ) ]] = 0
-	rval[[ paste( param, ".var", sep="" ) ]] = 1
+	if ("generic" %in% paramParts$types) {
+    for (pnum in pnums) {
+      partParam = paste( paramParts$baseName, "[", pnum, "]", sep="")
+      rval[[ partParam ]] = value
+    }
+  	
+  	rval[[ paste( paramParts$baseName, ".mu", sep="" ) ]] = 0
+  	rval[[ paste( paramParts$baseName, ".var", sep="" ) ]] = 1
+	} else {
+	  rval[[param]] = value
+	  zeroConditionEffects = FALSE
+	  #warning("To set values for individual parameters, use a named list.")
+	}
 	
 	if (zeroConditionEffects) {
 		for (cond in conds) {
-			condParam = paste( param, "_cond[", cond, "]", sep="")
+			condParam = paste( paramParts$baseName, "_cond[", cond, "]", sep="")
 			rval[[ condParam ]] = 0
 		}
 	}

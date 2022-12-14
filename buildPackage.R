@@ -13,14 +13,13 @@ library(usethis)
 
 # Configuration options
 packageName = "CatContModel"
-CatContPackageVersion = "0.8.1"
+CatContPackageVersion = "0.9.0"
 addingDataSets = FALSE
 
 
 baseDir = "D:/Programming/R/CatContModel/"
 
 # Location of the properly formatted R package version of CatContModel
-fullPackagePath = paste0(baseDir, packageName, "/")
 packageLocation = paste0(baseDir, packageName)
 
 # Things now force the assumption that you are in the package dir. Progress!
@@ -33,9 +32,8 @@ Sys.setenv("PKG_CXXFLAGS"="-std=c++11")
 
 
 
-###
-# Only run first time:
-###
+######
+# Select files to be copied into the package
 
 cppHS = function(name) {
   c(paste0(name, ".h"), paste0(name, ".cpp"))
@@ -79,12 +77,14 @@ if (addingDataSets) {
 # Delete the old files
 packageFiles = dir( packageLocation, recursive = TRUE)
 file.remove( packageFiles )
-#file.remove( paste0(fullPackagePath, packageFiles) )
 
 # Move new files
-Rcpp.package.skeleton(packageName, path=baseDir, cpp_files=cpp_files, code_files=rFiles, 
+Rcpp.package.skeleton(packageName, path=baseDir, 
+                      cpp_files=cpp_files, code_files=rFiles, 
                       force=TRUE, example_code=FALSE, 
-                      author="Kyle O Hardman", license="MIT + file LICENSE", email="kylehardman@gmail.com")
+                      author="Kyle O Hardman", 
+                      email="kylehardman@gmail.com",
+                      license="MIT + file LICENSE")
 
 
 #Data sets
@@ -103,10 +103,16 @@ usethis::use_package("CircStats")
 usethis::use_package("polspline")
 usethis::use_package("msm")
 usethis::use_package("abind")
+usethis::use_package("stringr")
+
+# My packages from github
 usethis::use_package("LineChart")
 usethis::use_package("CMBBHT")
-#usethis::use_package("parallel")
 
+#usethis::use_dev_package("LineChart", remote="hardmanko/LineChart-package@v0.3.2")
+#usethis::use_dev_package("CMBBHT", remote="hardmanko/CMBBHT@v0.1.4")
+
+usethis::use_package("parallel", type="Suggests")
 usethis::use_package("R.rsp", type = "Suggests")
 # OR use Introduction.Rnw
 
@@ -122,8 +128,8 @@ addDcfElement = function(dcf, name, value) {
 dcf = read.dcf("DESCRIPTION")
 dcf[,"Title"] = "Categorical and Continuous Working Memory Models for Delayed-Estimation Tasks"
 dcf[,"Description"] = "Perform parameter estimation, posterior distribution analysis, and model comparison with the models used by Hardman, Vergauwe, & Ricker (2017). The models in this package are for delayed-estimation tasks that are commonly used in the working memory literature. The models are difficult to implement and work with for a variety of reasons, hence the value of this package. Hierarchical Bayesian implementations of between-item and within-item model variants used by Hardman, Vergauwe, and Ricker are included, as is the Zhang & Luck (2008) model. For any of these models, functions in this package allow you to relatively easily estimate the model parameters, plot parameter values, calculate posterior means and credible intervals, perform tests of the effect of task conditions on parameters, and calculate model fit statistics, among other things."
-dcf[,"Author"] = "Kyle O Hardman"
-dcf[,"Maintainer"] = "Kyle O Hardman <kylehardman@gmail.com>"
+dcf[,"Author"] = "Kyle O. Hardman"
+dcf[,"Maintainer"] = "Kyle O. Hardman <kylehardman@gmail.com>"
 dcf[,"Version"] = CatContPackageVersion
 
 
@@ -143,7 +149,25 @@ file.remove( autogenToRM )
 
 
 ######
-# Basic install without documentation
+# Basic install without documentation and with all functions exported
+devtools::install(args="--no-multiarch")
+
+
+
+
+
+
+
+
+
+######
+# Install with documentation which also hides unexported functions
+
+devtools::document() # If you remove NAMESPACE before documenting, the package is invalid.
+file.remove("NAMESPACE") # roxygen2 no longer overwrites NAMESPACE, so remove it.
+devtools::document() # If NAMESPACE is removed after 1 documentation pass, the package is valid.
+
+# Install with documentation
 devtools::install(args="--no-multiarch")
 
 
@@ -172,22 +196,7 @@ quickAndDirtyRebuild = function() {
   
 }
 
-if (FALSE) {
-  
-  quickAndDirtyRebuild()
-  
-}
-
-######
-# documentation
-
-# For some reason, the dll needs to be compiled before documentation???
-#pkgbuild::compile_dll()
-
-devtools::document()
-
-# Install with documentation
-devtools::install(args="--no-multiarch")
+## Optional:       quickAndDirtyRebuild()
 
 
 ###################################################################
@@ -256,7 +265,7 @@ devtools::build(packageLocation, path=paste0(baseDir, "packaged/"), binary = TRU
 
 
 #Test installation
-install.packages( paste0(baseDir, "/packaged/CatContModel_0.8.1.tar.gz"), repos=NULL)
-install.packages( paste0(baseDir, "/packaged/CatContModel_0.8.1.zip"), repos=NULL)
+install.packages( paste0(baseDir, "/packaged/CatContModel_0.9.0.tar.gz"), repos=NULL)
+install.packages( paste0(baseDir, "/packaged/CatContModel_0.9.0.zip"), repos=NULL)
 
 

@@ -45,6 +45,7 @@ WeightsDistribution weightsDistributionFromString(string weightsDistStr) {
 	return wd;
 }
 
+#ifdef USING_CAT_SPLINE
 LambdaVariant lambdaVariantFromString(string lambdaVariantStr) {
 
 	LambdaVariant lambdaVariant = LambdaVariant::None;
@@ -58,6 +59,7 @@ LambdaVariant lambdaVariantFromString(string lambdaVariantStr) {
 	return lambdaVariant;
 
 }
+#endif
 
 #if COMPILING_WITH_RCPP
 
@@ -112,6 +114,51 @@ string extractIndex(string s) {
 string extractBaseParameterName(string s) {
 	unsigned int baseEnd = s.find_first_of("_.["); //weak heuristic: pMem_cond[1], pMem.mu, pMem[2]
 	return s.substr(0, baseEnd);
+}
+
+string joinIndexedParam(string name, vector<string> index) {
+	string rval = name + "[";
+	for (size_t i = 0; i < index.size(); i++) {
+		rval += index[i];
+		if (i < index.size() - 1) {
+			rval += ",";
+		}
+	}
+	rval += "]";
+
+	return rval;
+}
+
+// First index is the parameter name
+vector<string> splitIndexedParam(string joined) {
+
+	vector<string> rval;
+	rval.push_back(extractBaseParameterName(joined));
+
+	string indexStr = extractIndex(joined);
+	vector<string> indexParts = splitString(indexStr, ",");
+	rval.insert(rval.end(), indexParts.begin(), indexParts.end());
+
+	return rval;
+}
+
+vector<string> splitString(string str, string delim) {
+	vector<string> rval;
+
+	size_t offset = 0;
+	while (offset < str.size()) {
+		size_t delimStart = str.find(delim, offset);
+		size_t start = offset;
+		size_t end = delimStart - 1;
+		rval.push_back(str.substr(start, end));
+		offset = delimStart + delim.size();
+	}
+
+	if (rval.size() == 0) {
+		rval.push_back(str);
+	}
+
+	return rval;
 }
 
 void logMessage(string module, string message, bool endLine) {
@@ -270,4 +317,4 @@ vector<string> ModelConfiguration::getParamWithoutConditionEffects(void) const {
 
 
 
-}
+} // namespace CatCont

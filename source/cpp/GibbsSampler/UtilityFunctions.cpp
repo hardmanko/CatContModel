@@ -19,7 +19,7 @@ double normal_varPostSample(const std::vector<double>& y, double mu, double a0, 
 	double a = a0 + y.size() / 2.0;
 	double b = b0 + SSE / 2;
 
-	double r = rgamma(a, 1 / b); //this takes shape and scale, so 1/b, b being rate
+	double r = rgamma(a, 1 / b); //this takes shape and scale, so 1/b is scale, b being rate
 	return 1 / r;
 }
 

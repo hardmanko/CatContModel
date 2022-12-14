@@ -24,11 +24,12 @@ double MH_Parameter::_getNextSample(void) {
 
 	//if the candidate is outside of the range of possible values, reject it
 	if (candidate < range.lower || candidate > range.upper) {
+		acceptanceTracker.parameterRejected();
 		return currentValue;
 	}
 
 	param[this->name] = currentValue; // what? why would this->value() not equal the stored value?
-	//_gibbs->updateDependentParameters(&param); //Does this need to be here?
+	_gibbs->updateDependentParameters(&param); //Does this need to be here?
 	double currentLL = this->llFunction(currentValue, param);
 
 	param[this->name] = candidate;
@@ -288,6 +289,7 @@ std::vector<double> VectorMH_Parameter::__getNextSamples(void) {
 	for (unsigned int i = 0; i < candidateValues.size(); i++) {
 		//if any of the candidates are outside of the range of possible values, reject all
 		if (candidateValues[i] < ranges[i].first || candidateValues[i] > ranges[i].second) {
+			acceptanceTracker.parameterRejected();
 			return currentValues;
 		}
 	}
@@ -296,8 +298,7 @@ std::vector<double> VectorMH_Parameter::__getNextSamples(void) {
 	for (unsigned int i = 0; i < currentValues.size(); i++) {
 		param[_elementNames[i]] = currentValues[i];
 	}
-	_gibbs->updateDependentParameters(&param);
-	//Probably don't need to here
+	_gibbs->updateDependentParameters(&param); // Probably don't need to here
 
 	double currentLL = this->llFunction(currentValues, param); //Calculate current log likelihood
 

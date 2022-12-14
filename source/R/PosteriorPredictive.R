@@ -83,13 +83,84 @@ plotColorWheelBar = function(angles, xpos, ypos, colorGeneratingFunction, horiz 
 	}
 }
 
-#' Posterior Predictive Distribution Plots
+#' Sample from Posterior Predictive Distribution
 #' 
-#' This function samples from the posterior predictive distribution for a participant in all conditions and plots the sampled data alongside the participant's actual data.
+#' Samples from the posterior predictive distribution of a fitted model. See [`posteriorPredictivePlot`] for plots.
+#'
+#' @param results The results from the [`runParameterEstimation`] function. The `colorGeneratingFunction` element will be used if available.
+#' @param pnums The participant number(s) of the participant for whom you want to predict data. By default, all participants are used.
+#' @param conds If not `NULL`, a vector of the conditions of the experiment to plot. If `NULL` (the default), all conditions are plotted.
+#' 
+#' @return A `data.frame` containing the sampled data.
+#' 
+#' @family WP functions
+#' 
+#' @export
+posteriorPredictiveSample = function(results, pnums=NULL, conds=NULL, filterColumns=TRUE) {
+  
+  if (!resultIsType(results, "WP")) {
+    stop("posteriorPredictiveSample only accepts WP results objects. See the Glossary (listed in the package functions index).")
+  }
+  
+  if (is.null(pnums)) {
+    pnums = results$pnums
+  }
+  
+  pnumData = results$data[ results$data$pnum %in% pnums, ]
+  
+  if (is.null(conds)) {
+    conds = as.character(sort(unique(pnumData$cond)))
+  }
+  
+  allSampled = NULL
+  
+  for (pnum in pnums) {
+    for (cond in conds) {
+      
+      thisCondData = pnumData[ pnumData$cond == cond & pnumData$pnum == pnum, ]
+      
+      sampled = NULL
+      
+      for (i in 1:nrow(thisCondData)) {
+        
+        # Choose one iteration from the posterior
+        postIter = sample(1:results$runConfig$iterations, 1)
+        
+        param = getSingleIterationParameters(results, pnum=pnum, cond=cond, iteration=postIter)
+        
+        thisSample = sampleDataFromModel(thisCondData$study[i], param, 
+                                         modelVariant = results$config$modelVariant, 
+                                         dataType = results$config$dataType, 
+                                         responseRange = results$config$responseRange)
+        
+        sampled = rbind(sampled, thisSample)
+      }
+      
+      sampled$pnum = pnum
+      sampled$cond = cond
+      allSampled = rbind(allSampled, sampled)
+    }
+  }
+  
+  if (filterColumns) {
+    keepCol = c("pnum", "cond", "study", "response")
+    allSampled = allSampled[ , keepCol ]
+  }
+  
+  allSampled
+}
+
+
+
+#' Plot Posterior Predictive Distribution
+#' 
+#' Samples from the posterior predictive distribution of a fitted model (see [`posteriorPredictiveSample`]), 
+#' then plots the sampled data alongside the actual data. 
+#' Data from all selected participants are plotted in the same plot. Can plot participants one at a time.
 #' 
 #' @param results The results from the [`runParameterEstimation`] function. The `colorGeneratingFunction` element will be used if available.
 #' @param pnums The participant number(s) of the participant for whom you want to predict data. By default, all participants are used.
-#' @param conditions If not `NULL`, a vector of the conditions of the experiment to plot. If `NULL` (the default), all conditions are plotted.
+#' @param conds If not `NULL`, a vector of the conditions of the experiment to plot. If `NULL` (the default), all conditions are plotted.
 #' @param rowLabels A vector of labels of length equal to the number of conditions. The labels are put on each row of plots. If `NULL`, `rowLabels` are made from the `conditions` list in `results`.
 #' @param xlim A 2-length vector of the xlim for plotting.
 #' @param ylim A 2-length vector of the ylim for plotting.
@@ -104,7 +175,7 @@ plotColorWheelBar = function(angles, xpos, ypos, colorGeneratingFunction, horiz 
 #' @family plotting functions
 #' 
 #' @export
-posteriorPredictivePlot = function(results, pnums = NULL, conditions=NULL, rowLabels=NULL, xlim=NULL, ylim=NULL, xat=NULL, yat=NULL, alpha=0.5, plotPnum=FALSE) {
+posteriorPredictivePlot = function(results, pnums=NULL, conds=NULL, rowLabels=NULL, xlim=NULL, ylim=NULL, xat=NULL, yat=NULL, alpha=0.5, plotPnum=TRUE) {
 	
 	if (!resultIsType(results, "WP")) {
 		stop("posteriorPredictivePlot only accepts WP results objects. See the Glossary (listed in the package functions index).")
@@ -117,6 +188,14 @@ posteriorPredictivePlot = function(results, pnums = NULL, conditions=NULL, rowLa
 	plotPnum = plotPnum && (length(pnums) == 1) #don't plot pnum if there is more than 1
 
 	pnumData = results$data[ results$data$pnum %in% pnums, ]
+	
+	if (is.null(conds)) {
+	  conds = as.character(sort(unique(pnumData$cond)))
+	}
+	
+	ppSample = posteriorPredictiveSample(results, pnums=pnums, conds=conds)
+	
+	
 	
 	if (is.null(xlim)) {
 		if (results$config$dataType == "circular") {
@@ -134,46 +213,11 @@ posteriorPredictivePlot = function(results, pnums = NULL, conditions=NULL, rowLa
 	}
 	
 	
-	if (is.null(conditions)) {
-		conditions = as.character(sort(unique(pnumData$cond)))
-	}
+	graphics::par(mfrow=c(length(conds), 2), mar=c(5,4,3,1))
 	
-	
-	allSampled = NULL
-	
-	for (pnum in pnums) {
-		for (cond in conditions) {
-
-			thisCondData = pnumData[ pnumData$cond == cond & pnumData$pnum == pnum, ]
-
-			sampled = NULL
-			
-			for (i in 1:nrow(thisCondData)) {
-				
-				s = sample(1:results$config$iterations, 1)
-				
-				param = getSingleIterationParameters(results, pnum=pnum, cond=cond, iteration=s)
-				
-				thisSample = sampleDataFromModel(thisCondData$study[i], param, 
-																				 modelVariant = results$config$modelVariant, 
-																				 dataType = results$config$dataType, 
-																				 responseRange = results$config$responseRange)
-				
-				sampled = rbind(sampled, thisSample)
-			}
-
-			sampled$pnum = pnum
-			sampled$cond = cond
-			allSampled = rbind(allSampled, sampled)
-		}
-	}
-	
-	
-	graphics::par(mfrow=c(length(conditions), 2), mar=c(5,4,3,1))
-	
-	for (condIndex in 1:length(conditions)) {
+	for (condIndex in 1:length(conds)) {
 		
-		cond = conditions[condIndex]
+		cond = conds[condIndex]
 		
 		thisCondData = pnumData[ pnumData$cond == cond, ]
 		
@@ -196,6 +240,7 @@ posteriorPredictivePlot = function(results, pnums = NULL, conditions=NULL, rowLa
 				}
 			}
 		}
+		
 		labelEnd = paste(ifelse(plotPnum, paste("Part. ", pnums, ", ", sep=""), ""), rowLabel, sep="")
 
 		
@@ -204,7 +249,7 @@ posteriorPredictivePlot = function(results, pnums = NULL, conditions=NULL, rowLa
 														 alpha=alpha, xlim=xlim, ylim=ylim, xat=xat, yat=yat)
 		graphics::mtext(paste("Data - ", labelEnd, sep=""), side=3, line=1.5, cex=graphics::par()$cex * 1.3, adj=0)
 		
-		scatterplotWithColorBars(allSampled[ allSampled$cond == cond, ], 
+		scatterplotWithColorBars(ppSample[ ppSample$cond == cond, ], 
 														 colorGeneratingFunction = results$colorGeneratingFunction, 
 														 alpha=alpha, xlim=xlim, ylim=ylim, xat=xat, yat=yat)
 		graphics::mtext(paste("Model - ", labelEnd, sep=""), side=3, line=1.5, cex=graphics::par()$cex * 1.3, adj=0)
@@ -213,7 +258,7 @@ posteriorPredictivePlot = function(results, pnums = NULL, conditions=NULL, rowLa
 	
 	graphics::par(mfrow=c(1,1))
 	
-	invisible(allSampled)
+	invisible(ppSample)
 }
 
 

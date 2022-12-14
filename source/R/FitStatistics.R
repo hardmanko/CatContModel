@@ -1,20 +1,40 @@
 
 #' Calculate Whole Model WAIC
 #' 
-#' WAIC is a whole-model fit statistic, like AIC. However, WAIC cannot be directly compared with AIC, but it is conceptually very similar.
+#' WAIC is a whole-model fit statistic, like AIC and BIC. WAIC cannot be directly compared with AIC or BIC, but it is conceptually very similar.
 #' 
 #' WAIC is an appropriate fit statistic for these models because
-#' 1) it can be calculated without using posterior means, which some parameters do not have (specifically catMu and catActive). 
+#' 1) it can be calculated without using posterior means, which some parameters do not have (specifically `catMu` and `catActive`). 
 #' 2) it estimates the effective number of free parameters, which is wildly different from the actual number of free parameters.
 #' See the documentation for [`calculateInappropriateFitStatistics`] for more information on the number of parameters.
 #' 
-#' There are two ways to estimate the effective number of free parameters for WAIC and results from both are reported.
+#' There are two ways to estimate the effective number of free parameters for WAIC and results from both are reported as `WAIC_1` and `WAIC_2`.
+#' The estimated number of free parameters are reported as `P_1` and `P_2`.
+#' Both ways of calculating WAIC use the same `LPPD` or "log posterior predictive density".
 #'  
-#' WAIC is a whole-model fit statistic. These models have parameters that are shared by participants (the hierarchical population mean and variance parameters and the condition effect parameters). This means that the participants are not independent, so examining WAIC for individual participants is unprincipled and may give inaccurate results. Thus, you should leave `onlyTotal` at the default value of `TRUE`.
+#' WAIC is a whole-model fit statistic. These models have parameters that are shared by participants (the hierarchical 
+#' population mean and variance parameters and the condition effect parameters). This means that the participants are 
+#' not independent, so examining WAIC for individual participants is unprincipled and may give inaccurate results. 
+#' Thus, you should leave `onlyTotal` at the default value of `TRUE`.
 #' 
-#' Note that you can use WAIC to compare model variants, like the between-item and within-item variants. You can also compare models that differ in other ways, such as which parameters have condition effects, the maximum number of categories, reduced models with some parameters set to constant values, more or less restrictive priors, etc.
+#' The main use for WAIC is to compare model variants to select an appropriate model for a data set 
+#' (i.e. does the between-item or ZL model fit this data best?). 
+#' WAIC can also be used to compare models that differ in other ways, such as which parameters have condition effects, 
+#' the maximum number of categories, reduced models with some parameters set to constant values, more or less restrictive priors, etc.
 #' 
-#' You can estimate how much the variability in the posterior chains affects WAIC by using the `subsamples` and `subsampleProportion` arguments. If `subsamples` is greater than 1, multiple subsamples from the posterior chains will be taken and the standard deviation of WAIC (et al.) across the subsamples will be calculated. The number of iterations used in each subsample is a proportion of the total number of iterations and is set by `subsampleProportion`. Note that this is not the standard deviation of WAIC over repeated samples of data sets, so it tells you nothing about what would happen if you had different data. It essentially tells you whether or not you ran enough iterations to have a stable WAIC estimate. The closer `subsampleProportion` is to 1, the less independent the subsamples will be, so you should use a reasonably low value of `subsampleProportion`. The degree to which the subsamples are independent influences to what extent the standard deviation is underestimated: The less independent, the larger the underestimate will be. If you want fully independent subsamples, you can set `subsampleProportion` to NULL. However, this means that the number of subsamples and the proportion of iterations in each subsample to be inversely related, which means that you have to choose between a low number of subsamples or a low number of iterations per subsample.
+#' You can estimate how much the variability in the posterior chains affects WAIC by using the `subsamples` and 
+#' `subsampleProportion` arguments. If `subsamples` is greater than 1, multiple subsamples from the posterior chains 
+#' will be taken and the standard deviation of WAIC (and its components) across the subsamples will be calculated. 
+#' The number of iterations used in each subsample is a proportion of the total number of iterations and is set by 
+#' `subsampleProportion`. Note that this is not the standard deviation of WAIC over repeated samples of data sets, 
+#' so it tells you nothing about what would happen if you had different data. It essentially tells you whether or 
+#' not you ran enough iterations to have a stable WAIC estimate. The closer `subsampleProportion` is to 1, the less 
+#' independent the subsamples will be, so you should use a reasonably low value of `subsampleProportion`. The degree to 
+#' which the subsamples are independent influences to what extent the standard deviation is underestimated: The less 
+#' independent, the larger the underestimate will be. If you want fully independent subsamples, you can set 
+#' `subsampleProportion` to `NULL`. However, this means that the number of subsamples and the proportion of iterations 
+#' in each subsample to be inversely related, which means that you have to choose between a low number of subsamples or
+#' a low number of iterations per subsample.
 #' 
 #' 
 #' @param res A generic results object (see [`Glossary`]).
@@ -58,36 +78,30 @@ calculateWAIC_convertPosteriorCatMu = function(res) {
 	}
 	
 	if (resultIsType(res, "WP")) {
-		res = calculateWAIC_convertPosteriorCatMu.WP(res)
+	  res = convertCatMuUnits(res, CatContModel::d2r)
+	  
 	} else if (resultIsType(res, "BP")) {
 		for (grp in names(res$groups)) {
-			res$groups[[ grp ]] = calculateWAIC_convertPosteriorCatMu.WP(res$groups[[ grp ]])
+		  res$groups[[ grp ]] = convertCatMuUnits(res$groups[[ grp ]], CatContModel::d2r)
 		}
+	} else {
+	  stop("Invalid results type.")
 	}
 	
 	res
 }
 
-calculateWAIC_convertPosteriorCatMu.WP = function(results) {
-	
-	for (p in unique(results$data$pnum)) {
-		for (i in 1:results$config$maxCategories) {
-			cmName = paste("catMu[", p, ",", i-1, "]", sep="")
-			results$posteriors[[ cmName ]] = CatContModel::d2r(results$posteriors[[ cmName ]])
-		}
-	}
-	
-	results
-}
-
 
 calculateWAIC_subsamples = function(res, subsamples, subsampleProportion) {
 	
-	subsampleIterationsToRemove = getSubsampleIterationsToRemove(res$config$iterations, subsamples, subsampleProportion)
+	subsampleIterationsToRemove = getSubsampleIterationsToRemove(res$runConfig$iterations, subsamples, subsampleProportion)
 	
 	allWAIC = NULL
 	
-	pb = utils::txtProgressBar(0, 1, 0, style=3)
+	if (subsamples > 1) {
+	  pb = utils::txtProgressBar(0, 1, 0, style=3)
+	}
+	
 	for (sub in 1:length(subsampleIterationsToRemove)) {
 		if (length(subsampleIterationsToRemove[[sub]]) > 0) {
 			subRes = removeBurnIn(res, subsampleIterationsToRemove[[sub]])
@@ -102,7 +116,9 @@ calculateWAIC_subsamples = function(res, subsamples, subsampleProportion) {
 		}
 		
 		for (grp in names(groups)) {
+		  # The actual call to the CPP function that does the heavy lifting
 			colWAIC = CCM_CPP_calculateWAIC(groups[[ grp ]])
+			
 			statNames = names(colWAIC)
 			statNames = statNames[ statNames != "pnum" ]
 			
@@ -113,9 +129,14 @@ calculateWAIC_subsamples = function(res, subsamples, subsampleProportion) {
 			
 		}
 		
-		utils::setTxtProgressBar(pb, sub / length(subsampleIterationsToRemove))
+	  if (subsamples > 1) {
+		  utils::setTxtProgressBar(pb, sub / length(subsampleIterationsToRemove))
+	  }
 	}
-	close(pb)
+	
+	if (subsamples > 1) {
+	  close(pb)
+	}
 	
 	allWAIC
 }

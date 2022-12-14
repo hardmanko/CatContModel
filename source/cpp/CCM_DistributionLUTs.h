@@ -148,7 +148,7 @@ private:
 */
 
 extern VonMisesLUT vmLut;
-extern NormalLUT normalLUT;
+//extern NormalLUT normalLUT;
 //extern LogisticLUT logitLUT;
 
 } // namespace CatCont

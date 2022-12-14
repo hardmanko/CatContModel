@@ -122,10 +122,13 @@ mergeCells = function(cells, i1, i2) {
 #' Parameters that vary with factors, a line chart is plotted with error bars giving a 95%
 #' credible interval of the mean. For parameters that do not vary with factors, a histogram of participant
 #' parameters is plotted, with the mean indicated by a vertical dashed line.
+#' Each of the panels of the overall parameter summary plot can be made with different underlying plotting functions. 
+#' These are [`plotParameterHistogram`], [`plotParameterLineChart`], and [`plotCatMu`].
 #' 
-#' Plotting to the default plotting surface in R often does not work well due to the large number of plots that are made. To plot to a pdf instead, which tends to work better, you can either 1) use the `pdf` function before calling `plotParameterSummary` or 2) use the `asPdf` argument to plot to a pdf rather than the default plotting surface.
+#' @details
 #' 
-#' Each of the panels of the overall parameter summary plot can be made with different underlying plotting functions. These are [`plotParameterHistogram`], [`plotParameterLineChart`], and [`plotCatMu`].
+#' Plotting to the default plotting surface in R often does not work well due to the large number of plots that are made. 
+#' To plot to a pdf instead, which tends to work better, you can use the `pdfFile` argument.
 #' 
 #' @section `catMu` and `catActive`:
 #' In addition, a histogram of the number of active categories per participant is plotted, as is the
@@ -149,20 +152,19 @@ mergeCells = function(cells, i1, i2) {
 #' @param factorOrder The order in which the factors are plotted. Only useful if there is more than one factor. The first factor is put on the x-axis of factorial line charts. The order of the others factors doesn't really matter.
 #' @param cip The proportion of the posterior in the credible interval.
 #' @param paramSymbols A named list like that returned by [`getParameterSymbols`] that gives plotting symbols for the parameters of the model.
-#' @param asPdf If `TRUE`, rather than plotting to the current plotting device, the plot is made in a pdf file that is opened in the default pdf viewer for your system.
+#' @param pdfFile Name of a pdf file to plot to.
 #' @param pdfScale Multiplicative scale factor for the size of the pdf. A larger value makes the plotting area larger, which makes all of the contents appear to be smaller.
-#' @param pdfDir The directory in which to make the pdf file. Defaults to a temporary directory.
-#' 
+#' @param openPdf If `TRUE`, an attempt will be made to open the pdf file in a viewer.
 #' 
 #' @family generic functions
 #' @family plotting functions
 #'
 #' @export
-plotParameterSummary = function(res, catMuPrec = 2, factorOrder = NULL, cip = 0.95, paramSymbols = NULL, asPdf = FALSE, pdfScale = 1.5, pdfDir = tempdir()) {
+plotParameterSummary = function(res, catMuPrec = 2, factorOrder = NULL, cip = 0.95, paramSymbols = NULL, pdfFile = NULL, pdfScale = 1.5, openPdf=TRUE) 
+{
 	
 	resultWasWP = FALSE
 	
-	# Note that this function can take single group results (so it could just be renamed to plotParameterSummary)
 	if (resultIsType(res, "WP")) {
 		resultWasWP = TRUE
 		
@@ -173,26 +175,26 @@ plotParameterSummary = function(res, catMuPrec = 2, factorOrder = NULL, cip = 0.
 		
 	} else if (resultIsType(res, "BP")) {
 		bpRes = res
+	} else if (resultIsType(res, "Parallel")) {
+	  stop("plotParameterSummary does not support Parallel results objects.")
 	}
 	
-	
-	if (asPdf) {
-		pdfFile = paste0(pdfDir, "/parameterSummary.pdf")
-		
-		if (bpRes$config$modelVariant == "ZL") {
-			pdfSize = c(6, 3) * pdfScale
-		} else if (bpRes$config$modelVariant == "betweenItem") {
-			pdfSize = c(9, 9) * pdfScale
-		} else if (bpRes$config$modelVariant == "withinItem") {
-			pdfSize = c(9, 9) * pdfScale
-		} else if (bpRes$config$modelVariant == "betweenAndWithin") {
-			pdfSize = c(9, 12) * pdfScale
-		}
-		
-		grDevices::pdf(pdfFile, width = pdfSize[1], height = pdfSize[2])
+	# Set up the pdf
+	if (!is.null(pdfFile)) {
+	  if (bpRes$config$modelVariant == "ZL") {
+	    pdfSize = c(6, 3) * pdfScale
+	  } else if (bpRes$config$modelVariant == "betweenItem") {
+	    pdfSize = c(9, 9) * pdfScale
+	  } else if (bpRes$config$modelVariant == "withinItem") {
+	    pdfSize = c(9, 9) * pdfScale
+	  } else if (bpRes$config$modelVariant == "betweenAndWithin") {
+	    pdfSize = c(9, 12) * pdfScale
+	  }
+	  
+	  grDevices::pdf(pdfFile, width = pdfSize[1], height = pdfSize[2])
 	}
-	
 
+	
 	availableFactorNames = getAllFactorNames(bpRes$config$factors, removeConstant = TRUE)
 	
 	if (is.null(paramSymbols)) {
@@ -249,16 +251,18 @@ plotParameterSummary = function(res, catMuPrec = 2, factorOrder = NULL, cip = 0.
 	#This doesn't destroy anything, it just lets any following plots go in a new, non-split surface
 	graphics::close.screen(all.screens=TRUE)
 	
-	if (asPdf) {
+	if (!is.null(pdfFile)) {
 		grDevices::dev.off()
 		
-		os = Sys.info()[['sysname']]
-		if (os == "Windows") {
-			system(paste0('cmd /c "', pdfFile, '"'), wait=FALSE)
-		} else if (os == "Darwin" || os == "Linux") {
-			system(paste0('open "', pdfFile, '"'), wait=FALSE)
-		}
-
+	  if (openPdf) {
+  	  # Try to open the file
+  		os = Sys.info()[['sysname']]
+  		if (os == "Windows") {
+  			system(paste0('cmd /c "', pdfFile, '"'), wait=FALSE)
+  		} else if (os == "Darwin" || os == "Linux") {
+  			system(paste0('open "', pdfFile, '"'), wait=FALSE)
+  		}
+    }
 	}
 }
 
@@ -638,9 +642,12 @@ catMu_getPlotData = function(catMu, catActive, precision, dataType, responseRang
 	
 	heights = rep(0, length(angles))
 	colors = rep("", length(angles))
-	for (i in 1:(length(angles) - 1)) {
-		heights[i] = mean(activeCatMu >= angles[i] & activeCatMu < angles[i + 1])
-		colors[i] = cgf(angles[i] + precision/2)
+	
+	if (length(activeCatMu) > 0) {
+  	for (i in 1:(length(angles) - 1)) {
+  		heights[i] = mean(activeCatMu >= angles[i] & activeCatMu < angles[i + 1])
+  		colors[i] = cgf(angles[i] + precision/2)
+  	}
 	}
 	
 	# The last point is the first point. Copy the first point to the last point.

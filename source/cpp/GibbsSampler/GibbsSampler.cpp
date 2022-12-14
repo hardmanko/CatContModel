@@ -186,11 +186,8 @@ void GibbsSampler::run(size_t samplesToCollect, bool clearExistingSamples) {
 			long long lapDurationMs = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lapStartTime).count();
 			long long msPerIteration = (double)lapDurationMs / iterationsPerStatusUpdate;
 
-			long long totalDurationSec = std::chrono::duration_cast<std::chrono::seconds>(currentTime - runStartTime).count();
-			double proportionComplete = ((double)i + 1) / samplesToCollect;
-			double proportionRemaining = 1 - proportionComplete;
-			double secondsRemaining = proportionRemaining / proportionComplete * totalDurationSec;
-			long long minRemaining = secondsRemaining / 60.0;
+			size_t remainingIterations = samplesToCollect - i;
+			long long minRemaining = remainingIterations * msPerIteration / (1000.0 * 60.0);
 
 #if COMPILING_WITH_RCPP
 			GS_COUT << "\r"; // Does not print new line, just overwrites old line.

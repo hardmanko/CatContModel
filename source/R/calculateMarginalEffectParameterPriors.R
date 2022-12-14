@@ -1,7 +1,7 @@
 
 #' Marginal Priors on Main Effect and Interaction Parameters
 #' 
-#' Given the structure of the model, it is possible to specify the priors on condition effects.
+#' Given the structure of the model, it is possible to directly specify the priors on condition effects.
 #' The priors on the resulting main effect and interaction (MEI) effect parameters, however, are 
 #' not directly specified, but can be calculated, which is what this function does.
 #' 
@@ -39,6 +39,8 @@
 #' @return A `data.frame` with four columns: the `factor` being used, the `effect` parameter, the prior `location`, and the prior `scale`.
 #' 
 #' @family WP functions
+#' 
+#' @seealso testMainEffectsAndInteractions
 #' 
 #' @export
 calculateMarginalEffectParameterPriors = function(results, param, testedFactors = NULL, dmFactors = NULL, contrastType = NULL, priorLoc = NULL, priorScale = NULL) {

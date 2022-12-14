@@ -3,7 +3,7 @@
 #' 
 #' @param groups A named list in which each element is the return value of [`runParameterEstimation`].
 #' 
-#' @return An object that merges the results into a form that is usuable by the between-participants and generic functions in this package.
+#' @return An object that combines the results into a form that is usuable by the between-participants and generic functions in this package.
 #' 
 #' @family BP functions
 #'
@@ -20,9 +20,11 @@ combineGroupResults.BP = function(groups) {
 	config$factors = makeDefaultFactors.BP(groups)
 	config$conditionEffects = makeConditionEffects.BP(groups)
 	
+	runConfig = groups[[1]]$runConfig
+	# TODO: Double check that all groups have same iterations
+	
 	# Things that must go in general config:
 	# modelVariant
-	# iterations
 	# dataType
 	
 	# Things that really should be the same for all groups:
@@ -36,10 +38,38 @@ combineGroupResults.BP = function(groups) {
 	# Things that may be different between groups
 	# iterationsPerStatusUpdate
 
-	bpRes = list(groups = groups, config = config)
+	bpRes = list(groups = groups, config = config, runConfig = runConfig)
 	class(bpRes) = c(class(bpRes), "CCM_BP")
 
 	bpRes
+}
+
+checkResults.BP = function(groups, iterations = TRUE, modelVariant = TRUE, dataType = TRUE) {
+  
+  #TODO: Also check priors.
+  # Use compareResults to check that it's the same model config, including priors and constant values.
+  #for (i in 2:length(groups)) {
+  #  compareResults(groups[[1]], groups[[i]], exclude=c("data", "mhTuning"))
+  # data=FALSE, mhTuning=FALSE, config=TRUE, constantValues=TRUE, equalityConstraints = TRUE, priors=TRUE
+  #}
+  
+  checkEq = c(
+    ifelse(iterations, "iterations", NA),
+    ifelse(modelVariant, "modelVariant", NA),
+    ifelse(dataType, "dataType", NA)
+  )
+  checkEq = checkEq[ !is.na(checkEq) ]
+  
+  for (ch in checkEq) {
+    values = NULL
+    for (n in names(groups)) {
+      values = c(values, groups[[n]]$config[[ch]])
+    }
+    if (length(unique(values)) > 1) {
+      stop(paste0("config$", ch, " is not the same between different results."))
+    }
+  }
+  
 }
 
 # BP condition effects are created by taking the union of the CE of all WP groups.
@@ -88,38 +118,11 @@ backPropogateBPFactorsToWPFactors = function(bpRes) {
 	bpRes
 }
 
-backPropogateFactorsToConditionEffects = function(factors) {
-	
+#backPropogateFactorsToConditionEffects = function(factors) {
 	# This function is not possible because factors is for the whole design,
 	# but each parameter can have different condition effects.
-	
-}
+#}
 
-#TODO: Also check priors
-checkResults.BP = function(groups, iterations = TRUE, modelVariant = TRUE, dataType = TRUE) {
-	
-	# Consider using the new compareResults function
-	#compareResults(groups[[1]], groups[[2]], data=FALSE, mhTuning=FALSE, constantValueOverrides=FALSE, equalityConstraints = FALSE, priors=TRUE?, config=TRUE, configIgnore = c("iterationsPerStatusUpdate"))
-	
-	
-	checkEq = c(
-		ifelse(iterations, "iterations", NA),
-		ifelse(modelVariant, "modelVariant", NA),
-		ifelse(dataType, "dataType", NA)
-	)
-	checkEq = checkEq[ !is.na(checkEq) ]
-	
-	for (ch in checkEq) {
-		values = NULL
-		for (n in names(groups)) {
-			values = c(values, groups[[n]]$config[[ch]])
-		}
-		if (length(unique(values)) > 1) {
-			stop(paste0("config$", ch, " is not the same between different results."))
-		}
-	}
-
-}
 
 
 #The name of the between-participants factor is "group"
@@ -153,6 +156,8 @@ makeDefaultFactors.BP = function(groups) {
 	if (any(is.na(factors))) {
 		warning("Factor names appear to be inconsistent between the groups. Did you set up the factors correctly before running parameter estimation? You should examine and correct the factors data frames for the individual groups and rerunning parameter estimation. This is not something that can be reliably fixed after running parameter estimation.")
 	}
+	
+	factors = normalizeFactors(factors, removeConstant=TRUE)
 	
 	type2name = getFactorTypeToName(factors)
 	if (length(groups) > 1 && length(type2name$bp) == 0) {

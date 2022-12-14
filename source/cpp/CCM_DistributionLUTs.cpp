@@ -8,7 +8,7 @@ namespace CatCont {
 
 // Static instances
 VonMisesLUT vmLut;
-NormalLUT normalLUT;
+//NormalLUT normalLUT;
 
 
 

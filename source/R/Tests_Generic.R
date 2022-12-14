@@ -3,7 +3,8 @@
 #' Perform a Single Hypothesis Test of a Main Effect or Interaction
 #' 
 #' This function performs a single hypothesis test of a selected effect.
-#' This is a lower-level function than [`testMainEffectsAndInteractions`] and it gives you more control than that function. For even more control, see [`getConditionEffects`] and the CMBBHT package (https://github.com/hardmanko/CMBBHT).
+#' This is a lower-level function than [`testMainEffectsAndInteractions`] and it gives you more control than that function. 
+#' For even more control, see [`getConditionEffects`] and the CMBBHT package (https://github.com/hardmanko/CMBBHT).
 #' 
 #' See the details of [`testMainEffectsAndInteractions`] for some discussion of fully-crossed vs non-fully-crossed designs.
 #' 
@@ -25,15 +26,20 @@
 #' 
 #' @export
 testSingleEffect = function(res, param, testedFactors, dmFactors = testedFactors, 
-														usedFactorLevels = NULL, priorSamples = res$config$iterations, 
+														usedFactorLevels = NULL, priorSamples = res$runConfig$iterations, 
 														testFunction = CMBBHT::testFunction_SDDR, contrastType = NULL,
 														addMu = NULL, manifest = NULL) 
 {
 
-	priorSamples = valueIfNull(priorSamples, res$config$iterations)
+  if (resultIsType(res, "Parallel")) {
+    stop("Cannot analyze Parallel results.")
+  }
+  
+	priorSamples = valueIfNull(priorSamples, res$runConfig$iterations)
+	
 	
 	if (is.null(manifest)) {
-		if (param %in% getSdParams(NULL)) {
+		if (param %in% getParamNames(types="sd")) {
 			manifest = TRUE
 		} else {
 			manifest = FALSE
@@ -79,7 +85,7 @@ testSingleEffect = function(res, param, testedFactors, dmFactors = testedFactors
 
 
 
-testMEI_singleParameter = function(res, param, priorSamples = res$config$iterations, doPairwise = FALSE, 
+testMEI_singleParameter = function(res, param, priorSamples = res$runConfig$iterations, doPairwise = FALSE, 
 																					 testFunction = CMBBHT::testFunction_SDDR, 
 																					 addMu = NULL, manifest = NULL) 
 {
@@ -146,28 +152,49 @@ testMEI_singleParameter = function(res, param, priorSamples = res$config$iterati
 
 #' Test Main Effects and Interactions of Factors
 #' 
-#' Perform hypothesis tests of main effects and interactions for one-factor and multi-factor designs. If your design is fully crossed, your life is simple. If your design is not fully crossed, you may not be able to use this function for all of your tests (see Details).
+#' Perform hypothesis tests of main effects and interactions for one-factor and multi-factor designs. 
+#' If your design is fully crossed, your life is simple. 
+#' If your design is not fully crossed, you may not be able to use this function for all of your tests (see Details).
 #' 
-#' You must provide a `data.frame` containing the mapping from conditions to factor levels. This should be provided in `results$config$factors`. See [`runParameterEstimation`] for more information about creating this `data.frame`. If you are using a one-factor design, this will have been created for you and you don't need to do anything. If using multiple factors, you should have given `config$factors` to `runParameterEstimation`.
+#' @details
+#' You must provide a `data.frame` containing the mapping from conditions to factor levels. 
+#' This should be provided in `res$config$factors`. See [`makeFactors`] for more information about creating this `data.frame`. 
+#' If you are using a one-factor design, this will have been created for you and you don't need to do anything. 
+#' If using multiple factors, you should have given `config$factors` to `runParameterEstimation`.
 #' 
-#' This function uses kernel density estimation to estimate the densities of some relevant quantities. This procedure is somewhat noisy. As such, I recommend that you perform the procedure many times, the number of which can be configured with the `subsamples` argument. Then, aggregate results from the many repetitions of the procedure can be analyzed, which is done by default but can be changed by setting `summarize` to `FALSE`.
-#' I recommend using many `subsamples` to see how noisy the estimation is. You can leave `subsampleProportion` at 1 or use a somewhat lower value. I would recommend against using a value of `subsampleProportion` that would result in fewer than 1,000 iterations being used per subsample.
+#' This function uses kernel density estimation to estimate the densities of some relevant quantities. 
+#' This procedure is somewhat noisy. 
+#' As such, I recommend that you perform the procedure many times, the number of which can be configured with the `subsamples` argument. 
+#' Then, aggregate results from the many repetitions of the procedure can be analyzed, which is done by default but can be changed by setting `summarize` to `FALSE`.
+#' I recommend using many `subsamples` to see how noisy the estimation is. 
+#' You can leave `subsampleProportion` at 1 or use a somewhat lower value. 
+#' I would recommend against using a value of `subsampleProportion` that would result in fewer than 1,000 iterations being used per subsample.
 #' 
-#' For designs that are fully-crossed, sums-to-zero contrasts are used by default. Like any other kind of orthogonal contrast, sums-to-zero contrasts result in main effects and interactions that are independent of one another. Thus, for example, a main effect is the same regardless of whether you also included an interaction in the design or not. For designs that are not fully crossed, treatment contrasts are used by default. Treatment contrasts are non-orthogonal, which means that effects are not independent of one another. For example, a main effect might change depending on whether or not you include an interaction in the model. Thus, when working with non-fully-crossed designs, you must decide what effects you want to include in the model when you are testing an effect. 
-#' This function does marginal tests: It only estimates what it needs to to do the test. Thus, if testing a main effect, only that main effect is estimated. If testing a two-factor interaction, only the two related main effects and that interaction are estimated.
-#' You cannot do more this with this function, but see [`testSingleEffect`] for a function that gives you more control over the test that is performed. 
-#' In addition, for designs that are not fully croseed, you can still use [`testConditionEffects`] to examine pairwise comparisons. See the introduction.pdf manual for more discussion of non-fully-crossed designs.
+#' For designs that are fully-crossed, sums-to-zero contrasts are used by default. 
+#' Like any other kind of orthogonal contrast, sums-to-zero contrasts result in main effects and interactions that are independent of one another. 
+#' Thus, for example, a main effect is the same regardless of whether you also included an interaction in the design or not. 
+#' For designs that are not fully crossed, treatment contrasts are used by default. 
+#' Treatment contrasts are non-orthogonal, which means that effects are not independent of one another. 
+#' For example, a main effect might change depending on whether or not you include an interaction in the model. 
+#' Thus, when working with non-fully-crossed designs, you must decide what effects you want to include in the model when you are testing an effect. 
+#' 
+#' This function does marginal tests: It only estimates what it needs to to do the test. 
+#' Thus, if testing a main effect, only that main effect is estimated. If testing a two-factor interaction, 
+#' only the two related main effects and that interaction are estimated.
+#' You cannot do more with this function, but see [`testSingleEffect`] for a function that gives you more control over the test that is performed. 
+#' In addition, for designs that are not fully croseed, you can still use [`testConditionEffects`] to examine pairwise comparisons. 
+#' See the introduction.pdf manual for more discussion of non-fully-crossed designs.
 #' 
 #' 
 #' @section testMainEffectsAndInteractions.BP:
-#' #' `testMainEffectsAndInteractions.BP` has the additional `manifest` argument. If `TRUE`, manifest
+#' `testMainEffectsAndInteractions.BP` has the additional `manifest` argument. If `TRUE`, manifest
 #' parameter values are used. If `FALSE`, latent parameter values are used. If `NULL` (default), latent
 #' parameter values are used for the probability parameters and manifest parameter values are used for standard deviation parameters.
 #' 
 #' These tests are not totally ideal because tests are based on dummy parameters that are the sum of the 
 #' grand mean of the participant-level parameters (the hierarchical mean parameter, e.g. `pMem.mu`) and the condition effect parameters (e.g. `pMem_cond[1]`). 
 #' These dummy parameters are created for the purposes of the test, but are not to be found anywhere in the models. 
-#' Thus, the values used by the test are a very good but slightly inexact approximation of the values that would be ideal to use. 
+#' Thus, the values used by the test are a very good but slightly inexact approximation. 
 #' For more discussion of this issue, see the the Binomial Tutorial part of the documentation for 
 #' CMBBHT: https://github.com/hardmanko/CMBBHT/releases/download/v0.1.3/BinomialTutorial.pdf 
 #' Focus on the Between-Participants Design section beginning on page 15, but earlier material provides important context.
@@ -197,11 +224,15 @@ testMEI_singleParameter = function(res, param, priorSamples = res$config$iterati
 #' @export
 testMainEffectsAndInteractions = function(res, param = NULL, 
 																						 subsamples = 20, subsampleProportion = 1, 
-																						 summarize = TRUE,	doPairwise = FALSE, 
+																						 summarize = TRUE, doPairwise = FALSE, 
 																						 testFunction = CMBBHT::testFunction_SDDR,
 																						 addMu = NULL, manifest = NULL) 
 {
-	factors = normalizeFactors(res$config$factors)
+  if (resultIsType(res, "Parallel")) {
+    stop("Cannot analyze Parallel results.")
+  }
+  
+  factors = normalizeFactors(res$config$factors)
 	
 	cmbbhtf = subset(factors, select=getAllFactorNames(factors))
 	if (!CMBBHT::isDesignFullyCrossed(cmbbhtf)) {
@@ -210,10 +241,11 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 	
 	if (is.null(param)) {
 		#All parameters can vary because its BP. 
-		param = getAllParams(modelVariant = res$config$modelVariant, filter=TRUE)
+	  param = getParamNames(res$config$modelVariant, types=c("prob", "sd"))
+		#param = getParametersWithConditionEffects(res$config$conditionEffects)
 	}
 	
-	subsampleIterationsToRemove = getSubsampleIterationsToRemove(res$config$iterations, subsamples, subsampleProportion)
+	subsampleIterationsToRemove = getSubsampleIterationsToRemove(res$runConfig$iterations, subsamples, subsampleProportion)
 	
 	BFs = NULL
 	
@@ -229,10 +261,10 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 			resSub = res
 		}
 		
-		for (pp in param) {
+		for (pn in param) {
 			
-			htr = testMEI_singleParameter(resSub, param = pp,
-																		priorSamples = resSub$config$iterations, doPairwise = doPairwise, 
+			htr = testMEI_singleParameter(resSub, param = pn,
+																		priorSamples = resSub$runConfig$iterations, doPairwise = doPairwise, 
 																		testFunction = testFunction, addMu = addMu, manifest = manifest)
 			BFs = rbind(BFs, htr)
 			
@@ -286,7 +318,7 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 #' are summarized (`summarize = TRUE`). See [`summarizeSubsampleResults`] for the return value format in that case.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
-#' @param param A vector of basic parameter names for which to perform condition tests (e.g. "pMem"). If NULL (the default), tests are performed for all parameters with condition effects.
+#' @param param A vector of parameter names for which to perform condition tests (e.g. "pMem"). If `NULL` (the default), tests are performed for all parameters with condition effects.
 #' @param addMu Passed to same argument of [`getConditionEffects`]. If using a Between-Participants design, `addMu` must be `TRUE`.
 #' @param manifest Passed to same argument of [`getConditionEffects`].
 #' @param credP Credible interval proportion for the posterior difference between the tested conditions. Ignored if `subsamples != 1`.
@@ -300,8 +332,8 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 #' 	\code{key} \tab The conditions being compared, like cond1 - cond2, where "-" can be interpreted as a minus sign.\cr
 #' 	\code{bf01} \tab Bayes factor in favor of the null hypothesis of no difference between the conditions.\cr
 #' 	\code{bf10} \tab Bayes factor in favor of the alternative hypothesis of there being a difference between the conditions. Note: `bf10 * bf01 = 1`.\cr
-#' 	\code{success} \tab `TRUE` if the Bayes factor was calculated successfully.
-#'  \code{difMean, difLower, difUpper} \tab Based on `credP` and the posterior distribution of the difference between conditions. The lower and upper ends of the credible interval (`ciLower` and `ciUpper`) and the mean difference (`postMean`).
+#' 	\code{success} \tab `TRUE` if the Bayes factor was calculated successfully.\cr
+#'  \code{difMean, difLower, difUpper} \tab Based on `credP` and the posterior distribution of the difference between conditions. The lower and upper ends of the credible interval (`ciLower` and `ciUpper`) and the mean difference (`postMean`).\cr
 #' }
 #'
 #' @family test functions
@@ -311,8 +343,12 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 #' @export
 testConditionEffects = function(res, param = NULL, credP = 0.95, addMu = TRUE, manifest = TRUE, subsamples = 1, subsampleProportion = 1, summarize = FALSE) {
 	
+  # TODO: Rename to testConditionDifferences? testConditionPairs?
+  
   if (resultIsType(res, "BP") && !addMu) {
     stop("For Between-Participants designs, addMu must be TRUE.")
+  } else if (resultIsType(res, "Parallel")) {
+    stop("Cannot analyze Parallel results.")
   }
   
   if (!is.null(credP)) {
@@ -336,11 +372,12 @@ testConditionEffects = function(res, param = NULL, credP = 0.95, addMu = TRUE, m
     stop("Invalid value for the subsamples argument.")
   }
 	
-	subsampleIterationsToRemove = getSubsampleIterationsToRemove(res$config$iterations, subsamples, subsampleProportion)
+	subsampleIterationsToRemove = getSubsampleIterationsToRemove(getCompletedIterations(res), subsamples, subsampleProportion)
 	
 	
 	if (is.null(param)) {
-		param = getAllParams(modelVariant = res$config$modelVariant, filter=TRUE)
+		#param = getParamNames(res$config$modelVariant, types=c("prob", "sd"))
+		param = getParametersWithConditionEffects(res$config$conditionEffects)
 	}
 	
 	pb = utils::txtProgressBar(0, 1, 0, style=3)
@@ -386,7 +423,7 @@ testConditionEffects = function(res, param = NULL, credP = 0.95, addMu = TRUE, m
 			
 			if (nrow(pairs) >= 1) {
 				
-				condEff = getConditionEffects(resSub, param = p, priorSamples = resSub$config$iterations, addMu = addMu, manifest = manifest)
+				condEff = getConditionEffects(resSub, param = p, priorSamples = resSub$runConfig$iterations, addMu = addMu, manifest = manifest)
 				
 				for (r in 1:nrow(pairs)) {
 					
@@ -420,6 +457,9 @@ testConditionEffects = function(res, param = NULL, credP = 0.95, addMu = TRUE, m
 					  temp$difMean = mean(difPost)
 					  temp$difLower = difPostQs[1]
 					  temp$difUpper = difPostQs[2]
+					  
+					  #temp$bfReject0 = temp$bf10 > 3
+					  #temp$ciReject0 = temp$difLower > 0 | temp$difUpper < 0
 					}
 					
 					allSubsamples = rbind(allSubsamples, temp)
@@ -435,6 +475,7 @@ testConditionEffects = function(res, param = NULL, credP = 0.95, addMu = TRUE, m
 	
 	close(pb)
 	
+	# Remove default group name from key.
 	#TODO: This is a bad hack
 	if (resultIsType(res, "WP")) {
 		allSubsamples$key = gsub(paste0(defaultGroupName(), ":"), "", allSubsamples$key)

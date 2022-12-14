@@ -7,7 +7,7 @@
 #include "ofxRMath.h"
 #endif
 
-#define USING_CAT_SPLINE
+//#define USING_CAT_SPLINE
 
 
 #include <vector>
@@ -61,8 +61,13 @@ namespace CatCont {
 
 	double clamp(double x, double minimum, double maximum);
 
+	// Unused
 	string extractIndex(string s);
 	string extractBaseParameterName(string s);
+
+	string joinIndexedParam(string name, vector<string> index);
+	vector<string> splitIndexedParam(string joined);
+	vector<string> splitString(string str, string delim);
 
 	void logMessage(string module, string message, bool endLine = true);
 
@@ -232,25 +237,35 @@ namespace CatCont {
 		double maxPrecision;
 	};
 
-	struct PerformanceConfig {
-		bool useVonMisesLookupTable = true;
+	struct PrivateConfig {
+		bool useVonMisesLookupTable = true; // This doesn't appear to be used
+	};
 
-		bool profileParameterTypes = true;
+	struct RunConfig {
+		unsigned int iterations;
+		unsigned int iterationsPerStatusUpdate;
+
+		bool verbose = true;
+		bool profileParameterTypes = false; // profile parameter timing?
 	};
 
 	struct ModelConfiguration {
 
-		unsigned int iterations;
-		unsigned int iterationsPerStatusUpdate;
+		//unsigned int iterations;
+		//unsigned int iterationsPerStatusUpdate;
 
 		DataType dataType;
 		ModelVariant modelVariant;
 
-		WeightsDistribution weightsDistribution;
-		LambdaVariant lambdaVariant;
-
+		// Category config
 		unsigned int maxCategories;
 		unsigned int catMuPriorApproximationPrecision;
+
+		// Experimental category sharing stuff
+		bool catMuShared = false;
+		bool catActiveShared = false; // catActive can only be shared if catMu is shared. Possibilities: neither shared, catMu shared, both shared.
+		bool catActiveHierPrior = false; // can only be true if catMuShared && !catActiveShared. No parameters are needed for the prior.
+		bool catActiveDistancePrior = true; // joint prior on catMu and catActive.
 
 		string cornerstoneConditionName;
 		unsigned int cornerstoneConditionIndex;
@@ -270,7 +285,21 @@ namespace CatCont {
 
 		Linear::LinearConfiguration linearConfiguration;
 
-		PerformanceConfig performanceConfig;
+		struct {
+			map<string, double> mhTunings;
+			map<string, double> priors;
+			map<string, double> startingValues;
+			map<string, double> constantValues;
+			map<string, string> equalityConstraints;
+		} overrides;
+
+		// Should not be used by normal users of the package
+		PrivateConfig privateConfig;
+
+#ifdef USING_CAT_SPLINE
+		WeightsDistribution weightsDistribution;
+		LambdaVariant lambdaVariant;
+#endif
 	};
 
 
@@ -298,6 +327,7 @@ namespace CatCont {
 		v.erase(lastIndex, v.end());
 		return v;
 	}
+
 
 #ifdef COMPILING_WITH_CX
 	void useModel_Bayesian(void); // Freestanding interface

@@ -59,43 +59,47 @@ std::map<std::string, T> convertListToMap(Rcpp::List list) {
 	return rval;
 }
 
+CatCont::RunConfig readRunConfigFromList(Rcpp::List runCfgList) {
 
+	CatCont::RunConfig rval;
+
+	rval.iterations = runCfgList["iterations"];
+	rval.iterationsPerStatusUpdate = runCfgList["iterationsPerStatusUpdate"];
+
+
+	if (runCfgList.containsElementNamed("verbose")) {
+		int verbose_int = runCfgList["verbose"];
+		rval.verbose = (verbose_int == 1);
+	}
+
+	if (runCfgList.containsElementNamed("profileParameterTypes")) {
+		int profile_int = runCfgList["profileParameterTypes"];
+		rval.profileParameterTypes = (profile_int == 1);
+	}
+
+	return rval;
+}
 
 CatCont::ModelConfiguration readConfigurationFromList(Rcpp::List configList) {
 
 	CatCont::ModelConfiguration config;
 
-	config.iterations = configList["iterations"];
-	config.iterationsPerStatusUpdate = configList["iterationsPerStatusUpdate"];
-
-	config.maxCategories = configList["maxCategories"];
-
-	string ccName = configList["cornerstoneConditionName"];
-	config.cornerstoneConditionName = ccName;
-
 	string modelVariantStr = configList["modelVariant"];
 	config.modelVariant = CatCont::modelVariantFromString(modelVariantStr);
-
-	if (config.modelVariant == CatCont::ModelVariant::ZL) {
-		config.maxCategories = 0;
-	}
 
 	string dataTypeStr = configList["dataType"];
 	config.dataType = CatCont::dataTypeFromString(dataTypeStr);
 
-#ifdef USING_CAT_SPLINE
-	if (configList.containsElementNamed("weightsDistribution")) {
-		string weightsDistributionStr = configList["weightsDistribution"];
-		config.weightsDistribution = CatCont::weightsDistributionFromString(weightsDistributionStr);
-	} else {
-		config.weightsDistribution = CatCont::WeightsDistribution::Default;
-	}
-#else
-	config.weightsDistribution = CatCont::WeightsDistribution::Default;
-#endif
-
+	string ccName = configList["cornerstoneConditionName"];
+	config.cornerstoneConditionName = ccName;
 
 	config.catMuPriorApproximationPrecision = configList["catMuPriorApproximationPrecision"];
+
+	if (config.modelVariant == CatCont::ModelVariant::ZL) {
+		config.maxCategories = 0;
+	} else {
+		config.maxCategories = configList["maxCategories"];
+	}
 
 	if (config.dataType == CatCont::DataType::Linear) {
 		config.linearConfiguration = getLinearConfigurationFromList(configList);
@@ -112,6 +116,7 @@ CatCont::ModelConfiguration readConfigurationFromList(Rcpp::List configList) {
 	config.ranges.maxPrecision = CatCont::Circular::sdDeg_to_precRad(config.ranges.minSd);
 
 
+	// Condition Effects
 	Rcpp::List conditionEffects = configList["conditionEffects"];
 	Rcpp::CharacterVector rawNames = conditionEffects.names();
 	for (int i = 0; i < rawNames.size(); i++) {
@@ -143,6 +148,74 @@ CatCont::ModelConfiguration readConfigurationFromList(Rcpp::List configList) {
 		config.paramWithConditionEffects.push_back((string)paramWithConditionEffects[i]);
 	}
 	*/
+
+	// Overrides are now part of the config list
+	if (configList.containsElementNamed("priorOverrides")) {
+		config.overrides.priors = convertListToMap<double>(configList["priorOverrides"]);
+	}
+	if (configList.containsElementNamed("mhTuningOverrides")) {
+		config.overrides.mhTunings = convertListToMap<double>(configList["mhTuningOverrides"]);
+	}
+	if (configList.containsElementNamed("startingParamValues")) {
+		config.overrides.startingValues = convertListToMap<double>(configList["startingParamValues"]);
+	}
+	if (configList.containsElementNamed("constantParamValues")) {
+		config.overrides.constantValues = convertListToMap<double>(configList["constantParamValues"]);
+	}
+
+	//if (configList.containsElementNamed("equalityConstraints")) {
+	//	config.overrides.equalityConstraints = convertListToMap<double>(configList["equalityConstraints"]);
+	//}
+
+
+	// privateConfig
+	if (configList.containsElementNamed("privateConfig")) {
+		Rcpp::List pcList = configList["privateConfig"];
+
+		// TODO: Where does this go? It doesn't appear to be used anywhere (really?)
+		if (pcList.containsElementNamed("useVonMisesLookupTable")) {
+			int vmlut_int = pcList["useVonMisesLookupTable"];
+			config.privateConfig.useVonMisesLookupTable = (vmlut_int == 1);
+		}
+
+		// Temporarily, these settings are passed to c++ in privateConfig
+		if (pcList.containsElementNamed("catMuShared")) {
+			int cms_int = pcList["catMuShared"];
+			config.catMuShared = (cms_int == 1);
+		}
+		if (pcList.containsElementNamed("catActiveShared")) {
+			int cas_int = pcList["catActiveShared"];
+			config.catActiveShared = (cas_int == 1);
+		}
+		if (pcList.containsElementNamed("catActiveHierPrior")) {
+			int cahp_int = pcList["catActiveHierPrior"];
+			config.catActiveHierPrior = (cahp_int == 1);
+		}
+		if (pcList.containsElementNamed("catActiveDistancePrior")) {
+			int cadp_int = pcList["catActiveDistancePrior"];
+			config.catActiveDistancePrior = (cadp_int == 1);
+		}
+
+		// If catMu not shared, catActive can't be shared
+		if (!config.catMuShared) {
+			config.catActiveShared = false;
+		}
+
+		// Can't have hier prior if shared
+		if (config.catActiveShared) {
+			config.catActiveHierPrior = false;
+		}
+	}
+
+#ifdef USING_CAT_SPLINE
+	if (configList.containsElementNamed("weightsDistribution")) {
+		string weightsDistributionStr = configList["weightsDistribution"];
+		config.weightsDistribution = CatCont::weightsDistributionFromString(weightsDistributionStr);
+	} else {
+		config.weightsDistribution = CatCont::WeightsDistribution::Default;
+	}
+	config.lambdaVariant = CatCont::LambdaVariant::None; // TODO: Choose value.
+#endif
 
 	return config;
 }
@@ -198,75 +271,84 @@ void conditionalConfigureVMLut(double maxValue, double stepSize, bool message = 
 
 // [[Rcpp::export]]
 Rcpp::List CCM_CPP_runParameterEstimation(
-	Rcpp::List generalConfig,
 	Rcpp::DataFrame data,
-	Rcpp::List mhTuningOverrides,
-	Rcpp::List priorOverrides,
-	Rcpp::List startingValueOverrides,
-	Rcpp::List constantValueOverrides,
+	Rcpp::List modelConfig,
+	Rcpp::List runConfig,
 	Rcpp::List equalityConstraints
 )
 {
 	CatCont::Bayesian bm;
 
-	bm.config = readConfigurationFromList(generalConfig);
+	bm.runConfig = readRunConfigFromList(runConfig);
+	bm.config = readConfigurationFromList(modelConfig);
 
-	//Seed the gibbs RNG from the R RNG.
+	bool verbose = bm.runConfig.verbose;
+
+	// Seed the gibbs RNG from the R RNG.
+	// This allows the gibbs RNG to track with the R RNG (otherwise the gibbs random number sequence would not be reproduced).
 	unsigned int uintmax = std::numeric_limits<unsigned int>::max();
 	unsigned int rngSeed = uintmax * CatCont::uniformDeviate(0, 1);
 	bm.gibbs.getGenerator().seed(rngSeed);
 
-	bm.gibbs.iterationsPerStatusUpdate = bm.config.iterationsPerStatusUpdate;
+	bm.gibbs.iterationsPerStatusUpdate = bm.runConfig.iterationsPerStatusUpdate;
 
 	if (bm.config.dataType == CatCont::DataType::Circular) {
-		conditionalConfigureVMLut(bm.config.ranges.maxPrecision, VON_MISES_STEP_SIZE, true);
+		conditionalConfigureVMLut(bm.config.ranges.maxPrecision, VON_MISES_STEP_SIZE, verbose);
 	}
 
 
-	Rcpp::Rcout << "Reading data." << endl;
+	if (verbose) {
+		Rcpp::Rcout << "Reading data." << endl;
+	}
+	bm.setData(CatCont::getParticipantData(data, bm.config.dataType, verbose));
 
-	bm.setData(CatCont::getParticipantData(data, bm.config.dataType, true));
+	// Most overrides are part of model config, but equalityConstraints are passed directly.
+	bm.config.overrides.equalityConstraints = convertListToMap<string>(equalityConstraints);
 
-	//Copy these over
-	bm.overrides.mhTunings = convertListToMap<double>(mhTuningOverrides);
-	bm.overrides.priors = convertListToMap<double>(priorOverrides);
-	bm.overrides.startingValues = convertListToMap<double>(startingValueOverrides);
-	bm.overrides.constantValues = convertListToMap<double>(constantValueOverrides);
-
-	bm.overrides.equalityConstraints = convertListToMap<string>(equalityConstraints);
-
-
-	Rcpp::Rcout << "Doing parameter setup." << endl;
-
+	// Create parameters
+	if (verbose) {
+		Rcpp::Rcout << "Doing parameter setup." << endl;
+	}
 	bm.createParameters();
 
-	Rcpp::Rcout << "Running Gibbs sampler." << endl;
+	// Run the Gibbs sampler
+	if (verbose) {
+		Rcpp::Rcout << "Running Gibbs sampler." << endl;
+	}
+	bm.gibbs.run(bm.runConfig.iterations, true);
 
-	bm.gibbs.run(bm.config.iterations, true);
 
-	Rcpp::Rcout << "Collecting output." << endl;
-
-	//Get output from the sampler
-	Rcpp::List posteriors = bm.gibbs.getPosteriors();
-	Rcpp::DataFrame acceptanceRates = bm.gibbs.getAcceptanceRates();
-
-	Rcpp::List mhTuning = Rcpp::wrap(bm.mhTuningSd);
+	// Collect Gibbs sampler output
+	if (verbose) {
+		Rcpp::Rcout << "Collecting output." << endl;
+	}
 	Rcpp::List priors = Rcpp::wrap(bm.priors);
+	Rcpp::List posteriors = bm.gibbs.getPosteriors();
 
-	//Get participant numbers
+
+	// Save MH results
+	Rcpp::List mhTuning = Rcpp::wrap(bm.mhTuningSd);
+	Rcpp::DataFrame acceptanceRates = bm.gibbs.getAcceptanceRates();
+	
+	Rcpp::List mhList;
+	mhList["tuning"] = mhTuning;
+	mhList["acceptance"] = acceptanceRates;
+
+	// Get participant numbers
 	std::vector<std::string> allPnums(bm.data.participants.size());
 	for (unsigned int i = 0; i < allPnums.size(); i++) {
 		allPnums[i] = bm.data.participants[i].pnum;
 	}
 
-	Rcpp::List rval = Rcpp::List::create(Rcpp::Named("posteriors") = posteriors,
-		Rcpp::Named("mhAcceptance") = acceptanceRates,
-		Rcpp::Named("mhTuning") = mhTuning,
+	Rcpp::List rval = Rcpp::List::create(
 		Rcpp::Named("priors") = priors,
-		Rcpp::Named("constantValueOverrides") = constantValueOverrides,
+		Rcpp::Named("posteriors") = posteriors,
+		Rcpp::Named("MH") = mhList,
 		Rcpp::Named("pnums") = Rcpp::wrap(allPnums));
 
-	Rcpp::Rcout << "Done!" << endl;
+	if (verbose) {
+		Rcpp::Rcout << "Done!" << endl;
+	}
 
 	return rval;
 }
@@ -279,9 +361,11 @@ Rcpp::DataFrame CCM_CPP_calculateWAIC(Rcpp::List resultsObject) {
 	using namespace CatCont;
 
 	Rcpp::List configList = resultsObject["config"];
+	Rcpp::List runConfigList = resultsObject["runConfig"];
 	Rcpp::DataFrame data(resultsObject["data"]);
 	Rcpp::List posteriors = resultsObject["posteriors"];
 
+	RunConfig runCfg = readRunConfigFromList(runConfigList);
 	ModelConfiguration config = readConfigurationFromList(configList);
 
 	vector<ParticipantData> partData = getParticipantData(data, config.dataType, false);
@@ -290,7 +374,7 @@ Rcpp::DataFrame CCM_CPP_calculateWAIC(Rcpp::List resultsObject) {
 		conditionalConfigureVMLut(config.ranges.maxPrecision, VON_MISES_STEP_SIZE, false);
 	}
 
-	vector< ParameterList > posteriorIterations(config.iterations);
+	vector< ParameterList > posteriorIterations(runCfg.iterations);
 
 	vector<string> posteriorNames = posteriors.names();
 
@@ -299,7 +383,7 @@ Rcpp::DataFrame CCM_CPP_calculateWAIC(Rcpp::List resultsObject) {
 		string n = posteriorNames[i];
 		Rcpp::NumericVector obs = posteriors[n];
 
-		for (unsigned int j = 0; j < config.iterations; j++) {
+		for (unsigned int j = 0; j < runCfg.iterations; j++) {
 			posteriorIterations[j][n] = obs[j];
 		}
 	}
@@ -406,22 +490,6 @@ Rcpp::List CCM_CPP_likelihoodWrapper(Rcpp::List param, Rcpp::DataFrame data, Rcp
 
 
 
-// weights should be same length as xs and sum(weights) should be 1 (enforced in R)
-// [[Rcpp::export(name = ".circMeanCPP")]]
-double circMeanCPP(std::vector<double> xs, std::vector<double> weights, bool degrees = true) {
-
-	if (degrees) {
-		xs = CatCont::Circular::degreesToRadians(xs);
-	}
-
-	double m = CatCont::Circular::circularMean(xs, weights);
-
-	if (degrees) {
-		m = CatCont::Circular::radiansToDegrees(m);
-	}
-
-	return m;
-}
 
 //' Circular Distance Between Angle Vectors
 //'
@@ -471,13 +539,71 @@ std::vector<double> clampAngle(std::vector<double> xs, bool pm180 = false, bool 
 	return xs;
 }
 
-// [[Rcpp::export(name = ".cppFmod")]]
-double cppFmod(double x, double y) {
+
+//' Get Default Priors
+//' 
+//' Returns default values that define the top-level prior distributions. See the "Priors" section of the package manual (Introduction.pdf).
+//' 
+//' @export
+// [[Rcpp::export]]
+Rcpp::List getDefaultPriors() {
+
+	map<string, double> priors = CatCont::Bayesian::getDefaultPriors();
+	Rcpp::List rval;
+	for (auto kv : priors) {
+		rval[kv.first] = kv.second;
+	}
+
+	return rval;
+}
+
+//' Get Default Metropolis-Hastings Tuning Values
+//' 
+//' Returns default values that affect MH update steps and the MH acceptance rate.
+//' 
+//' @export
+// [[Rcpp::export]]
+Rcpp::List getDefaultMHTuning() {
+
+	map<string, double> mht = CatCont::Bayesian::getDefaultMHTuning();
+	Rcpp::List rval;
+	for (auto kv : mht) {
+		rval[kv.first] = kv.second;
+	}
+
+	return rval;
+}
+
+
+/*
+The next set of functions are exported from c++ to R, but not into the package namespace for users.
+*/
+
+// This is used in an R function.
+// weights should be same length as xs and sum(weights) should be 1 (enforced in R)
+// [[Rcpp::export]]
+double CCM_CPP_circMean(std::vector<double> xs, std::vector<double> weights, bool degrees = true) {
+
+	if (degrees) {
+		xs = CatCont::Circular::degreesToRadians(xs);
+	}
+
+	double m = CatCont::Circular::circularMean(xs, weights);
+
+	if (degrees) {
+		m = CatCont::Circular::radiansToDegrees(m);
+	}
+
+	return m;
+}
+
+// [[Rcpp::export]]
+double CCM_CPP_fmod(double x, double y) {
 	return std::fmod(x, y);
 }
 
-// [[Rcpp::export(name = "dVonMises")]]
-std::vector<double> dvm(std::vector<double> xs, double mu, double sd, bool log, bool degrees = true) {
+// [[Rcpp::export]]
+std::vector<double> CCM_CPP_dVonMises(std::vector<double> xs, double mu, double sd, bool log, bool degrees = true, bool useLUT = true) {
 
 	double kappa = sd;
 
@@ -490,12 +616,11 @@ std::vector<double> dvm(std::vector<double> xs, double mu, double sd, bool log, 
 	// Choose how to calculate dvm
 	CatCont::VonMisesLUT noLut;
 	CatCont::VonMisesLUT& lut = CatCont::vmLut; // Default to using vmLut
-	if (!lut.ready(kappa)) {
-		// Use a LUT without the LUT, just use the bessel function.
+	if (!useLUT || !lut.ready(kappa)) {
+		// Use a LUT object without the LUT, just use the bessel function.
 		noLut.setup(&curriedBesselFunction);
 		lut = noLut;
 	}
-
 
 	std::vector<double> rval(xs.size());
 
@@ -518,7 +643,10 @@ std::vector<double> dvm(std::vector<double> xs, double mu, double sd, bool log, 
 
 #ifdef USING_CAT_SPLINE
 
-// [[Rcpp::export]]
+// TODO: All of the export directives here are intentionally broken.
+// Replace BROKEN_EXPORT with [[Rcpp::export]]
+
+// BROKEN_EXPORT
 std::vector<double> dZeroDerivSpline(std::vector<double> zs) {
 	std::vector<double> rval(zs.size());
 
@@ -529,17 +657,17 @@ std::vector<double> dZeroDerivSpline(std::vector<double> zs) {
 	return rval;
 }
 
-// [[Rcpp::export]]
+// BROKEN_EXPORT
 double dPlatSplineFull_R(double x, double mu, double platHW, double splineHW, bool linear) {
 	return CatCont::dPlatSplineFull(x, mu, platHW, splineHW, linear, true); // degrees = true
 }
 
-// [[Rcpp::export]]
+// BROKEN_EXPORT
 double dPlatSpline_R(double absDist, double platHW, double splineHW) {
 	return CatCont::dPlatSpline(absDist, platHW, splineHW);
 }
 
-// [[Rcpp::export]]
+// BROKEN_EXPORT
 std::vector<double> dPlatSplineWeights_R(double x, std::vector<double> mu, std::vector<double> platHW, double splineHW, bool linear = false) {
 	CatCont::CategoryParameters catPar;
 	catPar.mu = mu;
@@ -553,7 +681,7 @@ std::vector<double> dPlatSplineWeights_R(double x, std::vector<double> mu, std::
 	return CatCont::dPlatSplineWeights(x, catPar, modCfg);
 }
 
-// [[Rcpp::export]]
+// BROKEN_EXPORT
 std::vector<double> dPlatSpline_WC(double x, std::vector<double> mu, std::vector<double> platHW, double splineHW, bool linear = false) {
 
 	// TODO: Make splineHW a vector
@@ -594,7 +722,7 @@ std::vector<double> dPlatSpline_WC(double x, std::vector<double> mu, std::vector
 	return wc.weights; 
 }
 
-// [[Rcpp::export]]
+// BROKEN_EXPORT
 double calcPlatSplineLambda_R(std::vector<double> weights, std::string lambdaVariant) {
 
 	CatCont::ModelConfiguration modCfg;

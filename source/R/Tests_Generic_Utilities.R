@@ -196,8 +196,9 @@ geoMean = function(x) {
 		warning("All x must be > 0 to calculate the geometric mean.")
 		return(NA)
 	}
+  # The calculation is:
 	#prod(x)^(1 / length(x)) 
-	#which translates to
+	# which translates to the more numerically stable:
 	exp( 1/length(x) * sum(log(x)) )
 }
 
@@ -215,4 +216,3 @@ geoQ = function(z, mu, sigma) {
 	mu * sigma ^ z
 }
 
-#######################################################################

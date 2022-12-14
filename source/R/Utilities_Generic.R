@@ -5,23 +5,98 @@
 #' This glossary covers some of the most common jargon used in this package.
 #' 
 #' @section Types of Result Object:
-#' + *Generic results object*: A results object that can be either a WP or a BP results object. If a function takes a generic results object, the name of the results object argument will be `res`. Most functions take generic results objects.
+#' + *Generic results object*: A results object that can be either a WP or a BP results object. If a function takes a generic results object, the name of the results object argument will be `res`. Many functions take generic results objects.
 #' + *WP results object*: A within-participants results object. The return value of [`runParameterEstimation`]. If a function takes a WP results object, the name of the results object argument will be `results`.
-#' + BP results object: A between-participants results object. The return value of [`combineGroupResults.BP`]. If a function takes a BP results object, the name of the results object argument will be `bpRes`.
+#' + *BP results object*: A between-participants results object. The return value of [`combineGroupResults.BP`]. If a function takes a BP results object, the name of the results object argument will be `bpRes`.
+#' + *Parallel results object*: The return value of [`runParameterEstimation`] if the `parallel` argument is provided.
 #' 
-#' In this package, most functions can take either a WP or a BP results object. I use stong naming conventions for clarity, so pay attention to the name of the results object argument when calling a function to verify that you are providing the correct type of results object.
+#' In this package, most functions can take either a WP or a BP results object. Only some functions can take Parallel objects.
+#' Pay attention to the name of the results object argument when calling a function to verify that you are providing the correct type of results object.
+#' The type of a results object can be checked with [`resultIsType`] or the R function `class`.
 #' 
 #' @section Latent vs Manifest Parameter Spaces:
-#' *Latent parameters* exist in an unexpected/unnatural space: Probability parameters go from `-Inf` to `Inf` and standard deviation parameters can be negative. When the parameters are sampled (with [`runParameterEstimation`]), they exist in the latent space. The priors on the parameters are also with respect to the latest space. Thus, the latent space is the "true" space for the parameters, in the sense of statistical theory and given the specification of the model.
+#' *Latent parameters* exist in an unexpected/unnatural space: 
+#' Probability parameters go from `-Inf` to `Inf` and standard deviation parameters can be negative. 
+#' When the parameters are sampled (with [`runParameterEstimation`]), they exist in the latent space. 
+#' The priors on the parameters are also with respect to the latest space. 
+#' Thus, the latent space is the "true" space for the parameters, in the sense of statistical theory and given the specification of the model.
 #' 
-#' *Manifest parameters* exist in the expected/natural space: Probability parameters are between 0 and 1 and standard deviation parameters are positive, being forced to be greater than or equal to `results$config$minSD`.
+#' *Manifest parameters* exist in the expected/natural space: 
+#' Probability parameters are between 0 and 1 and standard deviation parameters are positive, 
+#' being forced to be greater than or equal to `config$minSD`.
+#' 
+#' Functions to transform between spaces are returned by [`getParameterTransformation`].
 #' 
 #' @section Condition Effects:
-#' In terms of the model specifications, a *condition effect* is a parameter that accounts for differences between the different within-participants conditions in the design. This is explained in more detail in the Condition Effects section in the Appendix of Hardman, Vergauwe, and Ricker (2017). In the equation on page 22, `P_j` is the condition effect parameter that is added to the participant parameter, `P_i`.
+#' In terms of the model specifications, a *condition effect* is a parameter that accounts for differences between 
+#' within-participants conditions in the design. This is explained in more detail in the Condition Effects section 
+#' in the Appendix of Hardman, Vergauwe, and Ricker (2017). 
+#' In the equation on page 22, `P_j` is the condition effect parameter that is added to the participant parameter, `P_i`.
 #' 
 #' @name Glossary
 NULL
 
+###############################################################################
+
+#' Check Type of Results Object
+#'
+#' @param res A generic results object (see [`Glossary`]).
+#' @param type One of `"WP"` (within-participants), `"BP"` (between-participants), or `"Parallel"` (WP estimated in parallel).
+#' @family generic functions
+#' @export
+resultIsType = function(res, type) {
+  conversion = list(WP = "CCM_WP", BP = "CCM_BP", Parallel = "CCM_Parallel")
+  
+  if (!any(conversion %in% class(res))) {
+    stop("Results object is not of any valid type.")
+  }
+  
+  nMatch = 0
+  for (i in 1:length(type)) {
+    nMatch = nMatch + as.numeric(conversion[[ type[i] ]] %in% class(res))
+  }
+  
+  nMatch >= 1
+  
+  #conversion[[ type ]] %in% class(res)
+}
+
+##################################
+
+getCompletedIterations = function(res, check=TRUE) {
+  rval = NA
+  if (resultIsType(res, "WP")) {
+    rval = res$runConfig$iterations
+    
+  } else if (resultIsType(res, "BP")) {
+    
+    groupIter = rep(0, length(res$groups))
+    for (i in 1:length(res$groups)) {
+      groupIter[i] = res$groups[[i]]$runConfig$iterations
+    }
+    
+    if (check && any(groupIter != groupIter[1])) {
+      warning("Different between-participants groups have different numbers of iterations.")
+    }
+    
+    rval = groupIter[1]
+    
+  } else if (resultIsType(res, "Parallel")) {
+    
+    chainIter = rep(0, length(res$chains))
+    for (i in 1:length(res$chains)) {
+      chainIter[i] = res$chains[[i]]$runConfig$iterations
+    }
+    
+    if (check && any(chainIter != chainIter[1])) {
+      warning("Different parallel chains have different numbers of iterations.")
+    }
+    
+    rval = chainIter[1]
+    #rval = res$chains[[1]]$runConfig$iterations
+  }
+  rval
+}
 
 ###############################################################################
 
@@ -46,20 +121,13 @@ removeBurnIn = function(res, burnIn) {
 		rval = removeBurnIn.WP(res, burnIn)
 	} else if (resultIsType(res, "BP")) {
 		rval = removeBurnIn.BP(res, burnIn)
+	} else if (resultIsType(res, "Parallel")) {
+	  rval = removeBurnIn.Parallel(res, burnIn)
+	} else {
+	  stop("Invalid object type.")
 	}
 	rval
 	
-}
-
-removeBurnIn.BP = function(bpRes, burnIn) {
-	
-	for (g in names(bpRes$groups)) {
-		bpRes$groups[[g]] = removeBurnIn(bpRes$groups[[g]], burnIn)
-	}
-	
-	bpRes$config$iterations = bpRes$groups[[1]]$config$iterations
-	
-	bpRes
 }
 
 removeBurnIn.WP = function(results, burnIn) {
@@ -68,8 +136,12 @@ removeBurnIn.WP = function(results, burnIn) {
 		warning("No burn-in iterations removed because length(burnIn) == 0.")
 		return(results)
 	}
-	
+  
 	if (length(burnIn) == 1) {
+	  if (burnIn <= 0) {
+	    warning("No burn-in iterations removed because burnIn <= 0.")
+	    return(results)
+	  }
 		burnIn = 1:burnIn
 	}
 	
@@ -77,12 +149,12 @@ removeBurnIn.WP = function(results, burnIn) {
 		stop("The lowest burn-in iteration is too low (less than 1).")
 	}
 	
-	if (burnIn[length(burnIn)] > results$config$iterations) {
+	if (burnIn[length(burnIn)] > results$runConfig$iterations) {
 		stop("The highest burn-in iteration is too high.")
 	}
 	
 	
-	keep = 1:results$config$iterations
+	keep = 1:results$runConfig$iterations
 	keep = keep[-burnIn]
 	
 	
@@ -90,129 +162,302 @@ removeBurnIn.WP = function(results, burnIn) {
 		results$posteriors[[n]] = results$posteriors[[n]][keep]
 	}
 	
-	results$config$iterations = length(keep)
+	results$runConfig$iterations = length(keep)
 	
 	results
 }
 
-###############################################################################
-
-# Check Type of Results Object
-#
-# @param res A generic results object (see [`Glossary`]).
-# @param type One of `"WP"` (within-participants) or `"BP"` (between-participants).
-# @family generic functions
-# @export
-resultIsType = function(res, type) {
-	conversion = list(WP = "CCM_WP", BP = "CCM_BP")
-	
-	if (!any(conversion %in% class(res))) {
-		stop("Results object is not of any valid type.")
-	}
-	
-	conversion[[ type ]] %in% class(res)
+removeBurnIn.BP = function(bpRes, burnIn) {
+  
+  for (g in names(bpRes$groups)) {
+    bpRes$groups[[g]] = removeBurnIn(bpRes$groups[[g]], burnIn)
+  }
+  
+  bpRes$runConfig$iterations = bpRes$groups[[1]]$runConfig$iterations
+  
+  bpRes
 }
 
+removeBurnIn.Parallel = function(parRes, burnIn) {
+  
+  for (i in 1:length(parRes$chains)) {
+    parRes$chains[[i]] = removeBurnIn.WP(parRes$chains[[i]], burnIn)
+  }
+  
+  parRes
+}
+
+
+# Or prepareResults
+cleanResults = function(res, burnIn) {
+  
+  if (resultIsType(res, "WP")) {
+    rval = removeBurnIn(res, burnIn)
+    
+  } else if (resultIsType(res, "BP")) {
+    rval = removeBurnIn(res, burnIn)
+    
+  } else if (resultIsType(res, "Parallel")) {
+    res = removeBurnIn(res, burnIn)
+    rval = combineResults(resList=res$chains)
+    
+  } else if (resultIsType(res, "CrossValidation")) {
+    rval = removeBurnIn(res, burnIn)
+    
+  }
+  
+  rval
+}
 
 ###############################################################################
 
 #' Get Parameter Transformation Function
 #' 
-#' Returns a function that will take parameter values in the latent space and convert them to the manifest space, or vice versa if `inverse` is `TRUE`. For probability parameters, the transformation is the inverse logit transformation. For standard deviation parameters, the transformation forces the parameter to be greater than some value, given by `results$config$minSD`.
+#' Returns a function that will take parameter values in the latent space and convert them to the manifest space, or vice versa if `inverse` is `TRUE`. 
+#' For probability parameters, the transformation is the inverse logit transformation. 
+#' For standard deviation parameters, the transformation forces the parameter to be greater than some value, given by `results$config$minSD`.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
 #' @param param Name of a parameter, e.g. `"pMem"`.
 #' @param inverse If `TRUE`, the inverse transformation is returned, if possible. Some transformations do not have an inverse.
+#' @param minSD Minimum value for standard deviation parameters. If `minSD` is provided, `res` may be `NULL`.
 #' 
 #' @return A function of one vector, matrix, or array argument that transforms the argument while maintaining the dimensionality of the argument.
 #' 
 #' @family generic functions
 #' 
 #' @export
-getParameterTransformation = function(res, param, inverse=FALSE) {
+getParameterTransformation = function(res, param, inverse=FALSE, minSD=NULL) {
 
-	if (param %in% getProbParams(NULL)) {
-		
-		if (inverse) {
-			transformation = logit
-		} else {
-			transformation = logitInverse
-		}
-		
-	} else if (param %in% getSdParams(NULL)) {
-		
-		if (inverse) {
-			transformation = function(x) { x } #Give warning if x == minSd? Say that you don't know the inverse?
-		} else {
-			minSd = res$config$minSD
-			
-			transformation = local( function(x) { pmax(x, minSd); })
-		}
-		
-	} else if (param %in% getCategoryParams(NULL)) {
-		
-		transformation = function(x) { x }
-		
-	}	else {
-		stop( paste("No transformation found for parameter: ", param, ".", sep="") )
-	}
+  paramParts = splitParamName(param)
+  
+  if ("probParam" %in% paramParts$types) {
+    if (inverse) {
+      transformation = logit
+    } else {
+      transformation = logitInverse
+    }    
+  } else if ("sdParam" %in% paramParts$types) {
+    
+    # Function does not need res, it can just take minSD
+    if (is.null(minSD)) {
+      minSD = res$config$minSD
+    }
+    if (is.null(minSD)) {
+      stop("No minSD provided")
+    }
+    
+    if (inverse) {
+      transformation = local(function(x) {
+        if (x < minSD) {
+          warning(paste0("In SD parameter inverse transformation function: x < minSD (", x, " < ", minSD, ")"))
+        }
+        x
+      })
+    } else {
+
+      transformation = local( function(x) { pmax(x, minSD); } )
+    }
+  } else if ("catParam" %in% paramParts$types) {
+    transformation = function(x) { x }
+    
+  }	else {
+    stop( paste("No transformation found for parameter: ", param, ".", sep="") )
+  }
 	
 	transformation
 }
 
+
+
 ###############################################################################
+# Parameter name functions
 
-#' Get Vectors of Parameter Names
+#' Get Names of Model Parameters
 #' 
-#' `getProbParams` gets the names of "probability parameters" (e.g. `pMem`). `getSdParams` gets the names of "SD parameters" (e.g. `contSD`).
 #' 
-#' @param res A generic results object (see [`Glossary`]).
-#' @param modelVariant Rather than providing `res`, you may provide this.
-#' @param filter Filter out parameters not in the current model variant. If `FALSE`, the `res` and `modelVariant` arguments can be NULL.
+#' @param modelVariant If provided, results will only include the names of parameters used by the model variant.
+#' @param types A vector of names of parameter types.
+#' @param base If `TRUE`, base parameter names are returned.
+#' @param cond If `TRUE`, condition effects are added (e.g. "pMem_cond").
+#' @param hyper If `TRUE`, hyperpriors are added (e.g. "pMem.mu" and "pMem.var").
+#' @param asList If `TRUE`, returned names are formatted in a list instead of vector.
 #' 
-#' @return A character vector of the names of parameters used by the model variant.
-#' 
-#' @family generic functions
+#' @return A vector of parameter names (unless `asList = TRUE`).
 #' 
 #' @export
-getProbParams = function(res, modelVariant = res$config$modelVariant, filter = FALSE) {
-	pp = c("pMem", "pBetween", "pContBetween", "pContWithin", "pCatGuess")
-	if (filter) {
-		if (modelVariant == "betweenItem") {
-			pp = c("pMem", "pContBetween", "pCatGuess")
-		} else if (modelVariant == "withinItem") {
-			pp = c("pMem", "pContWithin", "pCatGuess")
-		} else if (modelVariant == "ZL") {
-			pp = c("pMem")
-		}
-	}
-	pp
+getParamNames = function(modelVariant=NULL, types=c("prob", "sd", "cat"), base=TRUE, cond=FALSE, hyper=FALSE, asList=FALSE) {
+  
+  probParam = c("pMem", "pBetween", "pContBetween", "pContWithin", "pCatGuess")
+  sdParam = c("contSD", "catSelectivity", "catSD")
+  catParam = c("catMu", "catActive")
+  
+  if (!is.null(modelVariant)) {
+    if (modelVariant == "betweenItem") {
+      probParam = c("pMem", "pContBetween", "pCatGuess")
+    } else if (modelVariant == "withinItem") {
+      probParam = c("pMem", "pContWithin", "pCatGuess")
+    } else if (modelVariant == "ZL") {
+      probParam = "pMem"
+      sdParam = "contSD"
+      catParam = c()
+    }
+  }
+  
+  if (!("prob" %in% types)) {
+    probParam = c()
+  }
+  if (!("sd" %in% types)) {
+    sdParam = c()
+  }
+  if (!("cat" %in% types)) {
+    catParam = c()
+  }
+  
+  if (asList) {
+    rval = list(prob=list(base=probParam), sd=list(base=sdParam), cat=list(base=catParam))
+    if (cond) {
+      rval$prob$cond = paste0(probParam, "_cond")
+      rval$sd$cond = paste0(sdParam, "_cond")
+    }
+    if (hyper) {
+      for (suffix in c(".mu", ".var")) {
+        rval$prob$hyper = c(rval$prob$hyper, paste0(probParam, suffix))
+        rval$sd$hyper = c(rval$sd$hyper, paste0(sdParam, suffix))
+      }
+    }
+  } else {
+    # as vector
+    rval = c(probParam, sdParam, catParam)
+    if (cond) {
+      rval = c(rval, paste0(c(probParam, sdParam), "_cond"))
+    }
+    if (hyper) {
+      muPar = paste0(c(probParam, sdParam), ".mu")
+      varPar = paste0(c(probParam, sdParam), ".var")
+      rval = c(rval, muPar, varPar)
+    }
+  }
+  
+  rval
 }
 
-#' @rdname getProbParams
+
+# This could also have a list return option.
+# rval = list(pMem = list(part=vector("char"), cond=vector("char"), hyper=vector("char")), contSD=list(...))
+#
+# TODO: This is not used anywhere
+getIndexedParamNames = function(data, maxCategories, modelVariant=NULL, types=c("participant", "cond", "hyper")) {
+  
+  standardPN = getParamNames(modelVariant=modelVariant, types=c("prob", "sd"))
+  catPN = getParamNames(modelVariant=modelVariant, types=c("cat"))
+  
+  indexedNames = vector("character", 0)
+  
+  pnums = unique(data$pnum)
+  conds = unique(data$cond)
+  
+  for (param in standardPN) {
+    if ("participant" %in% types) {
+      indexedNames = c(indexedNames, paste0(param, "[", pnums, "]"))
+    }
+    if ("hyper" %in% types) {
+      indexedNames = c(indexedNames, paste0(param, c(".mu", ".var")))
+    }
+    if ("cond" %in% types) {
+      indexedNames = c(indexedNames, paste0(param, "_cond[", conds, "]"))
+    }
+  }
+  
+  if (is.null(maxCategories)) {
+    catInd = ":" # matlab style
+  } else {
+    catInd = 1:maxCategories
+  }
+  
+  for (cp in catPN) {
+    for (pnum in pnums) {
+      indexedNames = c(indexedNames, paste0(cp, "[", pnum, ",", catInd, "]"))
+    }
+  }
+  
+  indexedNames
+}
+
+
+#' Split Parameter Name
+#' 
+#' Utility that splits indexed parameter names (like `pMem[123]`) into parts.
+#' 
+#' @param pname Indexed parameter name.
+#' 
+#' @return A list with information about the parameter name.
+#' 
 #' @export
-getSdParams = function(res, modelVariant = res$config$modelVariant, filter = FALSE) {
-	pp = c("contSD", "catSelectivity", "catSD")
-	if (filter && modelVariant == "ZL") {
-		pp = c("contSD")
-	}
-	pp
-}
-
-#' @rdname getProbParams
-#' @export
-getAllParams = function(res, modelVariant = res$config$modelVariant, filter = FALSE) {
-	c(getProbParams(modelVariant = modelVariant, filter = filter),
-		getSdParams(modelVariant = modelVariant, filter = filter))
-}
-
-
-getCategoryParams = function(res, modelVariant = res$config$modelVariant, filter = FALSE) {
-	param = c("catMu", "catActive")
-	if (filter && modelVariant == "ZL") {
-		param = character(0)
-	}
-	param
+splitParamName = function(pname) {
+  
+  rval = list(baseName="invalid", types="invalid")
+  
+  if (grepl(".mu", pname, fixed=TRUE)) {
+    
+    # Hyperprior mean
+    
+    rval$baseName = stringr::str_remove(pname, ".mu")
+    rval$types = c("mu", "hyper")
+    
+  } else if (grepl(".var", pname, fixed=TRUE)) {
+    
+    # Hyperprior variance
+    
+    rval$baseName = stringr::str_remove(pname, ".var")
+    rval$types = c("var", "hyper")
+    
+  } else if (grepl("_cond", pname, fixed=TRUE)) {
+    
+    # Condition effect
+    
+    parts = stringr::str_split_fixed(pname, "_cond", n=Inf)
+    
+    rval$index = stringr::str_remove_all(parts[2], stringr::fixed("["))
+    rval$index = stringr::str_remove_all(rval$index, stringr::fixed("]"))
+    
+    rval$baseName = parts[1]
+    rval$types = "cond"
+    
+  } else if (grepl("[", pname, fixed=TRUE)) {
+    
+    # Participant parameter
+    
+    parts = stringr::str_split_fixed(pname, stringr::fixed("["), n=Inf)
+    
+    rval$index = stringr::str_remove_all(parts[2], stringr::fixed("]"))
+    
+    if (grepl(",", rval$index, fixed=TRUE)) {
+      arrayParts = stringr::str_split_fixed(rval$index, stringr::fixed(","), n=Inf)
+      rval$index = as.vector(arrayParts)
+    }
+    
+    rval$baseName = parts[1]
+    rval$types = "participant"
+    
+  } else {
+    rval$baseName = pname
+    rval$types = "generic"
+  }
+  
+  if (!(rval$baseName %in% getParamNames())) {
+    rval$types = c(rval$types, "invalid")
+  }
+  
+  if (rval$baseName %in% getParamNames(types="prob")) {
+    rval$types = c(rval$types, "probParam")
+  } else if (rval$baseName %in% getParamNames(types="sd")) {
+    rval$types = c(rval$types, "sdParam")
+  } else if (rval$baseName %in% getParamNames(types="cat")) {
+    rval$types = c(rval$types, "catParam")
+  }
+  
+  rval
 }
 
 
@@ -236,6 +481,8 @@ getFactorsForConditionEffect = function(res, param) {
 		rval = getFactorsForConditionEffect.WP(res$config, param)
 	} else if (resultIsType(res, "BP")) {
 		rval = getFactorsForConditionEffect.BP(res, param)
+	} else if (resultIsType(res, "Parallel")) {
+	  stop("This function does not support Parallel results.")
 	}
 
 	rval
@@ -286,6 +533,8 @@ updateFactorsForConditionEffects = function(res, param, removeConstant = FALSE) 
 		fun = updateFactorsForConditionEffects.WP
 	} else if (resultIsType(res, "BP")) {
 		fun = updateFactorsForConditionEffects.BP
+	} else if (resultIsType(res, "Parallel")) {
+	  stop("This function does not support Parallel results.")
 	}
 	
 	factors = fun(res, param)
@@ -390,28 +639,32 @@ getAllFactorNames = function(factors, removeConstant = FALSE) {
 #' 
 #' @export
 getFactorNameToType = function(factors) {
-	factors = normalizeFactors(factors, removeConstant = TRUE)
+  
+	factors = normalizeFactors(factors, removeConstant = TRUE, warnOnRemoval = FALSE)
 	
+	# ns is names of factors, not the base names like "cond"
 	ns = names(factors)
 	
 	ns = ns[ !(ns %in% c("cond", "group", "key")) ]
 	
 	nameToType = list()
 	
-	for (i in 1:length(ns)) {
-		
-		form = stats::formula( paste0(ns[i], " ~ group") )
-		nunique = function(x) { length(unique(x)) }
-		agg = stats::aggregate(form, factors, nunique)
-		
-		isWP = any(agg[ , ns[i] ] > 1)
-		
-		if (isWP) {
-			nameToType[[ ns[i] ]] = "wp"
-		} else {
-			nameToType[[ ns[i] ]] = "bp"
-		}
-		
+	if (length(ns) > 0) {
+  	for (i in 1:length(ns)) {
+  		
+  		form = stats::formula( paste0(ns[i], " ~ group") )
+  		nunique = function(x) { length(unique(x)) }
+  		agg = stats::aggregate(form, factors, nunique)
+  		
+  		isWP = any(agg[ , ns[i] ] > 1)
+  		
+  		if (isWP) {
+  			nameToType[[ ns[i] ]] = "wp"
+  		} else {
+  			nameToType[[ ns[i] ]] = "bp"
+  		}
+  		
+  	}
 	}
 	
 	nameToType
@@ -509,41 +762,6 @@ normalizeFactors = function(factors, removeConstant = FALSE, warnOnRemoval = TRU
 }
 
 
-# DEPRECIATED
-getFactorTypes = function(factors) {
-	
-	factors = normalizeFactors(factors)
-	
-	ns = names(factors)
-	
-	ns = ns[ !(ns %in% c("cond", "group", "key")) ]
-	
-	nameToType = list()
-	
-	for (i in 1:length(ns)) {
-		
-		form = stats::formula( paste0(ns[i], " ~ group") )
-		nunique = function(x) { length(unique(x)) }
-		agg = stats::aggregate(form, factors, nunique)
-		
-		isWP = any(agg[ , ns[i] ] > 1)
-		
-		if (isWP) {
-			nameToType[[ ns[i] ]] = "wp"
-		} else {
-			nameToType[[ ns[i] ]] = "bp"
-		}
-		
-	}
-	
-	typeToName = list(wp = character(0), bp = character(0))
-	for (n in names(nameToType)) {
-		typeToName[[ nameToType[[n]] ]] = c(typeToName[[ nameToType[[n]] ]], n)
-		typeToName[[ "all" ]] = c(typeToName[[ "all" ]], n)
-	}
-	
-	list(nameToType = nameToType, typeToName = typeToName)
-}
 
 ###############################################################################
 
@@ -576,14 +794,19 @@ getFactorTypes = function(factors) {
 #' @export
 posteriorMeansAndCredibleIntervals = function(res, params=NULL, cip=0.95, addMu=TRUE, manifest=TRUE) {
 	
+  if (resultIsType(res, "Parallel")) {
+    stop("This function does not support Parallel results.")
+  }
+  
 	aggFuns = list(mean = mean,
 								 lower = function(x) { stats::quantile(x, (1 - cip) / 2) },
 								 upper = function(x) { stats::quantile(x, (1 + cip) / 2) })
 	
 	if (is.null(params)) {
-		params = getAllParams(res, filter=TRUE)
+		#params = getAllParams(res, filter=TRUE)
+		params = getParamNames(res$config$modelVariant, types=c("prob", "sd"))
 		if (res$config$modelVariant != "ZL") {
-		  params = c(params, "catActive")
+		  params = c(params, "catActive") # PMCI is able to summarize catActive
 		}
 	}
 
@@ -661,7 +884,7 @@ posteriorMeansAndCredibleIntervals = function(res, params=NULL, cip=0.95, addMu=
 
 ###############################################################################
 
-# collapses across columns in "drop" within interations
+# collapses across columns in "drop" within iterations
 getIterationCatActive = function(res, aggFun = mean, drop = "pnum") {
 	
 	df = getCatActiveDataFrame(res)
@@ -670,7 +893,7 @@ getIterationCatActive = function(res, aggFun = mean, drop = "pnum") {
 	usedCols = ns[ !(ns %in% c("x", drop)) ]
 	
 	# Average across drop within iterations
-	df$iteration = 1:res$config$iterations
+	df$iteration = 1:res$runConfig$iterations
 	form = paste0("x ~ iteration * ", paste(usedCols, collapse=" * "))
 	partMean = stats::aggregate(stats::formula(form), df, aggFun)
 	partMean$iteration = NULL
@@ -688,6 +911,8 @@ getCatActiveDataFrame = function(res) {
 		rval = getCatActiveDataFrame.WP(res)
 	} else if (resultIsType(res, "BP")) {
 		rval = getCatActiveDataFrame.BP(res)
+	} else if (resultIsType(res, "Parallel")) {
+	  stop("This function does not support Parallel results.")
 	}
 	
 	rval
@@ -779,6 +1004,8 @@ convertPosteriorsToMatrix = function(res, stripConstantParameters=TRUE, stripCat
 		fun = convertPosteriorsToMatrix.WP
 	} else if (resultIsType(res, "BP")) {
 		fun = convertPosteriorsToMatrix.BP
+	} else if (resultIsType(res, "Parallel")) {
+	  stop("This function does not support Parallel results.")
 	}
 	
 	fun(res, stripConstantParameters, stripCatActive, stripCatMu)

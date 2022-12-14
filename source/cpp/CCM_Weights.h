@@ -8,6 +8,8 @@
 
 namespace CatCont {
 
+#ifdef USING_PLAT_SPLINE
+
 	double zeroDerivativeCubicSplineDensity(double z);
 	double zeroDerivativeCubicSplineDensity2(double distFromPlatEdge, double splineHW);
 
@@ -17,6 +19,8 @@ namespace CatCont {
 	double dPlatSplineFull(double x, double mu, double platHW, double splineHW, bool linear = false, bool degrees = true);
 
 	std::vector<double> dPlatSplineWeights(double study, CategoryParameters catPar, const ModelConfiguration& modCfg);
+
+#endif
 
 	//double calcPlatSplineLambda(const std::vector<double>& weights, LambdaVariant variant);
 
@@ -57,13 +61,17 @@ namespace CatCont {
 		// returns calculated weights in weightCount and weights members
 		void calcWeights(double study, const CategoryParameters& catPar);
 
-		// use weights
+		// uses calculated weights
 		double sumWeights(void) const;
+
+#ifdef USING_PLAT_SPLINE
 		double calcLambda(void) const; 
 		//double calcLambda(double study, const CategoryParameters& catPar);
 
 		// I dunno if this sould be member function. It calculates multiple weights.
 		double calcLambdaIntegral(const vector<double>& studys, const CategoryParameters& catPar);
+
+#endif
 
 		vector<double> copyFilledWeights(void) const;
 		void reset(void);

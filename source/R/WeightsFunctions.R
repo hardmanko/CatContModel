@@ -81,7 +81,7 @@ categoryWeightsFunction = function(study, catMu, catSelectivity, dataType = "cir
   
   catDensities = NULL
   if (dataType == "circular") {
-    catDensities = dvmd(study, catMu, catSelectivity)
+    catDensities = dVonMises(study, catMu, catSelectivity, degrees=TRUE)
   } else if (dataType == "linear") {
     catDensities = stats::dnorm(study, catMu, catSelectivity)
   }

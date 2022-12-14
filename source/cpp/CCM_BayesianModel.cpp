@@ -12,7 +12,7 @@ double Bayesian::_llFunction(const CombinedParameters& par, const ConditionData&
 	} else if (this->config.dataType == DataType::Linear) {
 		rval = Linear::betweenAndWithinLL(par, data, config);
 	}
-		
+	
 	return rval;
 }
 
@@ -37,9 +37,9 @@ double Bayesian::singleParticipant_ll(const ParameterList& param, unsigned int p
 	return llSum;
 }
 
-double Bayesian::_singleParticipantLLSamplingFunction(const ParameterList& param, unsigned int i) const {
-	return singleParticipant_ll(param, i);
-}
+//double Bayesian::_singleParticipantLLSamplingFunction(const ParameterList& param, unsigned int pIndex) const {
+//	return singleParticipant_ll(param, pIndex);
+//}
 
 
 double Bayesian::singleCond_ll(const ParameterList& param, unsigned int condIndex) const {
@@ -56,6 +56,17 @@ double Bayesian::singleCond_ll(const ParameterList& param, unsigned int condInde
 
 		const ConditionData& cd = data.participants.at(pIndex).condData.at(condIndex);
 		llSum += _llFunction(combinedParameters, cd);
+	}
+
+	return llSum;
+}
+
+double Bayesian::_allData_ll(const ParameterList& param) const {
+
+	double llSum = 0;
+
+	for (size_t i = 0; i < this->data.participants.size(); i++) {
+		llSum += this->singleParticipant_ll(param, i);
 	}
 
 	return llSum;
@@ -210,15 +221,64 @@ double Bayesian::_catActivePenaltyPrior(const ParameterList& param, unsigned int
 	return std::log(numDens / denDens);
 }
 
-double Bayesian::catActive_ll(double catActive, const ParameterList& param, unsigned int pIndex, unsigned int catIndex) const {
+double Bayesian::_catActive_ll(double catActive, const ParameterList& param, unsigned int pIndex, unsigned int catIndex) const {
+
+	bool thisCatActive = (int)catActive == 1;
 
 	double ll = singleParticipant_ll(param, pIndex);
-	double prior = _catActivePenaltyPrior(param, pIndex, catIndex);
 
-	return ll + prior;
+	double priorLL = 0;
+
+	if (config.catActiveDistancePrior) {
+		priorLL += _catActivePenaltyPrior(param, pIndex, catIndex);
+	}
+
+	// Used when catMu is shared, catActive is not shared, and there is a heirarchical prior on catActive.
+	// This component of the prior on catActive relates to the other participants' catActives for this category.
+	if (config.catActiveHierPrior) {
+
+		string catIndexBase = "," + _convertToString(catIndex) + "]";
+
+		double catActiveSum = 0.0; // Sum across participants of catActive for this category.
+
+		for (size_t i = 0; i < data.participants.size(); i++) {
+			if (i == pIndex) {
+				catActiveSum += 1; // For this participant, always treat the category as active to prevent the heir prior from going to 0.
+			} else {
+				string catActiveName = "catActive[" + data.participants.at(i).pnum + catIndexBase;
+				catActiveSum += param.at(catActiveName);
+			}
+		}
+
+		double pCatsActive = catActiveSum / data.participants.size();
+
+		// Make prior weak, swings from 0.3 to 0.7.
+		pCatsActive = 0.5 + (pCatsActive - 0.5) * 0.4;
+
+		if (thisCatActive) {
+			priorLL += std::log(pCatsActive);
+		} else {
+			priorLL += std::log(1 - pCatsActive);
+		}
+
+		//priorLL += std::log(thisCatActive ? pCatsActive : 1 - pCatsActive);
+
+	}
+
+	// Fixed prior prob (default 0.5 for active/inactive).
+	if (this->priors.find("catActivePriorProb") != this->priors.end()) {
+		double caPriorP = this->priors.at("catActivePriorProb");
+		if (thisCatActive) {
+			priorLL += std::log(caPriorP);
+		} else {
+			priorLL += std::log(1 - caPriorP);
+		}
+	}
+
+	return ll + priorLL;
 }
 
-double Bayesian::catMu_ll(double catMu, const ParameterList& param, unsigned int pIndex, unsigned int catIndex) const {
+double Bayesian::_catMu_ll(double catMu, const ParameterList& param, unsigned int pIndex, unsigned int catIndex) const {
 
 	double ll = 0;
 
@@ -234,6 +294,43 @@ double Bayesian::catMu_ll(double catMu, const ParameterList& param, unsigned int
 }
 
 
+double Bayesian::_catActive_shared_ll(double catActive, const ParameterList& param, unsigned int catIndex) const {
+
+	double dataLL = 0;
+	double priorLL = 0;
+
+	if (config.catActiveDistancePrior) {
+		for (size_t i = 0; i < this->data.participants.size(); i++) {
+			dataLL += singleParticipant_ll(param, i);
+			priorLL += _catActivePenaltyPrior(param, i, catIndex);
+		}
+	}
+
+	if (this->priors.find("catActivePriorProb") != this->priors.end()) {
+		double caPriorP = this->priors.at("catActivePriorProb");
+		if ((int)catActive == 1) {
+			priorLL += std::log(caPriorP);
+		} else {
+			priorLL += std::log(1 - caPriorP);
+		}
+	}
+
+	return dataLL + priorLL;
+}
+
+double Bayesian::_catMu_shared_ll(double catMu, const ParameterList& param, unsigned int catIndex) const {
+
+	// likelihood for all participants and conditions
+	double ll = this->_allData_ll(param);
+
+	// Calculate the prior using all participants' data. 
+	double priorLL = 0;
+	for (size_t i = 0; i < this->data.participants.size(); i++) {
+		priorLL += _catMuPenalityPrior(param, i, catIndex);
+	}
+
+	return ll + priorLL;
+}
 
 
 double Bayesian::postMuSample(const ParameterList& param, string paramSetName, double mu0, double var0) const {
@@ -266,9 +363,11 @@ void Bayesian::createParameters(void) {
 
 	gibbs.clear();
 
+	gibbs.sectionTracker.sectionStart("Total");
+
 	//////////////////////////////////
 	// Primary participant parameters
-	gibbs.sectionTracker.sectionStart("Participant Primary", nullptr);
+	gibbs.sectionTracker.sectionStart("Participant Primary");
 	for (size_t i = 0; i < data.participants.size(); i++) {
 
 		vector<string> probParam = { "pMem", "pBetween", "pContBetween", "pContWithin", "pCatGuess" };
@@ -300,25 +399,57 @@ void Bayesian::createParameters(void) {
 	gibbs.sectionTracker.sectionEnd("Participant Primary");
 
 	//////////////////////////////////
-	// Participant category parameters
-	gibbs.sectionTracker.sectionStart("Participant Category", nullptr);
+	// Category parameters
+	gibbs.sectionTracker.sectionStart("Category Parameters");
+
+	// The start value for catMu are a grid within the response range.
+	// Note that this uses the data response range rather than the user-settable config response range.
+	// This works in the same way for both linear and circular. Imagine a circular design with data on only part of the circle.
+	std::vector<double> catMuStartGrid(config.maxCategories);
+	double catMuGridStepSize = (data.responseRange.upper - data.responseRange.lower) / (double)config.maxCategories;
+	for (unsigned int j = 0; j < config.maxCategories; j++) {
+		catMuStartGrid[j] = (j + 0.5) * catMuGridStepSize + data.responseRange.lower;
+	}
+
+	// If a category parameter is shared between participants, 
+	// use the first participant as the holder for the shared parameters.
+	// Copy the shared values to all other participants with DependentParameter.
+	unsigned int sharedHolderIndex = 0;
+
 	for (size_t i = 0; i < data.participants.size(); i++) {
 		for (unsigned int j = 0; j < config.maxCategories; j++) {
 
-			string catIstr = "[" + _convertToString(data.participants.at(i).pnum) + "," + _convertToString(j) + "]";
+			string catIstr = "[" + data.participants.at(i).pnum + "," + _convertToString(j) + "]";
 
-			{
-				MH_Parameter catActive;
-				catActive.name = "catActive" + catIstr;
-				catActive.group = "catActive";
+			// ---------------------
+			// catMu
+			if (config.catMuShared) {
 
-				catActive.deviateFunction = &Bayesian::_catActiveDeviateFunction;
-				catActive.llFunction = bind(&Bayesian::catActive_ll, this, _1, _2, i, j);
+				if (i == sharedHolderIndex) {
+					MH_Parameter catMuShared;
+					catMuShared.name = "catMu" + catIstr;
+					catMuShared.group = "catMu";
 
-				gibbs.addParameter(catActive, 1.0); //Start all categories active.
-			}
+					double catMuCandidateSd = mhTuningSd.at("catMu"); //linear
+					if (config.dataType == DataType::Circular) {
+						catMuCandidateSd = Circular::degreesToRadians(catMuCandidateSd);
+					}
 
-			{
+					catMuShared.deviateFunction = bind(normalDeviate, _1, catMuCandidateSd);
+					catMuShared.llFunction = bind(&Bayesian::_catMu_shared_ll, this, _1, _2, j);
+
+					gibbs.addParameter(catMuShared, catMuStartGrid[j]);
+				} else {
+					// If not the holder, catMu and catActive are dependent parameters
+					string catMuSource = "catMu[" + data.participants.at(sharedHolderIndex).pnum + "," + _convertToString(j) + "]";
+					string catMuName = "catMu" + catIstr;
+
+					DependentParameter catMuDep(catMuName, "catMu", catMuSource);
+					gibbs.addParameter(catMuDep);
+				}
+
+			} else {
+				// catMu individual
 				MH_Parameter catMu;
 				catMu.name = "catMu" + catIstr;
 				catMu.group = "catMu";
@@ -330,21 +461,46 @@ void Bayesian::createParameters(void) {
 				}
 
 				catMu.deviateFunction = bind(normalDeviate, _1, catMuCandidateSd);
-				catMu.llFunction = bind(&Bayesian::catMu_ll, this, _1, _2, i, j);
+				catMu.llFunction = bind(&Bayesian::_catMu_ll, this, _1, _2, i, j);
 
-				//The start value is in a grid within the response range
-				//This works in the same way for both linear and circular. 
-				//Imagine a circular design with data on only part of the circle.
-				//Note that this uses the data response range rather than the user-settable config response range.
-				double stepSize = (data.responseRange.upper - data.responseRange.lower) / (double)config.maxCategories;
-				double startValue = (j + 0.5) * stepSize + data.responseRange.lower;
+				gibbs.addParameter(catMu, catMuStartGrid[j]);
+			}
 
-				gibbs.addParameter(catMu, startValue);
+			// ---------------------
+			// catActive
+			if (config.catActiveShared) {
+				if (i == sharedHolderIndex) {
+					MH_Parameter catActiveShared;
+					catActiveShared.name = "catActive" + catIstr;
+					catActiveShared.group = "catActive";
+
+					catActiveShared.deviateFunction = &Bayesian::_catActiveDeviateFunction;
+					catActiveShared.llFunction = bind(&Bayesian::_catActive_shared_ll, this, _1, _2, j);
+
+					gibbs.addParameter(catActiveShared, 0.0); // Start all categories inactive. TODO
+				} else {
+					string catActiveSource = "catActive[" + data.participants.at(sharedHolderIndex).pnum + "," + _convertToString(j) + "]";
+					string catActiveName = "catActive" + catIstr;
+
+					DependentParameter catActiveDep(catActiveName, "catActive", catActiveSource);
+					gibbs.addParameter(catActiveDep);
+				}
+			} else {
+				// catActive individual
+				MH_Parameter catActive;
+				catActive.name = "catActive" + catIstr;
+				catActive.group = "catActive";
+
+				catActive.deviateFunction = &Bayesian::_catActiveDeviateFunction;
+				catActive.llFunction = bind(&Bayesian::_catActive_ll, this, _1, _2, i, j);
+
+				gibbs.addParameter(catActive, 0.0); //Start all categories inactive. TODO
 			}
 
 		}
 	}
-	gibbs.sectionTracker.sectionEnd("Participant Category");
+
+	gibbs.sectionTracker.sectionEnd("Category Parameters");
 
 
 	/////////////////////////////////////////////
@@ -386,7 +542,7 @@ void Bayesian::createParameters(void) {
 	
 	EqualityConstraints eq;
 	
-	bool eqSetupSuccess = eq.setup(overrides.equalityConstraints, data.conditionNames, vector<string>(0));
+	bool eqSetupSuccess = eq.setup(config.overrides.equalityConstraints, data.conditionNames, vector<string>(0));
 	if (!eqSetupSuccess) {
 		logMessage("createParameters", "Error while setting up equality constraints for condition effects.");
 		return;
@@ -484,7 +640,7 @@ void Bayesian::createParameters(void) {
 	vector<string> condParamToZero = config.getParamWithoutConditionEffects();
 
 	for (unsigned int i = 0; i < condParamToZero.size(); i++) {
-		//TODO: This is not currently needed, because of how the condition effects make equality constraints
+		//TODO: This is not currently needed, because of how the condition effects make equality constraints.
 		//The equality constraints make parameters without condition effects all be equal to the cornerstone, which is 0.
 		gibbs.setParameterGroupToConstantValue(condParamToZero[i] + "_cond", 0);
 
@@ -520,7 +676,7 @@ void Bayesian::createParameters(void) {
 
 		for (string& s : pToSet) {
 			gibbs.setParameterGroupToConstantValue(s, -100); //-100 being essentially 0 once transformed, 
-																//but it actually doesn't matter because the within likelihood function is used.
+															 //but it actually doesn't matter because the within likelihood function is used.
 			gibbs.setParameterGroupToConstantValue(s + "_cond", 0);
 
 			//Get rid of population parameters
@@ -580,17 +736,20 @@ void Bayesian::createParameters(void) {
 			spLL.name = "participantLL" + istr;
 			spLL.group = "participantLL";
 
-			spLL.updateContinuously = false; //Only update once per iteration
+			spLL.updateContinuously = false; // Only update once per iteration
 
-			spLL.samplingFunction = std::bind(&Bayesian::_singleParticipantLLSamplingFunction, this, _1, i);
+			//spLL.samplingFunction = std::bind(&Bayesian::_singleParticipantLLSamplingFunction, this, _1, i);
+			spLL.samplingFunction = std::bind(&Bayesian::singleParticipant_ll, this, _1, i);
 
 			gibbs.addParameter(spLL);
 		}
 
 		gibbs.sectionTracker.sectionEnd("Participant Likelihood");
 	}
+
+	gibbs.sectionTracker.sectionEnd("Total");
 	
-	if (!config.performanceConfig.profileParameterTypes) {
+	if (!this->runConfig.profileParameterTypes) {
 		gibbs.sectionTracker.clear();
 	}
 
@@ -744,60 +903,131 @@ void Bayesian::setData(vector<ParticipantData> partData) {
 
 }
 
+
+
+map<string, double> Bayesian::getDefaultPriors(void) {
+
+	map<string, double> defPriors;
+
+	vector<string> probParams = { "pMem", "pBetween", "pContBetween", "pContWithin", "pCatGuess" };
+
+	for (const string& pp : probParams) {
+
+		// Hierarchical priors on participant parameters
+		defPriors[pp + ".mu.mu"] = 0;
+		defPriors[pp + ".mu.var"] = pow(1.2, 2); //sd = 1.2, var = 1.44
+		defPriors[pp + ".var.a"] = 1.5;
+		defPriors[pp + ".var.b"] = 1.5;
+
+		// Priors on condition effects
+		defPriors[pp + "_cond.loc"] = 0;
+		defPriors[pp + "_cond.scale"] = 0.3;
+
+	}
+
+	// TODO: Apply linear range to SD params and catMu
+	//Argument: std::vector<double> linearRange = { 0, 100 };
+	//double sdWidth = 360;
+	//if (linearRange.size() == 2) {
+	//	sdWidth = abs(linearRange[1] - linearRange[2]);
+	//}
+	//double sdScale = 1;
+	//if (linearRange.size() == 2) {
+	//	sdScale = abs(linearRange[1] - linearRange[2]) / 360.0;
+	//}
+
+	vector<string> sdParams = { "contSD", "catSD", "catSelectivity" };
+
+	for (const string& sp : sdParams) {
+
+		// Hierarchical priors on participant parameters
+		defPriors[sp + ".mu.mu"] = 35;
+		defPriors[sp + ".mu.var"] = pow(15, 2); //sd = 15
+		defPriors[sp + ".var.a"] = 0.75;
+		defPriors[sp + ".var.b"] = 0.75;
+
+		// Priors on condition effects
+		defPriors[sp + "_cond.loc"] = 0;
+		defPriors[sp + "_cond.scale"] = 3;
+
+	}
+
+	defPriors["catMuPriorSD"] = 12;
+	defPriors["catActivePriorProb"] = 0.5;
+
+	return defPriors;
+}
+
+map<string, double> Bayesian::getDefaultMHTuning(void) {
+
+	// TODO: Apply linear range to SD params and catMu for both participant and condition params.
+
+	// These are standard deviations of normal candidate distributions.
+	map<string, double> defTuningSD;
+
+	///////////////////////////////////////////
+	// Participant parameters. All are latent.
+	defTuningSD["pMem"] = 0.3;
+	defTuningSD["pBetween"] = 0.9;
+	defTuningSD["pContBetween"] = 0.4;
+	defTuningSD["pContWithin"] = 0.7;
+	defTuningSD["pCatGuess"] = 0.7;
+
+	// SD parameters and catMu are in degrees
+	defTuningSD["contSD"] = 2;
+	defTuningSD["catSD"] = 1;
+	defTuningSD["catSelectivity"] = 2;
+
+	defTuningSD["catMu"] = 5;
+
+	///////////////////////////////////////////
+	// Condition effects. All are latent.
+	defTuningSD["pMem_cond"] = 0.2;
+	defTuningSD["pBetween_cond"] = 0.4;
+	defTuningSD["pContBetween_cond"] = 0.2;
+	defTuningSD["pContWithin_cond"] = 0.2;
+	defTuningSD["pCatGuess_cond"] = 0.3;
+
+	defTuningSD["contSD_cond"] = 1;
+	defTuningSD["catSD_cond"] = 0.5;
+	defTuningSD["catSelectivity_cond"] = 0.8;
+
+
+	if (usingDecorrelatingSteps) {
+
+		// When using decorrelating steps, the normal parameters need smaller step sizes by about a half.
+		for (auto& sd : defTuningSD) {
+			sd.second /= 2;
+		}
+		// Unadjust params without decorrelating steps.
+		defTuningSD["catMu"] *= 2;
+
+
+		//decorrelating parameters
+		defTuningSD["pMem_deCor"] = 0.1;
+		defTuningSD["pBetween_deCor"] = 0.2;
+		defTuningSD["pContBetween_deCor"] = 0.2;
+		defTuningSD["pContWithin_deCor"] = 0.3;
+		defTuningSD["pCatGuess_deCor"] = 0.1;
+
+		defTuningSD["contSD_deCor"] = 2;
+		defTuningSD["catSD_deCor"] = 1;
+		defTuningSD["catSelectivity_deCor"] = 1;
+	}
+
+	return defTuningSD;
+}
+
+
 void Bayesian::_setPriors(void) {
 
-	priors.clear();
-
-	vector<string> probParams;
-	probParams.push_back("pMem");
-	probParams.push_back("pBetween");
-	probParams.push_back("pContBetween");
-	probParams.push_back("pContWithin");
-	probParams.push_back("pCatGuess");
-
-
-	for (const string& s : probParams) {
-
-		// Hierarchical priors on participant parameters
-		priors[s + ".mu.mu"] = 0;
-		priors[s + ".mu.var"] = pow(1.2, 2); //sd = 1.2, var = 1.44
-		priors[s + ".var.a"] = 1.5;
-		priors[s + ".var.b"] = 1.5;
-
-		// Priors on condition effects
-		priors[s + "_cond.loc"] = 0;
-		priors[s + "_cond.scale"] = 0.3;
-
-	}
-
-	vector<string> sdParams;
-	sdParams.push_back("contSD");
-	sdParams.push_back("catSelectivity");
-	sdParams.push_back("catSD");
-
-	for (const string& s : sdParams) {
-
-		// Hierarchical priors on participant parameters
-		priors[s + ".mu.mu"] = 35;
-		priors[s + ".mu.var"] = pow(15, 2); //sd = 15
-		priors[s + ".var.a"] = 0.75;
-		priors[s + ".var.b"] = 0.75;
-
-		// Priors on condition effects
-		priors[s + "_cond.loc"] = 0;
-		priors[s + "_cond.scale"] = 3;
-
-	}
-
-	priors["catMuPriorSD"] = 12;
-
+	this->priors = getDefaultPriors();
 
 	//Once all of the defaults are in, do the overrides
 	_doPriorOverrides();
 
 
-	//After the overrides are in, calculate these things.
-
+	//After the overrides are in, calculate these things:
 	_catMuPriorData.sd = priors["catMuPriorSD"];
 	if (config.dataType == DataType::Circular) {
 
@@ -806,68 +1036,17 @@ void Bayesian::_setPriors(void) {
 
 	} else if (config.dataType == DataType::Linear) {
 
-		_catMuPriorData.kappa = std::numeric_limits<double>::infinity(); //This isn't used anywhere
-		_catMuPriorData.maxLikelihood = Linear::normalPDF(0, 0, _catMuPriorData.sd); //NOT truncated.
+		_catMuPriorData.kappa = std::numeric_limits<double>::infinity(); // kappa isn't used anywhere for linear data
+		_catMuPriorData.maxLikelihood = Linear::normalPDF(0, 0, _catMuPriorData.sd); // NOT truncated.
 
 	}
 }
 
-
-
 void Bayesian::_setMhTuning(void) {
-	mhTuningSd.clear();
+	mhTuningSd = getDefaultMHTuning();
 
-	//participant parameters
-	mhTuningSd["pMem"] = 0.3;
-	mhTuningSd["pBetween"] = 0.9;
-	mhTuningSd["pContBetween"] = 0.4;
-	mhTuningSd["pContWithin"] = 0.7;
-	mhTuningSd["pCatGuess"] = 0.7;
-
-	mhTuningSd["contSD"] = 2;
-	mhTuningSd["catSelectivity"] = 2;
-	mhTuningSd["catSD"] = 1;
-
-	mhTuningSd["catMu"] = 5; //degrees
-
-
-	//condition effects
-	mhTuningSd["pMem_cond"] = 0.2;
-	mhTuningSd["pBetween_cond"] = 0.4;
-	mhTuningSd["pContBetween_cond"] = 0.2;
-	mhTuningSd["pContWithin_cond"] = 0.2;
-	mhTuningSd["pCatGuess_cond"] = 0.3;
-
-	mhTuningSd["contSD_cond"] = 1;
-	mhTuningSd["catSelectivity_cond"] = 0.8;
-	mhTuningSd["catSD_cond"] = 0.5;
-
-		
-	if (usingDecorrelatingSteps) {
-
-		for (auto& sd : mhTuningSd) {
-			//To account for the decorrelating steps, the step sizes have to be smaller for the rest of the parameters.
-			sd.second /= 2;
-		}
-		//Then unadjust things without condition effects
-		mhTuningSd["catMu"] *= 2;
-
-
-		//decorrelating parameters
-		mhTuningSd["pMem_deCor"] = 0.1;
-		mhTuningSd["pBetween_deCor"] = 0.2;
-		mhTuningSd["pContBetween_deCor"] = 0.2;
-		mhTuningSd["pContWithin_deCor"] = 0.3;
-		mhTuningSd["pCatGuess_deCor"] = 0.1;
-
-		mhTuningSd["contSD_deCor"] = 2;
-
-		mhTuningSd["catSelectivity_deCor"] = 1;
-		mhTuningSd["catSD_deCor"] = 1;
-	}
-
+	// Once defaults have been set, override defaults
 	_doMhOverrides();
-
 }
 
 
