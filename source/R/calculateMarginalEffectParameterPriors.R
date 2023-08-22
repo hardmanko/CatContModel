@@ -29,7 +29,7 @@
 #' 
 #' 
 #' @param results The results from the [`runParameterEstimation`] function. Note that you can run only 1 iteration and still have all the information you need.
-#' @param param The name of the parameter for which to calculate MEI effect parameter priors.
+#' @param parName The name of the parameter for which to calculate MEI effect parameter priors.
 #' @param testedFactors Character vector. The factors for which to perform the hypothesis test as a vector of factor names. A single factor name results in the test of the main effect of the factor. Multiple factor names result in the test of the interaction of all of those factors.
 #' @param dmFactors Character vector. The factors to use to construct the design matrix. For a fully-crossed (balanced) design, this can always be equal to `testFactors` (the default). For non-fully-crossed designs, you may sometimes want to create a design matrix using some factors, but perform a hypothesis test with only some of those factors (`testedFactors` must be a subset of `dmFactors`).
 #' @param contrastType Character (or function). The contrast to use to create the design matrix. Can be any of the function names on the documentation page for `contr.sum`. For a non-fully-crossed (unbalanced) design, you should use either "contr.treatment" or "contr.SAS". For a balanced design, you can use anything, but psychologists are most used to "contr.sum", which uses sums-to-zero constraints.
@@ -43,7 +43,7 @@
 #' @seealso testMainEffectsAndInteractions
 #' 
 #' @export
-calculateMarginalEffectParameterPriors = function(results, param, testedFactors = NULL, dmFactors = NULL, contrastType = NULL, priorLoc = NULL, priorScale = NULL) {
+calculateMarginalEffectParameterPriors = function(results, parName, testedFactors = NULL, dmFactors = NULL, contrastType = NULL, priorLoc = NULL, priorScale = NULL) {
 	
 	gmeihtf = results$config$factors
 	gmeihtf$cond = NULL
@@ -60,7 +60,7 @@ calculateMarginalEffectParameterPriors = function(results, param, testedFactors 
 	
 	testedFactorsSpecified = !is.null(testedFactors)
 	if (is.null(testedFactors)) {
-		testedFactors = getFactorsForConditionEffect(results, param)
+		testedFactors = getFactorsForConditionEffect(results, parName)
 		if (length(testedFactors) == 0) {
 			return(NULL)
 		}
@@ -94,7 +94,7 @@ calculateMarginalEffectParameterPriors = function(results, param, testedFactors 
 		locations = rep(NA, nrow(factors))
 		scales = locations
 		for (i in 1:nrow(factors)) {
-			r = getConditionParameterPrior(results, param, factors$cond[i])
+			r = getConditionParameterPrior(results, parName, factors$cond[i])
 			locations[i] = r$location
 			scales[i] = r$scale
 			if (factors$cond[i] != results$config$cornerstoneConditionName) {

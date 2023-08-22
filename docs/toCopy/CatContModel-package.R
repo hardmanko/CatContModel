@@ -8,7 +8,7 @@
 #' 
 #' See also the [`Glossary`] of common terms.
 #' 
-#' The primary function for this package is [`runParameterEstimation`], which does the main parameter estimation. Other useful functions include [`examineMHAcceptance`],  [`removeBurnIn`], [`continueSampling`], [`mergeResults`], [`plotParameterSummary`], [`testConditionEffects`], [`testMainEffectsAndInteractions`], among others. 
+#' The primary function for this package is [`runParameterEstimation`], which does the main parameter estimation. Other useful functions include [`examineMHAcceptance`],  [`removeBurnIn`], [`continueSampling`], [`combineResults`], [`plotParameterSummary`], [`testConditionEffects`], [`testMainEffectsAndInteractions`], among others. 
 #' 
 #'
 #' @name CatContModel

@@ -25,7 +25,7 @@ getOrderedMatchingParameterNames = function(res, paramGroup) {
 
 titlePagePlot = function(text, x=0.5, y=0.5, cex=3, setPar=TRUE, resetPar=TRUE) {
   
-  opar = par()
+  opar = graphics::par()
   
   if (setPar) {
     graphics::par(xpd=TRUE, mar=c(0,0,0,0), mfrow=c(1,1))
@@ -38,7 +38,7 @@ titlePagePlot = function(text, x=0.5, y=0.5, cex=3, setPar=TRUE, resetPar=TRUE) 
   graphics::text(x, y, text, cex=cex)
   
   if (resetPar) {
-    par(xpd=opar$xpd, mar=opar$mar, mfrow=opar$mfrow)
+    graphics::par(xpd=opar$xpd, mar=opar$mar, mfrow=opar$mfrow)
   }
   
   opar
@@ -48,11 +48,14 @@ titlePagePlot = function(text, x=0.5, y=0.5, cex=3, setPar=TRUE, resetPar=TRUE) 
 #' 
 #' Makes plots, preferably to a pdf file, of posterior parameter chains for purposes of visual convergence diagnostics.
 #' There are other uses for these plots, including model validation (are the parameters behaving reasonably?).
+#' Title pages with
 #' 
-#' @param res A results object.
-#' @param filename The name of a pdf file to plot to. If the file extension is not ".pdf", that file extension will be appended.
-#' @param whichIterations Numeric vector. Which iterations to plot.
-convergencePlots = function(res, filename=NULL, whichIterations=NULL) {
+#' @param res A results object. Both WP and Parallel types are supported.
+#' @param pdfFile The name of a pdf file to plot to. If the file extension is not ".pdf", the ".pdf" extension will be appended.
+#' @param whichIterations Numeric vector. Which iterations to plot. If `NULL`, all iterations are plotted.
+#' 
+#' @export
+convergencePlots = function(res, pdfFile=NULL, whichIterations=NULL) {
   
   if (resultIsType(res, "WP")) {
     # Make fake Parallel object.
@@ -62,22 +65,22 @@ convergencePlots = function(res, filename=NULL, whichIterations=NULL) {
     stop("BP results objects are not supported.")
   }
 
-  convergencePlots_parallel(res, filename=filename, whichIterations=whichIterations)
+  convergencePlots_parallel(res, pdfFile=pdfFile, whichIterations=whichIterations)
 }
 
 
 
 # mega function to do all parameters in one file
-convergencePlots_parallel = function(parRes, filename=NULL, whichIterations=NULL) {
+convergencePlots_parallel = function(parRes, pdfFile=NULL, whichIterations=NULL) {
   
   usedPnums = parRes$chains[[1]]$pnums
   
-  if (!is.null(filename)) {
-    if (!grepl("\\.pdf$", filename)) {
-      filename = paste0(filename, ".pdf")
+  if (!is.null(pdfFile)) {
+    if (!grepl("\\.pdf$", pdfFile)) {
+      pdfFile = paste0(pdfFile, ".pdf")
     }
     
-    grDevices::pdf(filename, width = 8, height = 4)
+    grDevices::pdf(pdfFile, width = 8, height = 4)
   }
 
   standardParams = getParamNames(parRes$chains[[1]]$config$modelVariant, types=c("prob", "sd"))
@@ -91,9 +94,9 @@ convergencePlots_parallel = function(parRes, filename=NULL, whichIterations=NULL
   }
   
   labels = c("For standard parameters, posterior chains and density are plotted. ", 
-             ">> Population mean and variance: param.mu, param.var",
-             ">> Effect of task condition: param_cond[cond]",
-             ">> Participant level parameters: param[pnum]",
+             ">> Population mean and variance: parName.mu, parName.var",
+             ">> Effect of task condition: parName_cond[cond]",
+             ">> Participant level parameters: parName[pnum]",
              paste0("Standard parameters: ", paste(printedParamNames, collapse=", "))
              )
   
@@ -172,38 +175,38 @@ convergencePlots_parallel = function(parRes, filename=NULL, whichIterations=NULL
     }
   }
     
-  if (!is.null(filename)) {
+  if (!is.null(pdfFile)) {
     grDevices::dev.off()
   }
   
 }
 
-convergencePlotStandard = function(res, param, type=c("chain", "density"), whichIterations=NULL, panelize=TRUE) {
+convergencePlotStandard = function(res, parName, type=c("chain", "density"), whichIterations=NULL, panelize=TRUE) {
   parRes = list(chains = list(res), parallelConfig = makeParallelConfig(1))
-  convergencePlotStandard_parallel(parRes, param=param, type=type, whichIterations=whichIterations, combinedDens=FALSE, panelize=panelize)
+  convergencePlotStandard_parallel(parRes, parName=parName, type=type, whichIterations=whichIterations, combinedDens=FALSE, panelize=panelize)
 }
 
 
 # For non-category parameters (all but catMu and catActive)
 # type %in% chain, density
-convergencePlotStandard_parallel = function(parRes, param, type=c("chain", "density"), whichIterations=NULL, combinedDens=FALSE, panelize=TRUE) {
+convergencePlotStandard_parallel = function(parRes, parName, type=c("chain", "density"), whichIterations=NULL, combinedDens=FALSE, panelize=TRUE) {
   
-  # check param name
-  if (!(param %in% names(parRes$chains[[1]]$posteriors)) || 
-      grepl("catMu", param, fixed=TRUE) || 
-      grepl("catActive", param, fixed=TRUE)) 
+  # check for invalid parameters
+  if (!(parName %in% names(parRes$chains[[1]]$posteriors)) || 
+      grepl("catMu", parName, fixed=TRUE) || 
+      grepl("catActive", parName, fixed=TRUE)) 
   {
-    warning(paste0("Invalid parameter name: \"", param, "\""))
+    warning(paste0("Invalid parameter name: \"", parName, "\""))
     return()
   }
   
   # shared setup
   mm = matrix(nrow=parRes$chains[[1]]$runConfig$iterations, ncol=length(parRes$chains))
   for (i in 1:length(parRes$chains)) {
-    mm[,i] = parRes$chains[[i]]$posteriors[[param]]
+    mm[,i] = parRes$chains[[i]]$posteriors[[parName]]
   }
   
-  whichIterations = CatContModel:::valueIfNull(whichIterations, 1:parRes$chains[[1]]$runConfig$iterations)
+  whichIterations = valueIfNull(whichIterations, 1:parRes$chains[[1]]$runConfig$iterations)
   whichIterations = whichIterations[ whichIterations %in% 1:nrow(mm) ]
   mm = mm[whichIterations,,drop=FALSE]
   
@@ -220,11 +223,11 @@ convergencePlotStandard_parallel = function(parRes, param, type=c("chain", "dens
   
   # chain
   if ("chain" %in% type) {
-    base::plot(x=range(whichIterations), y=valRange, type='n', xlab="Iteration", ylab=param)
+    base::plot(x=range(whichIterations), y=valRange, type='n', xlab="Iteration", ylab=parName)
     for (i in 1:ncol(mm)) {
       graphics::lines(x=whichIterations, y=mm[,i], col=col[i])
     }
-    graphics::title(paste0("Chain for ", param))
+    graphics::title(paste0("Chain for ", parName))
   }
   
   
@@ -257,7 +260,7 @@ convergencePlotStandard_parallel = function(parRes, param, type=c("chain", "dens
         }, error = errorCatcher)
         
         if (polsplineError != "") {
-          errToPrint = paste0("Error estimating density for param=", param, ". Density set to 0. ", polsplineError)
+          errToPrint = paste0("Error estimating density for parameter = ", parName, ". Density set to 0. ", polsplineError)
           warning(errToPrint)
           polsplineError = ""
           densMat[,i] = 0
@@ -266,11 +269,11 @@ convergencePlotStandard_parallel = function(parRes, param, type=c("chain", "dens
       }
     }
     
-    base::plot(x=valRange, y=c(0,max(densMat)), type='n', xlab=param, ylab="Density")
+    base::plot(x=valRange, y=c(0,max(densMat)), type='n', xlab=parName, ylab="Density")
     for (i in 1:ncol(mm)) {
       graphics::lines(x=densXs, y=densMat[,i], col=col[i])
     }
-    graphics::title(paste0("Density for ", param))
+    graphics::title(paste0("Density for ", parName))
     
     # Add combined density line
     if (combinedDens && !paramIsConstant) {
@@ -282,7 +285,7 @@ convergencePlotStandard_parallel = function(parRes, param, type=c("chain", "dens
       }, error = errorCatcher)
       
       if (polsplineError != "") {
-        errToPrint = paste0("Error estimating combined density for param=", param, ". ", polsplineError)
+        errToPrint = paste0("Error estimating combined density for parameter=", parName, ". ", polsplineError)
         warning(errToPrint)
         polsplineError = ""
       }
@@ -298,13 +301,13 @@ convergencePlotStandard_parallel = function(parRes, param, type=c("chain", "dens
 # Colors are per category index
 convergencePlot_catMuScatter = function(res, pnum, whichIterations=NULL) {
   
-  whichIterations = CatContModel:::valueIfNull(whichIterations, 1:res$runConfig$iterations)
+  whichIterations = valueIfNull(whichIterations, 1:res$runConfig$iterations)
   
   catCol = grDevices::rainbow(res$config$maxCategories)
   alphaHex = gettextf("%X", 51)
   catCol = paste0(catCol, alphaHex)
   
-  pMats = convertPosteriorsToMatrices(res, param=c("catMu", "catActive"))
+  pMats = convertPosteriorsToMatrices(res, parNames=c("catMu", "catActive"))
   
   pInd = which(pnum == res$pnums)
   
@@ -327,7 +330,7 @@ convergencePlot_catMuScatter = function(res, pnum, whichIterations=NULL) {
     cmij = cmi[j,whichIterations]
     caij = cai[j,whichIterations]
     
-    cmij = CatContModel:::clampAngle(cmij, pm180 = FALSE, degrees = TRUE)
+    cmij = clampAngle(cmij, pm180 = FALSE, degrees = TRUE)
     
     cmij[ caij == 0 ] = -100 # This is such a gross hack
     
@@ -338,17 +341,23 @@ convergencePlot_catMuScatter = function(res, pnum, whichIterations=NULL) {
 
 convergencePlot_catMuScatter_activeCumSum = function(res, pnum, whichIterations=NULL, colMaxIter=50) {
   
-  colors = rev(grDevices::hcl.colors(colMaxIter, palette = "Zissou 1")) # Fall is also ok
+  if (colMaxIter <= 1) {
+    colMaxIter = 1
+    colors = "black"
+  } else {
+    colors = rev(grDevices::hcl.colors(colMaxIter, palette = "Zissou 1")) # Fall is also ok
+    
+    # Test the palette
+    # plot(1:colMaxIter, y=rep(1, colMaxIter), col=colors, pch=16)
+    
+    alphaHex = gettextf("%X", 51)
+    colors = paste0(colors, alphaHex)
+  }
+
   
-  # plot(1:colMaxIter, y=rep(1, colMaxIter), col=colors, pch=16)
+  whichIterations = valueIfNull(whichIterations, 1:res$runConfig$iterations)
   
-  alphaHex = gettextf("%X", 51)
-  colors = paste0(colors, alphaHex)
-  
-  
-  whichIterations = CatContModel:::valueIfNull(whichIterations, 1:res$runConfig$iterations)
-  
-  pMats = convertPosteriorsToMatrices(res, param=c("catMu", "catActive"))
+  pMats = convertPosteriorsToMatrices(res, parNames=c("catMu", "catActive"))
   
   pInd = which(pnum == res$pnums)
   
@@ -381,11 +390,12 @@ convergencePlot_catMuScatter_activeCumSum = function(res, pnum, whichIterations=
         cumActive[i] = 0
       }
     }
+    # Any cumulative active counts get the color for the highest count with a color.
     cumActive[ cumActive > colMaxIter ] = colMaxIter
     
-    cmij = CatContModel:::clampAngle(cmij, pm180 = FALSE, degrees = TRUE)
+    cmij = clampAngle(cmij, pm180 = FALSE, degrees = TRUE)
     
-    cmij[ caij == 0 ] = ylim[1] - 1000 # This is such a gross hack
+    cmij[ caij == 0 ] = ylim[1] - 1000 # TODO: This is such a gross hack
     
     activeCounts = sort(unique(cumActive))
     for (ac in activeCounts) {
@@ -401,15 +411,15 @@ convergencePlot_catMuScatter_activeCumSum = function(res, pnum, whichIterations=
 # Only active categories
 convergencePlot_catMuDensity_parallel = function(parRes, pnums=NULL, catMuPrecision=2, whichIterations=NULL) {
   nRes = length(parRes$chains)
-  pnums = CatContModel:::valueIfNull(pnums, parRes$chains[[1]]$pnums)
+  pnums = valueIfNull(pnums, parRes$chains[[1]]$pnums)
   chainColors = grDevices::rainbow(nRes)
   
-  whichIterations = CatContModel:::valueIfNull(whichIterations, 1:parRes$chains[[1]]$runConfig$iterations)
+  whichIterations = valueIfNull(whichIterations, 1:parRes$chains[[1]]$runConfig$iterations)
   
   allPlotData = NULL
 
   for (i in 1:nRes) {
-    post = convertPosteriorsToMatrices(parRes$chains[[i]], param = c("catMu", "catActive"))
+    post = convertPosteriorsToMatrices(parRes$chains[[i]], parNames = c("catMu", "catActive"))
     
     
     includedPnumInd = which(dimnames(post$catMu)[[1]] %in% pnums)
@@ -419,7 +429,7 @@ convergencePlot_catMuDensity_parallel = function(parRes, pnums=NULL, catMuPrecis
     post$catActive = post$catActive[includedPnumInd,,whichIterations]
     
     
-    plotData = CatContModel:::catMu_getPlotData(post$catMu, post$catActive, 
+    plotData = catMu_getPlotData(post$catMu, post$catActive, 
                                  precision = catMuPrecision, 
                                  dataType = parRes$chains[[i]]$config$dataType, 
                                  responseRange = parRes$chains[[i]]$config$responseRange, 
@@ -454,16 +464,16 @@ convergencePlot_catActive_parallel = function(parRes, pnums=NULL, type="line", w
   
   nRes = length(parRes$chains)
   #nIterations = resList[[1]]$config$iterations
-  pnums = CatContModel:::valueIfNull(pnums, parRes$chains[[1]]$pnums)
+  pnums = valueIfNull(pnums, parRes$chains[[1]]$pnums)
   chainColors = grDevices::rainbow(nRes)
   
-  whichIterations = CatContModel:::valueIfNull(whichIterations, 1:parRes$chains[[1]]$runConfig$iterations)
+  whichIterations = valueIfNull(whichIterations, 1:parRes$chains[[1]]$runConfig$iterations)
   
   # per chain, count of active categories averaged across participants
   catActivePlotData = matrix(0, nrow=length(whichIterations), ncol=nRes)
   
   for (i in 1:nRes) {
-    post = convertPosteriorsToMatrices(parRes$chains[[i]], param = "catActive")
+    post = convertPosteriorsToMatrices(parRes$chains[[i]], parNames = "catActive")
     
     includedPnumInd = which(dimnames(post$catActive)[[1]] %in% pnums)
     post$catActive = post$catActive[includedPnumInd,,whichIterations]

@@ -11,7 +11,7 @@
 #' Converting a condition effect parameter to the manifest space without first adding in the grand mean would be nonsensical, so setting `addMu` to `FALSE` and `manifest` to `TRUE` at the same time is disallowed.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
-#' @param param The name of the parameter to get condition effects for.
+#' @param parName The name of a single parameter (e.g. `"pMem"`).
 #' @param priorSamples The number of samples to take from the priors on the condition effects. Defaults to the number of posterior iterations, which is usually appropriate.
 #' @param addMu If `TRUE`, the grand mean of the parameter is added to the condition effects. If `FALSE`, nothing is added.
 #' @param manifest If `TRUE`, the resulting parameter will be in the manifest space. If `FALSE`, the resulting parameter will be in the latent space. (See [`Glossary`].)
@@ -24,7 +24,7 @@
 #' @family generic functions
 #' 
 #' @export
-getConditionEffects = function(res, param, priorSamples = res$runConfig$iterations, addMu = FALSE, manifest = FALSE, prior = TRUE, posterior = TRUE) 
+getConditionEffects = function(res, parName, priorSamples = res$runConfig$iterations, addMu = FALSE, manifest = FALSE, prior = TRUE, posterior = TRUE) 
 {
 	
 	if (resultIsType(res, "WP")) {
@@ -33,7 +33,7 @@ getConditionEffects = function(res, param, priorSamples = res$runConfig$iteratio
 		fun = getConditionEffects.BP
 	}
 	
-	fun(res, param, priorSamples = priorSamples, addMu = addMu, manifest = manifest, prior = prior, posterior = posterior)
+	fun(res, parName, priorSamples = priorSamples, addMu = addMu, manifest = manifest, prior = prior, posterior = posterior)
 	
 }
 
@@ -55,7 +55,7 @@ getDefaultParametersWithConditionEffects = function(modelVariant) {
 }
 
 
-getPriorConditionEffects = function(results, param, priorSamples, addMu = FALSE, manifest = FALSE) {
+getPriorConditionEffects = function(results, parName, priorSamples, addMu = FALSE, manifest = FALSE) {
 	
 	if (!addMu && manifest) {
 		stop("A manifest parameter is the transformation of the sum of the latent condition effect and the grand mean. Thus addMu == FALSE && manifest == TRUE is disallowed.")
@@ -66,8 +66,8 @@ getPriorConditionEffects = function(results, param, priorSamples, addMu = FALSE,
 	mu = 0
 	if (addMu) {
 		mu = stats::rnorm(priorSamples, 
-							 results$prior[[ paste0(param, ".mu.mu") ]], 
-							 sqrt(results$prior[[ paste0(param, ".mu.var") ]])
+							 results$priors[[ paste0(parName, "_part.mu.mu") ]], 
+							 sqrt(results$priors[[ paste0(parName, "_part.mu.var") ]])
 		)
 	}
 	
@@ -76,12 +76,12 @@ getPriorConditionEffects = function(results, param, priorSamples, addMu = FALSE,
 	#first pass: Sample from free parameters and the cornerstone condition
 	for (i in 1:nrow(factors)) {
 		
-		target = paste(param, "_cond[", factors$cond[i], "]", sep="")
-		rootSource = getRootSourceConditionParameter(results, param, factors$cond[i])
+		target = paste(parName, "_cond[", factors$cond[i], "]", sep="")
+		rootSource = getRootSourceConditionParameter(results, parName, factors$cond[i])
 		
 		#If this is its own source (i.e. it is an unconstrained parameter), sample from it
 		if (target == rootSource) {
-			prior = getConditionParameterPrior(results, param, factors$cond[i])
+			prior = getConditionParameterPrior(results, parName, factors$cond[i])
 			
 			# If scale == 0, this is just rep(prior$location, priorSamples)
 			x = stats::rcauchy(priorSamples, prior$location, prior$scale)
@@ -96,8 +96,8 @@ getPriorConditionEffects = function(results, param, priorSamples, addMu = FALSE,
 	# because then they would only be equal in distribution, not value.
 	for (i in 1:nrow(factors)) {
 		
-		target = paste(param, "_cond[", factors$cond[i], "]", sep="")
-		rootSource = getRootSourceConditionParameter(results, param, factors$cond[i])
+		target = paste(parName, "_cond[", factors$cond[i], "]", sep="")
+		rootSource = getRootSourceConditionParameter(results, parName, factors$cond[i])
 		
 		if (target != rootSource) {
 			
@@ -110,7 +110,7 @@ getPriorConditionEffects = function(results, param, priorSamples, addMu = FALSE,
 	}
 	
 	if (manifest) {
-		trans = getParameterTransformation(results, param)
+		trans = getParameterTransformation(results, parName)
 		priorDs = trans(priorDs)
 	}
 	
@@ -120,7 +120,7 @@ getPriorConditionEffects = function(results, param, priorSamples, addMu = FALSE,
 	
 }
 
-getPosteriorConditionEffects = function(results, param, addMu = FALSE, manifest = FALSE) {
+getPosteriorConditionEffects = function(results, parName, addMu = FALSE, manifest = FALSE) {
 	
 	if (!addMu && manifest) {
 		stop("A manifest parameter is the transformation of the sum of the latent condition effect and the grand mean. Thus addMu == FALSE && manifest == TRUE is disallowed.")
@@ -130,18 +130,18 @@ getPosteriorConditionEffects = function(results, param, addMu = FALSE, manifest 
 	
 	mu = 0
 	if (addMu) {
-		mu = results$posteriors[[ paste0(param, ".mu") ]]
+		mu = results$posteriors[[ paste0(parName, "_part.mu") ]]
 	}
 	
 	postDs = matrix(NA, nrow=results$runConfig$iterations, ncol=nrow(factors))
 	for (i in 1:nrow(factors)) {
-		x = results$posteriors[[ paste0(param, "_cond[", factors$cond[i], "]") ]]
+		x = results$posteriors[[ paste0(parName, "_cond[", factors$cond[i], "]") ]]
 		
 		postDs[,i] = x + mu
 	}
 	
 	if (manifest) {
-		trans = getParameterTransformation(results, param)
+		trans = getParameterTransformation(results, parName)
 		postDs = trans(postDs)
 	}
 	
@@ -150,7 +150,7 @@ getPosteriorConditionEffects = function(results, param, addMu = FALSE, manifest 
 	postDs
 }
 
-getConditionEffects.WP = function(results, param, priorSamples, addMu, manifest, prior = TRUE, posterior = TRUE) {
+getConditionEffects.WP = function(results, parName, priorSamples, addMu, manifest, prior = TRUE, posterior = TRUE) {
 	
 	colKeys = data.frame(cond = results$config$factors$cond)
 	colKeys = normalizeFactors(colKeys)
@@ -158,12 +158,12 @@ getConditionEffects.WP = function(results, param, priorSamples, addMu, manifest,
 	rval = list(colKeys = colKeys)
 	
 	if (prior) {
-		rval$prior = getPriorConditionEffects(results, param, priorSamples, addMu, manifest)
+		rval$prior = getPriorConditionEffects(results, parName, priorSamples, addMu, manifest)
 		colnames(rval$prior) = colKeys$key
 	}
 	
 	if (posterior) {
-		rval$post = getPosteriorConditionEffects(results, param, addMu, manifest)
+		rval$post = getPosteriorConditionEffects(results, parName, addMu, manifest)
 		colnames(rval$post) = colKeys$key
 	}
 	
@@ -171,14 +171,14 @@ getConditionEffects.WP = function(results, param, priorSamples, addMu, manifest,
 }
 
 
-getConditionEffects.BP = function(bpRes, param, priorSamples = bpRes$runConfig$iterations, addMu = FALSE, manifest = FALSE, prior = TRUE, posterior = TRUE) {
+getConditionEffects.BP = function(bpRes, parName, priorSamples = bpRes$runConfig$iterations, addMu = FALSE, manifest = FALSE, prior = TRUE, posterior = TRUE) {
 	
 	# TODO: Special case for catActive? (since it is BP, catActive can differ)
 	
 	cems = list()
 	for (grp in names(bpRes$groups)) {
 		
-		ceff = getConditionEffects.WP(bpRes$groups[[grp]], param=param, priorSamples = priorSamples, addMu = addMu, manifest = manifest, prior = prior, posterior = posterior)
+		ceff = getConditionEffects.WP(bpRes$groups[[grp]], parName=parName, priorSamples = priorSamples, addMu = addMu, manifest = manifest, prior = prior, posterior = posterior)
 		
 		tempCK = data.frame(group = grp, 
 												cond = ceff$colKeys$cond, stringsAsFactors = FALSE)
@@ -257,7 +257,7 @@ collapseConditionEffects = function(condEff, factors, usedFactors, uniqueFL = NU
 #' This function provides matrices of prior and posterior main effect and interaction (MEI) parameters for given `testedFactors`. The results can be used with functions from the CMBBHT package (e.g. `summarizeEffectParameters` or `plotEffectParameterSummary`) or analyzed in other ways.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
-#' @param param The name of a parameter.
+#' @param parName The name of a single parameter (e.g. `"pMem"`).
 #' @param testedFactors See \code{\link[CMBBHT]{testHypothesis}}. Passed directly to \code{\link[CMBBHT]{getEffectParameters}}. A character vector giving the names of factors for which a hypothesis test could be performed. If there is only one factor, the main effect will be used. If there is more than one factor, the interaction of the factors will be the effect that is used. 
 #' @param dmFactors See \code{\link[CMBBHT]{testHypothesis}}. Passed directly to \code{\link[CMBBHT]{getEffectParameters}}.
 #' @param contrastType See \code{\link[CMBBHT]{testHypothesis}}. Passed directly to \code{\link[CMBBHT]{getEffectParameters}}.
@@ -271,9 +271,9 @@ collapseConditionEffects = function(condEff, factors, usedFactors, uniqueFL = NU
 #' @family generic functions
 #'
 #' @export
-getMEIParameters = function(res, param, testedFactors, dmFactors = testedFactors, contrastType = NULL, addMu = FALSE, manifest = FALSE, prior = TRUE, posterior = TRUE) {
+getMEIParameters = function(res, parName, testedFactors, dmFactors = testedFactors, contrastType = NULL, addMu = FALSE, manifest = FALSE, prior = TRUE, posterior = TRUE) {
 	
-	cef = getConditionEffects(res, param, addMu = addMu, manifest = manifest, prior = prior, posterior = posterior)
+	cef = getConditionEffects(res, parName, addMu = addMu, manifest = manifest, prior = prior, posterior = posterior)
 	
 	gmeihtf = res$config$factors
 	gmeihtf[ , c("key", "group", "cond") ] = NULL #NO EXTRA COLUMNS
@@ -306,7 +306,7 @@ getMEIParameters = function(res, param, testedFactors, dmFactors = testedFactors
 #' 
 #' The right plot gives the total width of the credible interval and the directional widths from the median to the upper and lower bounds.
 #'  
-#' @param param The name of the parameter (e.g. `pMem`).
+#' @param parName The name of a single parameter (e.g. `"pMem"`).
 #' @param p_i A vector of manifest participant parameter values. Typically a series of numbers (used for x-axis in plotting). For probability parameters, use something like `seq(0, 1, 0.025)` for the whole range of probabilities. For SD parameters, use something like `seq(0, 40, 1)`.
 #' @param ce_scale The scale of the Cauchy prior on the condition effect parameter.
 #' @param cip Proportion of the prior inside of the credible interval.
@@ -327,7 +327,7 @@ getMEIParameters = function(res, param, testedFactors, dmFactors = testedFactors
 #' }
 #' 
 #' @export
-conditionEffectPriorCredibleInterval = function(param, p_i, ce_scale, cip = 0.95, n = 1e6, minSD = 1, plot = TRUE, doMFRow = TRUE) {
+conditionEffectPriorCredibleInterval = function(parName, p_i, ce_scale, cip = 0.95, n = 1e6, minSD = 1, plot = TRUE, doMFRow = TRUE) {
   
   qp = c((1 - cip) / 2, 0.5, (1 + cip) / 2)
   
@@ -335,8 +335,8 @@ conditionEffectPriorCredibleInterval = function(param, p_i, ce_scale, cip = 0.95
   ce = stats::rcauchy(n, 0, ce_scale)
   
   res = list(config = list(minSD = minSD)) # Fake res for getting transformations
-  trans = getParameterTransformation(res, param)
-  inverse = getParameterTransformation(res, param, inverse = TRUE)
+  trans = getParameterTransformation(res, parName)
+  inverse = getParameterTransformation(res, parName, inverse = TRUE)
   
   df = data.frame(p_i = p_i)
   
@@ -364,17 +364,17 @@ conditionEffectPriorCredibleInterval = function(param, p_i, ce_scale, cip = 0.95
     }
     
     ylimL = range(df[ , c("lower", "median", "upper")])
-    if (param %in% getParamNames(types="prob")) {
+    if (parName %in% getParamNames(types="prob")) {
       ylimL = c(0, 1)
     }
     
-    plot(df$p_i, df$median, ylim=ylimL, type='l', xlab=param, ylab="Manifest Parameter Value")
+    plot(df$p_i, df$median, ylim=ylimL, type='l', xlab=parName, ylab="Manifest Parameter Value")
     graphics::lines(df$p_i, df$lower, col=lowCol)
     graphics::lines(df$p_i, df$upper, col=upCol)
     
     ylimR = range(df[ , c("lowerW", "totalW", "upperW")])
     
-    plot(df$p_i, df$totalW, type = 'l', ylim=ylimR, xlab=param, ylab="Credible Interval Width")
+    plot(df$p_i, df$totalW, type = 'l', ylim=ylimR, xlab=parName, ylab="Credible Interval Width")
     graphics::lines(df$p_i, df$upperW, col=upCol)
     graphics::lines(df$p_i, df$lowerW, col=lowCol)
     graphics::legend("bottom", legend = c("upper", "total", "lower"), col=c(upCol, "black", lowCol), lty=1)
@@ -390,7 +390,7 @@ conditionEffectPriorCredibleInterval = function(param, p_i, ce_scale, cip = 0.95
 
 #' Plot Manifest Condition Effect Prior Histogram
 #' 
-#' @param param A parameter name.
+#' @param parName The name of a single parameter (e.g. `"pMem"`).
 #' @param p_i A manifest participant parameter value. E.g., for probability parameters, give a probability.
 #' @param ce_scale The scale of the Cauchy prior on the condition effect parameter.
 #' @param sdCutoff For standard deviation parameters, extremely large sample values are common, so for plotting purposes the plot has to be cut off somewhere. `sdCutoff` sets the cutoff.
@@ -400,7 +400,7 @@ conditionEffectPriorCredibleInterval = function(param, p_i, ce_scale, cip = 0.95
 #' @return Invisibly, the vector of manifest parameter samples from the condition effect prior that were used for plotting (so some samples are cut off for SD parameters; see the `sdCutoff` argument).
 #' 
 #' NOT EXPORTED
-conditionEffectPriorHist = function(param, p_i, ce_scale, sdCutoff=50, n=1e6, minSD=1) {
+conditionEffectPriorHist = function(parName, p_i, ce_scale, sdCutoff=50, n=1e6, minSD=1) {
   
   if (length(p_i > 1)) {
     warning("Only scalar values of p_i are supported. Using the first value.")
@@ -410,17 +410,17 @@ conditionEffectPriorHist = function(param, p_i, ce_scale, sdCutoff=50, n=1e6, mi
   ce = stats::rcauchy(n, 0, ce_scale)
   
   res = list(config = list(minSD = minSD))
-  trans = getParameterTransformation(res, param)
-  inverse = getParameterTransformation(res, param, inverse=TRUE)
+  trans = getParameterTransformation(res, parName)
+  inverse = getParameterTransformation(res, parName, inverse=TRUE)
   
   manifest = trans(inverse(p_i) + ce)
-  if (param %in% getParamNames(types="sd")) {
+  if (parName %in% getParamNames(types="sd")) {
     manifest = manifest[manifest < sdCutoff]
   }
   
-  main = paste0(param, " = ", p_i, ", scale = ", ce_scale)
+  main = paste0(parName, " = ", p_i, ", scale = ", ce_scale)
   graphics::hist(manifest, 
-                 xlab=paste0("Manifest ", param), 
+                 xlab=paste0("Manifest ", parName), 
                  ylab="Prior Density", 
                  main=main, prob=TRUE)
   

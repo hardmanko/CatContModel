@@ -1,10 +1,6 @@
 
-###
-# This file is useful to developers of the package, not so much for users of the package.
-#
+# This file is useful to developers of the CatContModel package, not so much for users of the package.
 # Users should see "installPackage.R" to install the package.
-###
-
 
 library(Rcpp)
 library(devtools)
@@ -22,12 +18,11 @@ baseDir = "D:/Programming/R/CatContModel/"
 # Location of the properly formatted R package version of CatContModel
 packageLocation = paste0(baseDir, packageName)
 
-# Things now force the assumption that you are in the package dir. Progress!
+# Things now force the assumption that you are working in the package dir. Progress!
 setwd(packageLocation)
 
-# Compile using C++11
-Sys.setenv("PKG_CXXFLAGS"="-std=c++11")
-
+Sys.setenv("PKG_CXXFLAGS"="-std=c++11") # Compile using C++11
+Sys.setenv("MAKEFLAGS"="-j4") # Multithreaded compilation of C++ files
 
 
 
@@ -35,13 +30,18 @@ Sys.setenv("PKG_CXXFLAGS"="-std=c++11")
 ######
 # Select files to be copied into the package
 
+modelFilesDir = paste0(baseDir, "source/cpp/")
+
 cppHS = function(name) {
   c(paste0(name, ".h"), paste0(name, ".cpp"))
 }
 
-modelFilesDir = paste0(baseDir, "source/cpp/")
-modelFiles = c("Compilation.h", "RInterface.cpp", 
-               "CCM_BayesianModel.h", "CCM_BayesianModel.cpp", "CCM_BayesianModel_Misc.cpp",
+
+# Basic files (not in subdir)
+generalCppFiles = c("Compilation.h", "CCM_Main.h", 
+               cppHS("R_Interface"),
+               cppHS("CCM_Data"),
+               cppHS("CCM_ModelConfig"),
                cppHS("CCM_Util"), 
                cppHS("CCM_Weights"), 
                cppHS("CCM_Circular"), 
@@ -50,16 +50,41 @@ modelFiles = c("Compilation.h", "RInterface.cpp",
                cppHS("CCM_DistributionLUTs")
                )
 
-gsBase = paste0(modelFilesDir, "GibbsSampler/")
+
+# MemFirst files
+memFirstFiles = c(cppHS("MF_RunModel"), "MF_RunModel_Misc.cpp",
+                  cppHS("MF_Parameters"),
+                  cppHS("MF_ModelUtil"),
+                  cppHS("MF_Likelihood"))
+
+memFirstFiles = paste0("MemFirst/", memFirstFiles)
+
+
+# CatFirst files
+catFirstFiles = c(cppHS("CF_Parameters"),
+                  cppHS("CF_Likelihood"),
+                  cppHS("CF_ModelConfig"),
+                  cppHS("CF_Model"))
+
+catFirstFiles = paste0("CatFirst/", catFirstFiles)
+
+
+
+# Gibbs sampler files
 gsFiles = c(cppHS("GibbsSampler"), 
             cppHS("GibbsParameters"), 
             cppHS("UtilityFunctions")
             )
 
-cpp_files = c(paste0(modelFilesDir, modelFiles), 
-              paste0( gsBase, gsFiles)
-)
+gsFiles = paste0("GibbsSampler/", gsFiles)
 
+
+cpp_files_brief = c(generalCppFiles, memFirstFiles, catFirstFiles, gsFiles)
+
+cpp_files = paste0(modelFilesDir, cpp_files_brief)
+
+
+# Get R filenames
 rFilesDir = paste0(baseDir, "/source/R/")
 rFiles = dir(rFilesDir)
 rFiles = paste0(rFilesDir, rFiles)
@@ -72,6 +97,8 @@ rFiles = c(rFiles, paste0(baseDir, "docs/toCopy/CatContModel-package.R") )
 if (addingDataSets) {
   rFiles = c(rFiles, paste0(baseDir, "examples/betweenItem/betweenDataDoc.R") )
 }
+
+
 
 
 # Delete the old files
@@ -87,7 +114,7 @@ Rcpp.package.skeleton(packageName, path=baseDir,
                       license="MIT + file LICENSE")
 
 
-#Data sets
+# Data sets
 if (addingDataSets) {
   betweenItemData = read.delim( paste0(baseDir, "examples/betweenItem/betweenItemData.txt") )
   devtools::use_data(betweenItemData, pkg = packageLocation)
@@ -146,16 +173,57 @@ autogenToRM = c("man/CatContModel-package.Rd", "Read-and-delete-me") #"NAMESPACE
 file.remove( autogenToRM )
 
 
+# Try these if package claims to be in use:
+# unloadNamespace(packageName)
+# remove.packages("CatContModel")
+# library(CatContModel) # Then restart R again
 
 
 ######
 # Basic install without documentation and with all functions exported
-devtools::install(args="--no-multiarch")
+devtools::install(args="--no-multiarch", dependencies = FALSE)
+
+
+
+# For basic build and install, stop here
+########################################
 
 
 
 
+#####################
+# Quick and dirty update files and recompile
+# Doesn't properly re-install the package if it is already loaded
 
+if (FALSE) {
+  
+  quickAndDirtyRebuild = function() {
+    
+    toFilesSplit = c()
+    for (mf in cpp_files_brief) {
+      if (grepl("/", mf, fixed=TRUE)) {
+        mf = strsplit(mf, "/", fixed=TRUE)[[1]][2]
+      }
+      toFilesSplit = c(toFilesSplit, mf)
+    }
+    
+    file.copy(from=paste0(modelFilesDir, cpp_files_brief), 
+              to=paste0("src/", toFilesSplit),
+              overwrite=TRUE
+    )
+    
+    if ("package:CatContModel" %in% search()) {
+      detach("package:CatContModel", character.only = TRUE)
+    }
+    
+    devtools::install(args="--no-multiarch", dependencies = FALSE)
+    
+  }
+  
+  ###
+  quickAndDirtyRebuild()
+  ###
+}
 
 
 
@@ -172,42 +240,14 @@ devtools::install(args="--no-multiarch")
 
 
 
-#####################
-# quick and dirty update files and recompile
-# Doesn't properly re-install the package if it is already loaded
-
-quickAndDirtyRebuild = function() {
-  
-  file.copy(from=paste0(modelFilesDir, modelFiles), 
-            to=paste0("src/", modelFiles),
-            overwrite=TRUE
-  )
-  
-  file.copy(from=paste0(gsBase, gsFiles), 
-            to=paste0("src/", gsFiles),
-            overwrite=TRUE
-  )
-  
-  if ("package:CatContModel" %in% search()) {
-    detach("package:CatContModel", character.only = TRUE)
-  }
-  
-  devtools::install(args="--no-multiarch")
-  
-}
-
-## Optional:       quickAndDirtyRebuild()
-
 
 ###################################################################
-
-
-#Copy over LICENSE
+# Copy over LICENSE
 dir.create("inst/")
 dir.create("inst/doc/")
 file.copy(from = paste0(baseDir, "LICENSE.md"), to="LICENSE")
 
-#Copy over manual and supporting asis file
+# Copy over manual and supporting asis file
 file.copy(from = paste0(baseDir, "docs/introduction/Introduction.pdf"), 
           to = "inst/doc/Introduction.pdf")
 
@@ -222,7 +262,9 @@ file.copy(from = paste0(baseDir, "docs/toCopy/Introduction.pdf.asis"),
 # At this point, there should be a proper R package structure in packageLocation
 #####
 
-# Remove object files cuz it's confuzzling to gcc
+unloadNamespace(packageName)
+
+# Remove object files cuz it's confuzzling to gcc (how does gcc not know what an object file is?)
 srcDir = paste0(packageLocation, "/src/")
 objectFiles = dir( srcDir, recursive = FALSE)
 objectFiles = objectFiles[ grepl("\\.o$", objectFiles) ]
@@ -235,8 +277,8 @@ install.packages(pkgs=packageLocation, repos=NULL, type="source",
 
 
 #################################################
-# Use the above for simple test installations   #
-# Use the below for package publication         #
+# Use the above for simple test installations.  #
+# Use the below for package publication.        #
 #                                               #
 # You may not be able to do all of steps below  #
 # in the same R session. I have had issues with #
@@ -251,20 +293,17 @@ devtools::check()
 
 
 #############
-# Note: Make sure to increment the version number before you
-# run either of the following commands!!!
+# Make sure to increment the version number before running the following commands!
 
-#Build source archive of package
+# Build source archive of package
 devtools::build(packageLocation, path=paste0(baseDir, "packaged/") )
 
-#Build binary archive of package
+# Build binary archive of package
 devtools::build(packageLocation, path=paste0(baseDir, "packaged/"), binary = TRUE)
 
-#
+
 #############
-
-
-#Test installation
+# Test installation from packaged files
 install.packages( paste0(baseDir, "/packaged/CatContModel_0.9.0.tar.gz"), repos=NULL)
 install.packages( paste0(baseDir, "/packaged/CatContModel_0.9.0.zip"), repos=NULL)
 

@@ -1,5 +1,6 @@
 #include "GibbsSampler.h"
 
+#include <thread>
 
 GibbsSampler::GibbsSampler(void) :
 	sectionTracker(this),
@@ -31,6 +32,17 @@ void GibbsSampler::createConstantParameter(std::string name, std::string group, 
 	}
 }
 
+void GibbsSampler::setCurrentParameterValue(std::string p, double v) {
+	//_currentValues.at(p) = v;
+
+	_currentValueContainer.set(p, v);
+}
+
+/*
+const ParameterList& GibbsSampler::getCurrentParameterValues(void) {
+	return _currentValues;
+}
+
 ParameterList GibbsSampler::getParameterList(std::vector<std::string> parameterNames) {
 	return getParameterList(namesToIndices(parameterNames));
 }
@@ -43,14 +55,6 @@ ParameterList GibbsSampler::getParameterList(std::vector<size_t> parameterIndice
 	}
 
 	return rval;
-}
-
-const ParameterList& GibbsSampler::getCurrentParameterValues(void) {
-	return _currentValues;
-}
-
-void GibbsSampler::setCurrentParameterValue(std::string p, double v) {
-	_currentValues.at(p) = v;
 }
 
 ParameterList GibbsSampler::getIterationParameterValues(size_t iteration) {
@@ -84,25 +88,121 @@ ParameterList GibbsSampler::getIterationParameterValues(size_t iteration) {
 	}
 
 	return rval;
+}
+*/
 
+const ParamContainer& GibbsSampler::getCurrentParameterValues(void) const {
+	return _currentValueContainer;
 }
 
+ParamMap GibbsSampler::getCurrentValueMap(const std::vector<std::string>& paramNames) const {
+	return getCurrentValueMap(namesToIndices(paramNames));
+}
 
-/*
+ParamMap GibbsSampler::getCurrentValueMap(const std::vector<size_t>& paramInd) const {
+	ParamMap rval;
 
-clearExistingSamples clears all samples except for the starting value. It also resets MH acceptance rates.
-*/
-void GibbsSampler::run(size_t samplesToCollect, bool clearExistingSamples) {
+	for (size_t i = 0; i < paramInd.size(); i++) {
+		rval[_paramVector.at(i)->name] = _paramVector.at(i)->value();
+	}
 
-	_makeDependentParameterList();
+	return rval;
+}
+
+std::vector<double> GibbsSampler::getCurrentValueVector(const std::vector<std::string>& paramNames) const {
+	return getCurrentValueVector(namesToIndices(paramNames));
+}
+
+std::vector<double> GibbsSampler::getCurrentValueVector(const std::vector<size_t>& paramInd) const {
+	std::vector<double> rval;
+
+	for (size_t i = 0; i < paramInd.size(); i++) {
+		rval[i] = _paramVector.at(i)->value();
+	}
+
+	return rval;
+}
+
+ParamContainer GibbsSampler::getIterationParameterValues(size_t iteration) const {
+
+	ParamContainer rval;
+
+	if (iteration >= _storedIterations) {
+		return rval;
+	}
 
 	for (size_t j = 0; j < _paramVector.size(); j++) {
 		GibbsParameter* p = _paramVector[j];
 
-		//By using getSamples(), it deals with the fact that constant parameters do not have a value stored in _samples (but what about VectorElement?).
-		size_t samples = p->getSamples().size();
+		switch (p->getDimension()) {
+		case ParameterDimension::SCALAR:
+			rval.set(j, p->getSample(iteration));
+			break;
+		case ParameterDimension::VECTOR:
+		{
+			// The issue with vectors is that there is 1 index for the vector param, the N indicies for the elements.
+			// Should you get the vector elements themselves instead of the source?
+			// The vector elements are SCALAR, so they are already set. This is repetitive.
+			//std::map<std::string, double> values = dynamic_cast<BaseVectorParameter*>(p)->getIterationValueMap(iteration);
+			//for (auto it = values.begin(); it != values.end(); it++) {
+			//	rval.set(it->first, it->second); // Uses strings, but whatev
+			//}
+			rval.set(j, std::numeric_limits<double>::quiet_NaN());
+		}
+		break;
+		case ParameterDimension::OTHER:
+		case ParameterDimension::ZERO:
+			break;
+		}
 
-		if (samples == 0) {
+	}
+
+	return rval;
+
+}
+
+
+
+bool GibbsSampler::setup(size_t iterPerUpdate, size_t seed, std::function<bool(GibbsSampler*, size_t)> iterationCallback) {
+	
+	this->clear();
+
+	this->_generator.seed(seed);
+	
+	this->iterationsPerStatusUpdate = iterPerUpdate;
+
+	this->iterationCompleteCallback = iterationCallback;
+
+	return true;
+}
+
+void GibbsSampler::clear(void) {
+	for (size_t i = 0; i < _paramVector.size(); i++) {
+		delete _paramVector[i];
+	}
+	_paramVector.clear();
+	_nameToIndex.clear();
+
+	_storedIterations = 0;
+
+	sectionTracker.clear();
+}
+
+bool GibbsSampler::prepareToRun(bool clearExistingSamples) {
+
+	if (!_makeDependentParameterList()) {
+		return false;
+	}
+
+	// Do some initialization
+	for (size_t j = 0; j < _paramVector.size(); j++) {
+		GibbsParameter* p = _paramVector[j];
+
+		// Make sure the parameters are pointing to this.
+		p->_gibbs = this;
+
+		//By using getSamples(), it deals with the fact that constant parameters do not have a value stored in _samples (but what about VectorElement?).
+		if (p->getSamples().size() == 0) {
 			GS_COUT << "Warning: Parameter " << p->name << " has no starting value. It has had 0 added as the starting value." << std::endl;
 			p->_samples.push_back(0);
 		}
@@ -114,7 +214,7 @@ void GibbsSampler::run(size_t samplesToCollect, bool clearExistingSamples) {
 	if (clearExistingSamples) {
 		for (size_t j = 0; j < _paramVector.size(); j++) {
 			//clear all but the starting value
-			_paramVector[j]->_samples.resize(1); //TODO: Bad use of private vars
+			_paramVector[j]->_samples.resize(1);
 
 			if (_paramVector[j]->getAcceptanceTracker() != nullptr) {
 				_paramVector[j]->getAcceptanceTracker()->reset();
@@ -124,26 +224,56 @@ void GibbsSampler::run(size_t samplesToCollect, bool clearExistingSamples) {
 		_storedIterations = 1; //Just the starting values
 	}
 
-	
+	_initializeCurrentValues();
+
+	return true;
+}
+
+void GibbsSampler::_initializeCurrentValues(void) {
+
+	// Initialize current parameter values
+	std::vector<std::string> pcNames(_paramVector.size());
+	//std::vector<double> pcValues(_paramVector.size());
+	for (size_t i = 0; i < _paramVector.size(); i++) {
+		// VECTOR parameters are handled as follows: The name is stored but the value is NaN. Vector elements are inserted wherever they are with their values.
+		pcNames[i] = _paramVector[i]->name;
+		//pcValues[i] = 0; // _paramVector[i]->value();
+	}
+	_currentValueContainer.setup(pcNames); // Parameters initialize as 0, then override
+
+	/*
 	for (size_t j = 0; j < _paramVector.size(); j++) {
 		// Default initialization, to be overridden.
 		_currentValues[_paramVector[j]->name] = 0;
-
-		// Make sure the parameters are pointing to this.
-		_paramVector[j]->_gibbs = this;
 	}
+	*/
 
 	// Update the current values for the parameters
 	// Do not use setCurrentParameterValue because that function assumes that parameters already exist.
 	for (size_t j = 0; j < _independentParameters.size(); j++) {
 		size_t ind = _independentParameters[j];
-		_currentValues[_paramVector[ind]->name] = _paramVector[ind]->value();
+		//_currentValues[_paramVector[ind]->name] = _paramVector[ind]->value();
+		_currentValueContainer.set(_paramVector[ind]->name, _paramVector[ind]->value());
 	}
+	// Once values for all independent parameters have been set, set the dependent parameters.
 	for (size_t j = 0; j < _dependentParameters.size(); j++) {
 		size_t ind = _dependentParameters[j];
-		_currentValues[_paramVector[ind]->name] = _paramVector[ind]->value();
+		//_currentValues[_paramVector[ind]->name] = _paramVector[ind]->value();
+		_currentValueContainer.set(_paramVector[ind]->name, _paramVector[ind]->value());
 	}
-	
+}
+
+/*
+
+clearExistingSamples clears all samples except for the starting value. It also resets MH acceptance rates.
+
+Return true when run finishes successfully.
+*/
+bool GibbsSampler::run(size_t samplesToCollect, bool clearExistingSamples) {
+
+	if (!prepareToRun(clearExistingSamples)) {
+		return false;
+	}
 
 	auto runStartTime = std::chrono::high_resolution_clock::now();
 	auto lapStartTime = runStartTime;
@@ -156,13 +286,19 @@ void GibbsSampler::run(size_t samplesToCollect, bool clearExistingSamples) {
 		//Update the parameters
 		for (size_t j = 0; j < _paramVector.size(); j++) {
 			
+			// DEBUG
+			//GS_COUT << "Updating " << _paramVector[j]->name << std::endl;
+			//std::this_thread::sleep_for(std::chrono::milliseconds(25));
+
 			// Update sections before parameters
 			sectionTracker._update(j);
 
 			// Update the parameter and dependent parameters
 			_paramVector[j]->update();
-			updateDependentParameters(&_currentValues);
 
+			this->updateDependentParameters(&_currentValueContainer);
+
+			// Call parameter updated callback?
 		}
 
 		// Update one last time for the past-the-end index
@@ -175,7 +311,7 @@ void GibbsSampler::run(size_t samplesToCollect, bool clearExistingSamples) {
 			bool continue_ = iterationCompleteCallback(this, i);
 			if (!continue_) {
 				GS_COUT << "Stopped by iteration complete callback." << std::endl;
-				return;
+				return false;
 			}
 		}
 
@@ -218,6 +354,8 @@ void GibbsSampler::run(size_t samplesToCollect, bool clearExistingSamples) {
 	if (sectionTracker.hasSections()) {
 		GS_COUT << sectionTracker.getTimingResultsString() << std::endl;
 	}
+
+	return true;
 }
 
 
@@ -349,7 +487,8 @@ void GibbsSampler::_remakeIndices(void) {
 	}
 }
 
-void GibbsSampler::_makeDependentParameterList(void) {
+/*
+bool GibbsSampler::_makeDependentParameterList(void) {
 	_continuouslyUpdatedDependentParameters.clear();
 	_dependentParameters.clear();
 	_independentParameters.clear();
@@ -361,22 +500,195 @@ void GibbsSampler::_makeDependentParameterList(void) {
 				_continuouslyUpdatedDependentParameters.push_back(i);
 			}
 			_dependentParameters.push_back(i);
+		}
+		else {
+			_independentParameters.push_back(i);
+		}
+	}
+	return true; // Original always succeeds
+}
+*/
+
+// Order the dependent parameters such that dependent parameters are later in the list.
+// If A depends on B, A must come after B in the list.
+// Independent param have no ordering restrictions.
+bool GibbsSampler::_makeDependentParameterList(void) {
+
+	// Fill IP vector and unordered DP vector
+	std::vector<size_t> dp_unordered;
+	_independentParameters.clear();
+	for (size_t i = 0; i < _paramVector.size(); i++) {
+		if (_paramVector[i]->hasDependency()) {
+			dp_unordered.push_back(i);
 		} else {
 			_independentParameters.push_back(i);
 		}
 	}
+
+	std::map<size_t, std::vector<size_t>> DP_of_DP; // For each DP, a vector of its sources that are also dependent.
+
+	std::vector<size_t> dp_allSourcesIndependent; // First: Known sources, all of which are idependent.
+	std::vector<size_t> dp_knownSource; // Second: Indices of DP_of_DP, ordered by dependency. (A depends on B, B updates before A).
+	std::vector<size_t> dp_unknownSource; // Last: Unknown source. May not be a source for any other DP.
+
+	for (size_t dpi : dp_unordered) {
+		GenericDependentParameter* p = (GenericDependentParameter*)_paramVector[dpi];
+		std::vector<std::string> sourceNames = p->getDependencyNames();
+
+		// DP with no source names are treated as having unknown sources.
+		if (sourceNames.size() == 0) {
+			dp_unknownSource.push_back(dpi);
+			continue;
+		}
+
+		std::vector<size_t> sourceInd = this->namesToIndices(sourceNames);
+
+		// Select only sources that are DP.
+		std::vector<size_t> dpSourceInd;
+		for (size_t si : sourceInd) {
+			if (_paramVector.at(si)->hasDependency()) {
+				dpSourceInd.push_back(si);
+			}
+		}
+
+		// If no source indices are dependent, store that
+		if (dpSourceInd.size() == 0) {
+			dp_allSourcesIndependent.push_back(dpi);
+		} else {
+			DP_of_DP[dpi] = dpSourceInd;
+			dp_knownSource.push_back(dpi);
+		}
+	}
+
+	// All that is left is to process DP that have known DP sources.
+
+	// Start index is always the same. currentSources moves through sources.
+	std::function<bool(size_t, const std::vector<size_t>&)> findDependencyCycle = 
+		[this, &DP_of_DP, &findDependencyCycle](size_t startIndex, const std::vector<size_t>& currentSources) -> bool 
+	{
+		for (size_t source : currentSources) {
+
+			// Skip independent sources
+			if (!this->_paramVector.at(source)->hasDependency()) {
+				continue;
+			}
+
+			// Check for startIndex
+			if (source == startIndex) {
+				return true;
+			}
+
+			// If the source has its own sources, check them for cycle.
+			if (DP_of_DP.find(source) != DP_of_DP.end()) {
+				return findDependencyCycle(startIndex, DP_of_DP.at(source));
+			}
+		}
+		return false;
+	};
+
+
+	for (const auto& dmit : DP_of_DP) {
+
+		bool allSourcesIndependent = true;
+		
+		for (size_t sourceIt : dmit.second) {
+			if (_paramVector[sourceIt]->hasDependency()) {
+				allSourcesIndependent = false;
+				break;
+			}
+
+			// check for unknown source
+			const auto& it = std::find(dp_unknownSource.begin(), dp_unknownSource.end(), sourceIt);
+			if (it != dp_unknownSource.end()) {
+				std::string thisParamName = _paramVector.at(dmit.first)->name;
+				std::string sourceName = _paramVector.at(sourceIt)->name;
+				GS_COUT << "Parameter \"" << thisParamName << "\" depends on \"" << sourceName << "\" which has unknown dependencies.";
+				return false; // TODO: Maybe this should be a warning?
+			}
+		}
+
+		// If all sources of this parameter are independent, store it and move on.
+		if (allSourcesIndependent) {
+			dp_allSourcesIndependent.push_back(dmit.first);
+			continue;
+		}
+
+		// Check for cycles: Do any of this parameter's dependencies depend on it or a parameter that depends on it?
+		bool dependencyCycle = findDependencyCycle(dmit.first, dmit.second);
+		if (dependencyCycle) {
+			std::string thisParamName = _paramVector.at(dmit.first)->name;
+			GS_COUT << "Parameter \"" << thisParamName << "\" depends on parameters which cyclically depend on it.";
+			return false; // This is definitely a failure case.
+		}
+	}
+
+	auto orderDPbySource = [](std::vector<size_t> allInd, size_t thisInd, const std::vector<size_t>& sources) -> std::vector<size_t> {
+		if (sources.size() == 0) {
+			return allInd;
+		}
+
+		// Remove this
+		auto thisIter = std::find(allInd.begin(), allInd.end(), thisInd);
+		allInd.erase(thisIter);
+
+		// Find last dependency
+		auto lastDepIter = allInd.begin();
+		for (size_t source : sources) {
+			auto sourceIter = std::find(allInd.begin(), allInd.end(), source);
+			if (lastDepIter < sourceIter) {
+				lastDepIter = sourceIter;
+			}
+		}
+
+		// Re-add this after last source.
+		// Insert is before the position, so add 1
+		allInd.insert(lastDepIter + 1, thisInd);
+
+		return allInd;
+	};
+
+	std::vector<size_t> dp_knownSource_ordered = dp_knownSource;
+	for (size_t unorderedInd : dp_knownSource) {
+		dp_knownSource_ordered = orderDPbySource(dp_knownSource_ordered, unorderedInd, DP_of_DP.at(unorderedInd));
+	}
+
+	// Put dependent parameters in order
+	_dependentParameters = dp_allSourcesIndependent; // At the beginning
+
+	_dependentParameters.insert(_dependentParameters.end(), dp_knownSource_ordered.begin(), dp_knownSource_ordered.end()); // Middle
+
+	_dependentParameters.insert(_dependentParameters.end(), dp_unknownSource.begin(), dp_unknownSource.end()); // At the end
+
+	// Set the continuously updated parameters from the ordered dependent list
+	_continuouslyUpdatedDependentParameters.clear();
+	for (size_t pi : _dependentParameters) {
+		GenericDependentParameter* p = (GenericDependentParameter*)_paramVector[pi];
+		if (p->updateContinuously) {
+			_continuouslyUpdatedDependentParameters.push_back(pi);
+		}
+	}
+
+	return true;
 }
 
 /*
 Recalculates values for all continuously updated dependent parameters, in their insertion order.
-*/
+
 void GibbsSampler::updateDependentParameters(ParameterList* param) const {
 	for (size_t i : _continuouslyUpdatedDependentParameters) {
 		GenericDependentParameter* p = (GenericDependentParameter*)_paramVector[i];
 		(*param)[p->name] = p->evaluate(*param);
 	}
 }
+*/
 
+void GibbsSampler::updateDependentParameters(ParamContainer* param) const {
+	for (size_t i : _continuouslyUpdatedDependentParameters) {
+		GenericDependentParameter* p = (GenericDependentParameter*)_paramVector[i];
+
+		param->set(i, p->evaluate(*param));
+	}
+}
 
 /* Replaces all of the parameters in the given parameter group with a ConstantParameter with the given value.
 */
@@ -408,6 +720,14 @@ std::vector<size_t> GibbsSampler::namesToIndices(std::vector<std::string> names)
 		indices[i] = _nameToIndex.at(names[i]);
 	}
 	return indices;
+}
+
+std::vector<std::string> GibbsSampler::indicesToNames(std::vector<size_t> indices) const {
+	std::vector<std::string> names(indices.size());
+	for (size_t i = 0; i < indices.size(); i++) {
+		names[i] = _paramVector.at(indices[i])->name;
+	}
+	return names;
 }
 
 std::vector<double> GibbsSampler::getCurrentGroupValues(std::string group) const {
@@ -452,19 +772,6 @@ std::vector<GibbsParameter*> GibbsSampler::getParameters(const std::vector<std::
 	}
 
 	return rval;
-}
-
-void GibbsSampler::clear(void) {
-	for (size_t i = 0; i < _paramVector.size(); i++) {
-		delete _paramVector[i];
-	}
-	_paramVector.clear();
-	_nameToIndex.clear();
-
-	_storedIterations = 0;
-
-	sectionTracker.clear();
-
 }
 
 ////////////////////

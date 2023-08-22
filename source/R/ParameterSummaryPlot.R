@@ -31,19 +31,19 @@ createParameterSummaryPlotConfiguration = function(paramSymbols, ...) {
 	
 	
 	changes = list(...)
-	for (param in names(changes)) {
-		for (n in names(changes[[param]])) {
-			baseConfig[[param]][[n]] = changes[[param]][[n]]
+	for (parName in names(changes)) {
+		for (n in names(changes[[parName]])) {
+			baseConfig[[parName]][[n]] = changes[[parName]][[n]]
 		}
 	}
 	
 	baseConfig
 }
 
-getSingleParameterPlotConfig = function(res, param) {
+getSingleParameterPlotConfig = function(res, parName) {
 	symbols = getParameterSymbols(res$config$modelVariant)
 	config = createParameterSummaryPlotConfiguration(symbols)
-	config[[ param ]]
+	config[[ parName ]]
 }
 
 
@@ -152,7 +152,7 @@ mergeCells = function(cells, i1, i2) {
 #' @param factorOrder The order in which the factors are plotted. Only useful if there is more than one factor. The first factor is put on the x-axis of factorial line charts. The order of the others factors doesn't really matter.
 #' @param cip The proportion of the posterior in the credible interval.
 #' @param paramSymbols A named list like that returned by [`getParameterSymbols`] that gives plotting symbols for the parameters of the model.
-#' @param pdfFile Name of a pdf file to plot to.
+#' @param pdfFile Name of a pdf file to plot to. If `"TEMP"`, a temporary file is used and opened if `openPdf == TRUE`.
 #' @param pdfScale Multiplicative scale factor for the size of the pdf. A larger value makes the plotting area larger, which makes all of the contents appear to be smaller.
 #' @param openPdf If `TRUE`, an attempt will be made to open the pdf file in a viewer.
 #' 
@@ -163,9 +163,12 @@ mergeCells = function(cells, i1, i2) {
 plotParameterSummary = function(res, catMuPrec = 2, factorOrder = NULL, cip = 0.95, paramSymbols = NULL, pdfFile = NULL, pdfScale = 1.5, openPdf=TRUE) 
 {
 	
+	# This isn't used anywhere
 	resultWasWP = FALSE
 	
 	if (resultIsType(res, "WP")) {
+		
+		# TODO: Why are you doing this conversion to BP???
 		resultWasWP = TRUE
 		
 		groups = list()
@@ -181,6 +184,11 @@ plotParameterSummary = function(res, catMuPrec = 2, factorOrder = NULL, cip = 0.
 	
 	# Set up the pdf
 	if (!is.null(pdfFile)) {
+		
+		if (pdfFile == "TEMP") {
+			pdfFile = paste0(tempdir(), "/Parameter Summary.pdf")
+		}
+		
 	  if (bpRes$config$modelVariant == "ZL") {
 	    pdfSize = c(6, 3) * pdfScale
 	  } else if (bpRes$config$modelVariant == "betweenItem") {
@@ -215,22 +223,22 @@ plotParameterSummary = function(res, catMuPrec = 2, factorOrder = NULL, cip = 0.
 		graphics::screen(paramInd)
 		graphics::par(mar=c(4,5,2,1))
 		
-		param = layout$parameterOrder[paramInd]
+		parName = layout$parameterOrder[paramInd]
 		
-		pc = parameterConfiguration[[param]]
+		pc = parameterConfiguration[[parName]]
 		
 		#Get the factors for this parameter that 1) are estimated and 2) are in the available factors in factors.
-		parameterFactors = getFactorsForConditionEffect(bpRes, param)
+		parameterFactors = getFactorsForConditionEffect(bpRes, parName)
 		parameterFactors = parameterFactors[ parameterFactors %in% availableFactorNames ]
 		
-		if (param == "catMu") {
+		if (parName == "catMu") {
 			
 			plotCatMu(res, precision = catMuPrec)
 			
 		} else {
 			if (length(parameterFactors) == 0) {
 				
-				plotParameterHistogram(bpRes, param, xlab = pc$label, breaks = pc$breaks, xlim = pc$range)
+				plotParameterHistogram(bpRes, parName, xlab = pc$label, breaks = pc$breaks, xlim = pc$range)
 				
 			} else {
 				if (any(!(parameterFactors %in% factorOrder))) {
@@ -240,7 +248,7 @@ plotParameterSummary = function(res, catMuPrec = 2, factorOrder = NULL, cip = 0.
 					parameterFactors = factorOrder[ factorOrder %in% parameterFactors ]
 				}
 				
-				plotParameterLineChart(bpRes, param, factorOrder = parameterFactors, ylab = pc$label, cip = cip)
+				plotParameterLineChart(bpRes, parName, factorOrder = parameterFactors, ylab = pc$label, cip = cip)
 			}
 		}
 		
@@ -277,24 +285,24 @@ plotParameterSummary = function(res, catMuPrec = 2, factorOrder = NULL, cip = 0.
 #' plotting functions which provide more control over plotting behavior: [`plotParameterHistogram`], [`plotParameterLineChart`], and [`plotCatMu`].
 #' 
 #' @param res A generic results object (see [`Glossary`]).
-#' @param param The name of the parameter to plot.
+#' @param parName The name of a single parameter (e.g. `"pMem"`).
 #' 
 #' @family generic functions
 #' @family plotting functions
 #' 
 #' @export
-plotParameter = function(res, param) {
+plotParameter = function(res, parName) {
 	
-	if (param == "catMu") {
+	if (parName == "catMu") {
 		plotCatMu(res)
 	} else {
 
-		parameterFactors = getFactorsForConditionEffect(res, param)
+		parameterFactors = getFactorsForConditionEffect(res, parName)
 			
 		if (length(parameterFactors) == 0) {
-			plotParameterHistogram(res, param)
+			plotParameterHistogram(res, parName)
 		} else {
-			plotParameterLineChart(res, param, factorOrder = parameterFactors)
+			plotParameterLineChart(res, parName, factorOrder = parameterFactors)
 		}
 	}
 	
@@ -309,7 +317,7 @@ plotParameter = function(res, param) {
 #' Plots a histogram of the means of the participants' parameter value. The mean parameter value is indicated with a vertical line.
 #' 
 #' @param res A generic result object (see [`Glossary`]).
-#' @param param The name of the parameter to use.
+#' @param parName The name of a single parameter (e.g. `"pMem"`).
 #' @param xlab Label to place on the x-axis. If `NULL`, defaults to a reasonable value.
 #' @param breaks Passed as `breaks` argument of `hist`. Defaults to 10 for standard deviation parameters or `seq(0, 1, 0.1)` for probability parameters.
 #' @param xlim Passed as `xlim` argument of `hist`.
@@ -318,20 +326,20 @@ plotParameter = function(res, param) {
 #' @family plotting functions
 #' 
 #' @export
-plotParameterHistogram = function(res, param, xlab = NULL, breaks = NULL, xlim = NULL) {
+plotParameterHistogram = function(res, parName, xlab = NULL, breaks = NULL, xlim = NULL) {
 	
-	if (param == "catActive") {
+	if (parName == "catActive") {
 		rval = plotParameterHistogram_catActive(res, xlab = xlab, breaks = breaks, xlim = xlim)
 		return(invisible(rval))
 	}
 	
-	pc = getSingleParameterPlotConfig(res, param)
+	pc = getSingleParameterPlotConfig(res, parName)
 	
 	xlab = valueIfNull(xlab, pc$label)
 	breaks = valueIfNull(breaks, pc$breaks)
 	xlim = valueIfNull(xlim, pc$range)
 
-	ppce = getAllParameterPosteriors(res, param, manifest = TRUE, format = "data.frame")
+	ppce = getAllParameterPosteriors(res, parName, manifest = TRUE, format = "data.frame")
 	
 	dfagg = stats::aggregate(x ~ pnum, ppce, mean) # mean of all conditions and iterations is equivalent
 		# to taking the within iteration mean of conditions and then the mean of all iterations
@@ -377,7 +385,7 @@ plotHistWithMean = function(x, xlab=NULL, xlim=NULL, breaks=10) {
 # Factorial line charts #
 #########################
 
-# This function is a helper specific to the LineChart package
+# This helper function is used by the LineChart package
 credIntErrBarFun_Base = function(x, alpha) {
 	ps = c(alpha / 2, 1 - alpha / 2)
 	qs = stats::quantile(x, ps)
@@ -392,10 +400,10 @@ credIntErrBarFun_Base = function(x, alpha) {
 #' can handle any number of factors, but the plots become messy.
 #' 
 #' @section catActive:
-#' If `param == "catActive"` and it is a BP design, this function plots the mean and credible interval for the number of active categories used by participants in different cells of the design.
+#' If `parName == "catActive"` and it is a BP design, this function plots the mean and credible interval for the number of active categories used by participants in different cells of the design.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
-#' @param param The parameter to plot. Can be `catActive` for between-participants designs.
+#' @param parName The parameter to plot. Can be `catActive` for between-participants designs.
 #' @param factorOrder The order in which the factors are plotted. Only useful if there is more than one factor. The first factor is put on the x-axis of factorial line charts. The order of the others factors doesn't really matter.
 #' @param cip The proportion of the posterior in the credible interval.
 #' @param xlab The label to put on the x-axis. Defaults to `factorOrder[1]`.
@@ -409,12 +417,14 @@ credIntErrBarFun_Base = function(x, alpha) {
 #' @family plotting functions
 #' 
 #' @export
-plotParameterLineChart = function(res, param, factorOrder = NULL, cip = 0.95,
+plotParameterLineChart = function(res, parName, factorOrder = NULL, cip = 0.95,
 																	xlab = NULL, ylab = NULL, 
 																	legendPosition = "CHOOSE_BEST", plotSettings = NULL)
 {
 	
-	if (param == "catActive") {
+	# Is it possible to use participantPosteriorSummary instead of whatever this function is doing?
+	
+	if (parName == "catActive") {
 		if (resultIsType(res, "BP")) {
 			rval = plotParameterLineChart_catActive.BP(res, factorOrder = factorOrder, cip = cip)
 			return(invisible(rval))
@@ -424,7 +434,7 @@ plotParameterLineChart = function(res, param, factorOrder = NULL, cip = 0.95,
 	}
 	
 	if (is.null(factorOrder)) {
-		factorOrder = getFactorsForConditionEffect(res, param)
+		factorOrder = getFactorsForConditionEffect(res, parName)
 	}
 	
 	if (is.null(xlab)) {
@@ -432,13 +442,13 @@ plotParameterLineChart = function(res, param, factorOrder = NULL, cip = 0.95,
 	}
 	
 	if (is.null(ylab)) {
-		ylab = getSingleParameterPlotConfig(res, param)$label
+		ylab = getSingleParameterPlotConfig(res, parName)$label
 	}
 	
-	factors = updateFactorsForConditionEffects(res, param)
+	factors = updateFactorsForConditionEffects(res, parName)
 	factors = normalizeFactors(factors)
 	
-	condEff = getConditionEffects(res, param, addMu = TRUE, manifest = TRUE)
+	condEff = getConditionEffects(res, parName, addMu = TRUE, manifest = TRUE)
 	# Collapsing condition effects is done to deal with missing factors, averaging across factor levels
 	cce = collapseConditionEffects(condEff, factors, usedFactors = factorOrder, aggFun = mean)
 	condEff = cce$condEff
@@ -508,7 +518,7 @@ plotCatMu = function(res, precision = 2, pnums = NULL, type = NULL,
 
 plotCatMu.WP = function(results, precision = 2, pnums = results$pnums, type = "polygon", lwd = 1, lty = 1) {
 	
-	post = convertPosteriorsToMatrices(results, param = c("catMu", "catActive"))
+	post = convertPosteriorsToMatrices(results, parNames = c("catMu", "catActive"))
 	
 	catMu = post$catMu[ pnums, , ]
 	catActive = post$catActive[ pnums, , ]
@@ -553,7 +563,7 @@ plotCatMu.BP = function(bpRes, precision = 2, pnums = NULL, type = "line", group
 			next
 		}
 		
-		post = convertPosteriorsToMatrices(bpRes$groups[[group]], param = c("catMu", "catActive"))
+		post = convertPosteriorsToMatrices(bpRes$groups[[group]], parNames = c("catMu", "catActive"))
 		
 		catMu = post$catMu[ pnl[[group]], , ]
 		catActive = post$catActive[ pnl[[group]], , ]

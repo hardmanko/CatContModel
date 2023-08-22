@@ -1,6 +1,7 @@
 #pragma once
 
-#include "CCM_Util.h"
+#include "CCM_Main.h"
+
 #include "CCM_DistributionLUTs.h"
 
 namespace CatCont {
@@ -14,11 +15,13 @@ namespace Circular {
 	double sdDeg_to_precRad(double sdDeg);
 	double precRad_to_sdDeg(double precRad);
 
-	double combineKappas(double contKappa, double catKappa, double pCont);
+	// For within-item
+	double combineKappas(double pContWithin, double contKappa, double catKappa);
 
 	double circularMean(const vector<double>& radians, const vector<double>& weights);
 	double circularMean(const vector<double>& radians);
 	double circularMean(double rad1, double rad2);
+	double circularMean(double p1, double rad1, double rad2);
 
 	// Degrees or radians
 	double clampAngle(double x, bool pm180, bool degrees);
@@ -31,17 +34,6 @@ namespace Circular {
 	vector<double> clampAngle360(const vector<double>& xs);
 	double circularSignedDistance(double x, double y);
 	double circularAbsoluteDistance(double x, double y);
-
-	
-
-
-	vector<double> betweenAndWithinLikelihood(const CombinedParameters& par, const ConditionData& data, ModelVariant modelVariant);
-	double betweenAndWithinLL(const CombinedParameters& par, const ConditionData& data, ModelVariant modelVariant);
-	double betweenAndWithinNll(const CombinedParameters& par, const ConditionData& data, ModelVariant modelVariant); //whatever
-	vector<double> zlLikelihood(const zlParameters& par, const ConditionData& data);
-
-	// OLD
-	void categoryWeights(double study, const CombinedParameters& par, double* OUT_weights);
 
 } // namespace Circular
 } // namespace CatCont

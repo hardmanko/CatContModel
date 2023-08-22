@@ -90,6 +90,7 @@ plotColorWheelBar = function(angles, xpos, ypos, colorGeneratingFunction, horiz 
 #' @param results The results from the [`runParameterEstimation`] function. The `colorGeneratingFunction` element will be used if available.
 #' @param pnums The participant number(s) of the participant for whom you want to predict data. By default, all participants are used.
 #' @param conds If not `NULL`, a vector of the conditions of the experiment to plot. If `NULL` (the default), all conditions are plotted.
+#' @param filterColumns If `TRUE`, only the `pnum`, `cond`, `study`, and `response` columns are returned.
 #' 
 #' @return A `data.frame` containing the sampled data.
 #' 
@@ -126,9 +127,9 @@ posteriorPredictiveSample = function(results, pnums=NULL, conds=NULL, filterColu
         # Choose one iteration from the posterior
         postIter = sample(1:results$runConfig$iterations, 1)
         
-        param = getSingleIterationParameters(results, pnum=pnum, cond=cond, iteration=postIter)
+        manPar = getSingleIterationParameters(results, pnum=pnum, cond=cond, iteration=postIter)
         
-        thisSample = sampleDataFromModel(thisCondData$study[i], param, 
+        thisSample = sampleDataFromModel(thisCondData$study[i], manPar, 
                                          modelVariant = results$config$modelVariant, 
                                          dataType = results$config$dataType, 
                                          responseRange = results$config$responseRange)
@@ -177,6 +178,11 @@ posteriorPredictiveSample = function(results, pnums=NULL, conds=NULL, filterColu
 #' @export
 posteriorPredictivePlot = function(results, pnums=NULL, conds=NULL, rowLabels=NULL, xlim=NULL, ylim=NULL, xat=NULL, yat=NULL, alpha=0.5, plotPnum=TRUE) {
 	
+  # TODO: response histograms
+  # histType = c("none", " "density", )
+  # histograms = TRUE, FALSE
+  # histBreaks = 100, seq(0, 100, 1), "density"
+  
 	if (!resultIsType(results, "WP")) {
 		stop("posteriorPredictivePlot only accepts WP results objects. See the Glossary (listed in the package functions index).")
 	}

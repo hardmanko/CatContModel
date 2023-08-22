@@ -1,9 +1,396 @@
 #include "CCM_Weights.h"
 
+#include "CCM_ModelConfig.h"
+
 //#include "CCM_Linear.h"
 //#include "CCM_Circular.h"
 
+// [[Rcpp::export]]
+std::vector<double> CCM_CPP_CalculateWeights(std::string dataType, std::string weightType, double study, std::vector<double> activeCatMu, double catSelectivity) {
+
+	CatCont::WeightsConfig wc;
+	wc.dataType = CatCont::dataTypeFromString(dataType);
+	wc.weightDist = CatCont::weightsDistributionFromString(weightType);
+	wc.maxCategories = activeCatMu.size();
+
+	CatCont::WeightsCalculator calc(wc);
+
+	calc.calcWeights(study, activeCatMu, catSelectivity);
+
+	return calc.copyFilledWeights();
+}
+
 namespace CatCont {
+
+	WeightsDistribution weightsDistributionFromString(string weightsDistStr) {
+		WeightsDistribution wd = WeightsDistribution::Default;
+		if (weightsDistStr == "Nearest") {
+			wd = WeightsDistribution::Nearest;
+		}
+		else if (weightsDistStr == "NearestInRange") {
+			wd = WeightsDistribution::NearestInRange;
+		}
+#ifdef USING_CAT_SPLINE
+		else if (weightsDistStr == "PlatSpline") {
+			wd = WeightsDistribution::PlatSpline;
+		}
+#endif
+		return wd;
+	}
+
+#ifdef USING_CAT_SPLINE
+	LambdaVariant lambdaVariantFromString(string lambdaVariantStr) {
+
+		LambdaVariant lambdaVariant = LambdaVariant::None;
+		if (lambdaVariantStr == "CatWeightSum") {
+			lambdaVariant = LambdaVariant::CatWeightSum;
+		}
+		else if (lambdaVariantStr == "InverseCatWeightSum") {
+			lambdaVariant = LambdaVariant::InverseCatWeightSum;
+		}
+		else if (lambdaVariantStr == "Minus1to1") {
+			lambdaVariant = LambdaVariant::Minus1to1;
+		}
+		return lambdaVariant;
+
+	}
+#endif
+
+
+
+	///////////////////////
+	// WeightsCalculator //
+	///////////////////////
+
+	WeightsCalculator::WeightsCalculator(const ModelConfiguration& modCfg) {
+		WeightsConfig cfg;
+		cfg.dataType = modCfg.dataType;
+		cfg.maxCategories = modCfg.maxCategories;
+
+		*this = WeightsCalculator(cfg);
+	}
+
+	WeightsCalculator::WeightsCalculator(const WeightsConfig& wConfig) :
+		config(wConfig)
+	{
+		this->weights.resize(wConfig.maxCategories); // this always gives enough room
+	}
+
+	void WeightsCalculator::calcWeights(double study, const vector<double>& catMu, double catSelectivity) {
+
+		this->weightCount = catMu.size();
+		//this->weights.resize(this->weightCount); // See constructor
+
+		if (catMu.size() == 0) {
+			return;
+		}
+
+		switch (config.weightDist) {
+		case WeightsDistribution::Default:
+			_calcWeights_default_HVR17(study, catMu, catSelectivity);
+			break;
+		case WeightsDistribution::Nearest:
+			_calcWeights_nearest(study, catMu);
+			break;
+		case WeightsDistribution::NearestInRange:
+		{
+			double catRange = catSelectivity;
+			if (config.dataType == DataType::Circular) {
+				double catRangeSD = CatCont::Circular::precRad_to_sdDeg(catSelectivity);
+				catRange = CatCont::Circular::degreesToRadians(catRangeSD);
+			}
+			_calcWeights_nearestInRange(study, catMu, catRange);
+		}
+			break;
+#ifdef USING_PLAT_SPLINE
+		case WeightsDistribution::PlatSpline:
+			_calcWeights_platSpline(study, catPar);
+			break;
+#endif
+		}
+
+	}
+
+	double WeightsCalculator::sumWeights(void) const {
+		double wSum = 0;
+		for (size_t i = 0; i < this->weightCount; i++) {
+			wSum += this->weights[i];
+		}
+		return wSum;
+	}
+
+	vector<double> WeightsCalculator::copyFilledWeights(void) const {
+		return vector<double>(weights.begin(), weights.begin() + weightCount);
+	}
+
+	void WeightsCalculator::clearWeights(void) {
+		this->weightCount = 0;
+	}
+
+	void WeightsCalculator::_calcWeights_default_HVR17(double study, const vector<double>& catMu, double catSelectivity) {
+
+		if (catMu.size() == 1) {
+			this->weights[0] = 1;
+			return;
+		}
+
+		double wSum = 0;
+		for (size_t i = 0; i < this->weightCount; i++) {
+			double dens = 0;
+			if (config.dataType == DataType::Linear) {
+				//This distribution is not truncated: Category assignment is independent of the study/response space.
+				dens = Linear::normalPDF(study, catMu[i], catSelectivity);
+			}
+			else if (config.dataType == DataType::Circular) {
+				dens = vmLut.dVonMises(study, catMu[i], catSelectivity);
+			}
+
+			this->weights[i] = dens;
+
+			wSum += dens;
+		}
+
+		_rescaleWeights(wSum);
+		_zapSmallWeights();
+	}
+
+	void WeightsCalculator::_rescaleWeights(double wSum) {
+		if (wSum < config.zeroSumCutoff) {
+
+			// If wSum is tiny, give equal weights. This is rare.
+			for (size_t i = 0; i < this->weightCount; i++) {
+				this->weights[i] = 1.0 / this->weightCount;
+			}
+		} else {
+			// Rescale weights to sum to 1
+			for (size_t i = 0; i < this->weightCount; i++) {
+				this->weights[i] /= wSum;
+			}
+		}
+	}
+
+	void WeightsCalculator::_zapSmallWeights(void) {
+		if (config.zapsmallCutoff == 0) {
+			return;
+		}
+
+		double wSum = 0;
+		for (size_t i = 0; i < this->weightCount; i++) {
+			if (this->weights[i] <= config.zapsmallCutoff) {
+				this->weights[i] = 0;
+			} else {
+				wSum += this->weights[i];
+			}
+		}
+
+		_rescaleWeights(wSum);
+	}
+
+
+
+	std::vector<double> WeightsCalculator::_studyMuDistance(double study, const vector<double>& catMu) const {
+		std::vector<double> distances(catMu.size());
+
+		for (size_t i = 0; i < catMu.size(); i++) {
+			if (config.dataType == DataType::Linear) {
+				distances[i] = abs(study - catMu[i]);
+			}
+			else if (config.dataType == DataType::Circular) {
+				distances[i] = Circular::circularAbsoluteDistance(study, catMu[i]);
+			}
+		}
+
+		return distances;
+	}
+
+	void WeightsCalculator::_calcWeights_nearest(double study, const vector<double>& catMu) {
+
+		std::vector<double> distances = _studyMuDistance(study, catMu);
+
+		size_t minDistI = 0;
+		double minDist = std::numeric_limits<double>::max();
+		for (size_t i = 0; i < catMu.size(); i++) {
+
+			this->weights[i] = 0; // clear all weights
+
+			if (distances[i] < minDist) {
+				minDistI = i;
+				minDist = distances[i];
+			}
+		}
+
+		this->weights[minDistI] = 1;
+	}
+
+	void WeightsCalculator::_calcWeights_nearestInRange(double study, const vector<double>& catMu, double catRange) {
+		std::vector<double> distances = _studyMuDistance(study, catMu);
+
+		size_t minDistI = std::numeric_limits<size_t>::max();
+		double minDist = std::numeric_limits<double>::max();
+		for (size_t i = 0; i < catMu.size(); i++) {
+
+			this->weights[i] = 0; // clear all weights
+
+			if (distances[i] < catRange && distances[i] < minDist) {
+				minDistI = i;
+				minDist = distances[i];
+			}
+		}
+
+		if (minDistI != std::numeric_limits<size_t>::max()) {
+			this->weights[minDistI] = 1;
+		}
+		
+	}
+
+	/*
+	void WeightsCalculator::_calcWeights_linear(double study, const vector<double>& catMu, double catSelectivity) {
+
+		double wSum = 0;
+		for (size_t i = 0; i < this->weightCount; i++) {
+			//This distribution is not truncated: Category assignment is independent of the study/response space.
+			double dens = Linear::normalPDF(study, catMu[i], catSelectivity);
+
+			this->weights[i] = dens; // Set density for each.
+
+			wSum += dens;
+		}
+
+		_rescaleWeights(wSum);
+		_zapSmallWeights();
+	}
+
+	void WeightsCalculator::_calcWeights_circular(double study, const vector<double>& catMu, double catSelectivity) {
+
+		double wSum = 0;
+		for (size_t i = 0; i < this->weightCount; i++) {
+			double dens = vmLut.dVonMises(study, catMu[i], catSelectivity);
+			wSum += dens;
+			this->weights[i] = dens;
+		}
+
+		_rescaleWeights(wSum);
+		_zapSmallWeights();
+	}
+	*/
+
+	namespace Circular {
+		//OUT_weights must be an array of the correct size. 
+		//This code is nasty for the sake of efficiency, avoiding lots of little allocations of weights vectors.
+		//This function is called  in the likelihood function for every observation, so it gets a lot of use.
+		void categoryWeights(double study, const MemFirst::CombinedParameters& par, double* OUT_weights) {
+
+			unsigned int n = par.cat.mu.size();
+
+			double densSum = 0;
+			for (unsigned int i = 0; i < n; i++) {
+				double d = vmLut.dVonMises(study, par.cat.mu[i], par.cat.selectivity);
+				densSum += d;
+				OUT_weights[i] = d;
+			}
+
+			if (densSum < 1e-250) {
+
+				//If densSum is tiny, give equal weights
+				for (unsigned int i = 0; i < n; i++) {
+					OUT_weights[i] = 1.0 / n;
+				}
+			}
+			else {
+				for (unsigned int i = 0; i < n; i++) {
+					OUT_weights[i] /= densSum;
+				}
+			}
+		}
+	}
+
+	namespace Linear {
+		//OUT_weights must be an array of the correct size (par.cat.mu.size()). 
+		//This code is nasty for the sake of efficiency, avoiding lots of little allocations of weights vectors.
+		//This function is called  in the likelihood function for every observation, so it gets a lot of use.
+		void categoryWeights(double study, const MemFirst::CombinedParameters& par, const LinearConfiguration& lc, double* OUT_weights) {
+
+			unsigned int n = par.cat.mu.size();
+
+			double densSum = 0;
+			for (unsigned int i = 0; i < n; i++) {
+				//This distribution is not truncated: Category assignment is independent of the study/response space.
+				double d = normalPDF(study, par.cat.mu[i], par.cat.selectivity);
+				densSum += d;
+				OUT_weights[i] = d;
+			}
+
+			if (densSum < 1e-250) {
+
+				//If densSum is tiny, give equal weights
+				for (unsigned int i = 0; i < n; i++) {
+					OUT_weights[i] = 1.0 / n;
+				}
+			}
+			else {
+				for (unsigned int i = 0; i < n; i++) {
+					OUT_weights[i] /= densSum;
+				}
+			}
+		}
+	}
+
+
+#ifdef USING_PLAT_SPLINE
+
+	double WeightsCalculator::calcLambda(void) const {
+
+		double wSum = this->sumWeights();
+
+		double lambda = 0;
+		switch (this->modCfg->lambdaVariant) {
+		case LambdaVariant::None:
+			break; // lambda = 0
+		case LambdaVariant::CatWeightSum:
+			lambda = clamp(wSum, 0, 1);
+			break;
+		case LambdaVariant::InverseCatWeightSum:
+			lambda = 1 - clamp(wSum, 0, 1);
+			break;
+		case LambdaVariant::Minus1to1:
+			lambda = clamp(wSum, 0, 1) * 2 - 1;
+			break;
+		}
+
+		return lambda;
+	}
+
+	void WeightsCalculator::_calcWeights_platSpline(double study, const CategoryParameters& catPar) {
+		// there may be linear and circular versions as well for this
+
+		// get weights
+		vector<double> ws = dPlatSplineWeights(study, catPar, *this->modCfg);
+
+		/*
+		Rcpp::Rcout << "_calcWeights_platSpline(): ws = " << std::endl;
+		for (double w : ws) {
+			Rcpp::Rcout << w << std::endl;
+		}
+		*/
+
+		// copy weights (uggggg)
+		//this->weightCount = ws.size();
+		for (size_t i = 0; i < this->weightCount; i++) {
+			this->weights[i] = ws[i];
+		}
+
+		/*
+		Rcpp::Rcout << "_calcWeights_platSpline(): weights = " << std::endl;
+		for (double w : this->weights) {
+			Rcpp::Rcout << w << std::endl;
+		}
+		*/
+
+		// No need to rescale weights for PlatSpline. In fact, 0 weight is ok.
+		// Or maybe make sure total weight < 1, but I'm pretty sure that can't happen.
+	}
+
+#endif
 
 #ifdef USING_PLAT_SPLINE
 
@@ -38,7 +425,8 @@ namespace CatCont {
 
 		if (modCfg.dataType == DataType::Linear) {
 			return std::abs(x - mu);
-		} else {
+		}
+		else {
 			//d = Circular::circularAbsoluteDistance(x, mu, degrees);
 			return Circular::circularDistance(x, mu, true, degrees);
 		}
@@ -55,7 +443,8 @@ namespace CatCont {
 			distFun = [](double x, double mu) -> double {
 				return x - mu;
 			};
-		} else if (modCfg.dataType == DataType::Circular) {
+		}
+		else if (modCfg.dataType == DataType::Circular) {
 			distFun = [](double x, double mu) -> double {
 				return Circular::circularSignedDistance(x, mu); // radians
 			};
@@ -79,11 +468,11 @@ namespace CatCont {
 			catPar.mu = Circular::clampAngle360(catPar.mu);
 		}
 
-		
+
 		std::function<double(double, double)> distFun = dPlatSpline_getDistanceFunction(modCfg);
 
-		auto singleMuDensity = 
-			[&distFun](double study, const CategoryParameters& catPar, size_t muIndex) -> double 
+		auto singleMuDensity =
+			[&distFun](double study, const CategoryParameters& catPar, size_t muIndex) -> double
 		{
 
 			double d = distFun(study, catPar.mu[muIndex]);
@@ -121,7 +510,8 @@ namespace CatCont {
 		if (catPar.nCat() == 0) {
 			return rval;
 			//return std::vector<double>();
-		} else if (catPar.nCat() == 1) {
+		}
+		else if (catPar.nCat() == 1) {
 
 			rval.front() = singleMuDensity(study, catPar, 0);
 			//printRval();
@@ -136,7 +526,7 @@ namespace CatCont {
 
 		for (size_t j = 0; j < catPar.mu.size(); j++) {
 			singedDists[j] = distFun(study, catPar.mu[j]);
-			
+
 			if (approxZero(singedDists[j])) {
 				zeroIndices.push_back(j);
 			}
@@ -153,7 +543,7 @@ namespace CatCont {
 			Rcpp::Rcout << zeroIndices[i] << std::endl;
 		}
 		*/
-		
+
 		if (zeroIndices.size() >= 2) {
 			//Rcpp::Rcout << "2+ zero indices: Setting the zero distance cats to equal weight." << std::endl;
 			for (size_t ind : zeroIndices) {
@@ -202,7 +592,8 @@ namespace CatCont {
 
 				upperDist = 0.0;
 				upperIndex = zeroIndices.front();
-			} else {
+			}
+			else {
 				// Nearest positive, so lower is zero and upper is nearest
 				lowerDist = 0.0;
 				lowerIndex = zeroIndices.front();
@@ -211,7 +602,8 @@ namespace CatCont {
 				upperIndex = nearestIndex;
 			}
 
-		} else {
+		}
+		else {
 			// None of the distances are approx 0. Find the nearest indices normally.
 			//Rcpp::Rcout << "0 zero distance mus" << std::endl;
 
@@ -222,7 +614,8 @@ namespace CatCont {
 				if (dist < 0.0 && dist > lowerDist) {
 					lowerDist = dist;
 					lowerIndex = j;
-				} else if (dist > 0.0 && dist < upperDist) {
+				}
+				else if (dist > 0.0 && dist < upperDist) {
 					upperDist = dist;
 					upperIndex = j;
 				}
@@ -325,7 +718,7 @@ namespace CatCont {
 	// z <= 0 is the high end of the spline, z == 1 is the middle, and z >= 2 is the low end
 	double zeroDerivativeCubicSplineDensity(double z) {
 
-		
+
 		/*
 		if (z < 0.0) {
 		//Enforce z >= 0?
@@ -338,7 +731,8 @@ namespace CatCont {
 		if (z < 0.0) {
 			// On the plateau, probably
 			return 1.0;
-		} else if (z > 2.0) {
+		}
+		else if (z > 2.0) {
 			// Off the end of the tail
 			return 0.0;
 		}
@@ -357,7 +751,7 @@ namespace CatCont {
 		double dens = 1.0; // 1 * z^0 = 1
 		//dens += coef[1] * z; // 0 * z^1 = 0
 		dens += -0.75 * pow(z, 2.0);
-		dens +=  0.25 * pow(z, 3.0);
+		dens += 0.25 * pow(z, 3.0);
 
 		return dens;
 	}
@@ -375,7 +769,8 @@ namespace CatCont {
 
 		if (absDist < platHW) {
 			return 1.0; // On the plateau
-		} else if (absDist > platHW + 2 * splineHW) {
+		}
+		else if (absDist > platHW + 2 * splineHW) {
 			return 0.0; // Off the tail of the spline
 		}
 
@@ -398,7 +793,8 @@ namespace CatCont {
 		double d;
 		if (linear) {
 			d = std::abs(x - mu);
-		} else {
+		}
+		else {
 			//d = Circular::circularAbsoluteDistance(x, mu, degrees);
 			d = Circular::circularDistance(x, mu, true, degrees);
 		}
@@ -408,155 +804,4 @@ namespace CatCont {
 
 #endif
 
-	///////////////////////
-	// WeightsCalculator //
-	///////////////////////
-
-	WeightsCalculator::WeightsCalculator(ModelConfiguration* modCfg) :
-		modCfg(modCfg),
-		weightCount(0)
-	{
-		weights.resize(modCfg->maxCategories); // this always gives enough room
-	}
-
-	void WeightsCalculator::calcWeights(double study, const CategoryParameters& catPar) {
-
-		this->weightCount = catPar.mu.size();
-
-#ifdef USING_PLAT_SPLINE
-		if (modCfg->weightsDistribution == WeightsDistribution::PlatSpline) {
-			_calcWeights_platSpline(study, catPar);
-		} else 
-
-		if (modCfg->weightsDistribution == WeightsDistribution::Default) {
-#endif
-			if (modCfg->dataType == DataType::Linear) {
-				_calcWeights_linear(study, catPar);
-			} else if (modCfg->dataType == DataType::Circular) {
-				_calcWeights_circular(study, catPar);
-			}
-#ifdef USING_PLAT_SPLINE
-		} // if(modCfg->weightsDistribution ...
-#endif
-
-	}
-
-	double WeightsCalculator::sumWeights(void) const {
-		double wSum = 0;
-		for (size_t i = 0; i > this->weightCount; i++) {
-			wSum += this->weights[i];
-		}
-		return wSum;
-	}
-
-	vector<double> WeightsCalculator::copyFilledWeights(void) const {
-		return vector<double>(weights.begin(), weights.begin() + weightCount);
-	}
-
-	void WeightsCalculator::reset(void) {
-		this->weightCount = 0;
-	}
-
-#ifdef USING_PLAT_SPLINE
-
-	double WeightsCalculator::calcLambda(void) const {
-
-		double wSum = this->sumWeights();
-	
-		double lambda = 0;
-		switch (this->modCfg->lambdaVariant) {
-		case LambdaVariant::None:
-			break; // lambda = 0
-		case LambdaVariant::CatWeightSum:
-			lambda = clamp(wSum, 0, 1);
-			break;
-		case LambdaVariant::InverseCatWeightSum:
-			lambda = 1 - clamp(wSum, 0, 1);
-			break;
-		case LambdaVariant::Minus1to1:
-			lambda = clamp(wSum, 0, 1) * 2 - 1;
-			break;
-		}
-
-		return lambda;
-	}
-
-	void WeightsCalculator::_calcWeights_platSpline(double study, const CategoryParameters& catPar) {
-		// there may be linear and circular versions as well for this
-
-		// get weights
-		vector<double> ws = dPlatSplineWeights(study, catPar, *this->modCfg);
-		
-		/*
-		Rcpp::Rcout << "_calcWeights_platSpline(): ws = " << std::endl;
-		for (double w : ws) {
-			Rcpp::Rcout << w << std::endl;
-		}
-		*/
-
-		// copy weights (uggggg)
-		//this->weightCount = ws.size();
-		for (size_t i = 0; i < this->weightCount; i++) {
-			this->weights[i] = ws[i];
-		}
-
-		/*
-		Rcpp::Rcout << "_calcWeights_platSpline(): weights = " << std::endl;
-		for (double w : this->weights) {
-			Rcpp::Rcout << w << std::endl;
-		}
-		*/
-
-		// No need to rescale weights for PlatSpline. In fact, 0 weight is ok.
-		// Or maybe make sure total weight < 1, but I'm pretty sure that can't happen.
-	}
-
-#endif
-
-	void WeightsCalculator::_calcWeights_linear(double study, const CategoryParameters& catPar) {
-
-		double wSum = 0;
-		for (size_t i = 0; i < this->weightCount; i++) {
-			//This distribution is not truncated: Category assignment is independent of the study/response space.
-			double dens = Linear::normalPDF(study, catPar.mu[i], catPar.selectivity);
-			
-			this->weights[i] = dens; // Set density for each.
-
-			wSum += dens;
-		}
-
-		_rescaleWeights(wSum);
-
-	}
-
-	void WeightsCalculator::_calcWeights_circular(double study, const CategoryParameters& catPar) {
-
-		double wSum = 0;
-		for (unsigned int i = 0; i < this->weightCount; i++) {
-			double dens = vmLut.dVonMises(study, catPar.mu[i], catPar.selectivity);
-			wSum += dens;
-			this->weights[i] = dens;
-		}
-
-		_rescaleWeights(wSum);
-
-	}
-
-	void WeightsCalculator::_rescaleWeights(double wSum) {
-		if (wSum < 1e-250) {
-
-			// If wSum is tiny, give equal weights. This is rare.
-			for (size_t i = 0; i < this->weightCount; i++) {
-				this->weights[i] = 1.0 / this->weightCount;
-			}
-		} else {
-			// Rescale weights to sum to 1
-			for (size_t i = 0; i < this->weightCount; i++) {
-				this->weights[i] /= wSum;
-			}
-		}
-	}
-
-
-
-}
+} // namespace CatCont

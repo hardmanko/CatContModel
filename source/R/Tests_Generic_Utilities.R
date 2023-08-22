@@ -53,7 +53,8 @@ cleanAndSummarizeMEIResults = function(BFs, summarize, aggregateBy) {
 
 #' Summarize Results from Multiple Subsamples
 #' 
-#' This function should be used with the values returned by [`testMainEffectsAndInteractions`] and [`testConditionEffects`] when the `summarize` argument is `FALSE`. It summarizes Bayes factors across many repeated estimates of those Bayes factors.
+#' This function should be used with the values returned by [`testMainEffectsAndInteractions`] and [`testConditionEffects`] 
+#' when multiple subsamples are used and the `summarize` argument is `FALSE`. It summarizes Bayes factors across many repeated estimates of those Bayes factors.
 #' 
 #' @param BFs A data.frame containing the individual Bayes factors. It should have a format like the result of [`testMainEffectsAndInteractions`] or [`testConditionEffects`] when `summarize` is `FALSE`. 
 #' @param proportioniles Percentiles divided by 100 to calculate. I.e., for 90th percentile, provide the value 0.90.

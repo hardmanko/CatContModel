@@ -108,7 +108,7 @@ runParallelJobs = function(pc, jobs, jobFun=NULL, startupMsg=NULL) {
     if (endsWith(pc$outputFile, ".txt")) {
       outputFiles[1] = pc$outputFile
       
-      message(paste0("Parallel progress for the first job will be written to: ", pc$outputFile))
+      message(paste0("Parallel progress for the first node will be written to: ", pc$outputFile))
     } else {
 
       for (i in 1:length(jobs)) {

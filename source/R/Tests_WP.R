@@ -81,11 +81,11 @@ testCategoricalResponding = function(results, pCatGuess_test = c(0.01, 0.99), pC
 	}
 	
 	rval = NULL
-	for (param in names(H0_test)) {
-	  for (testVal in H0_test[[param]]) {
+	for (parName in names(H0_test)) {
+	  for (testVal in H0_test[[parName]]) {
   		for (cond in results$config$factors$cond) {
   			
-  			testRes = testMeanParameterValue(results, param = param, cond = cond, H0_value = testVal)
+  			testRes = testMeanParameterValue(results, parName = parName, cond = cond, H0_value = testVal)
   
   			rval = rbind(rval, testRes)
   		}
@@ -101,7 +101,7 @@ testCategoricalResponding = function(results, pCatGuess_test = c(0.01, 0.99), pC
 #' This test is performed in a condition.
 #' 
 #' @param results Results from [`runParameterEstimation`].
-#' @param param The name of the parameter to test.
+#' @param parName The name of the parameter to test.
 #' @param cond The condition in which to test the value.
 #' @param H0_value The null hypothesized value of the parameter. This should be provided in the manifest space (e.g., if testing a probability parameter, this should be between 0 and 1).
 #' 
@@ -111,23 +111,23 @@ testCategoricalResponding = function(results, pCatGuess_test = c(0.01, 0.99), pC
 #' @export
 #' 
 #' @examples \dontrun{
-#' testMeanParameterValue(results, param = "pMem", cond = "1", H0_value = 0.95)
+#' testMeanParameterValue(results, parName = "pMem", cond = "1", H0_value = 0.95)
 #' }
 #' 
-testMeanParameterValue = function(results, param, cond, H0_value) {
+testMeanParameterValue = function(results, parName, cond, H0_value) {
 	
 	if (!resultIsType(results, "WP")) {
 		stop("testMeanParameterValue only accepts WP results objects. See the Glossary (listed in the package index).")
 	}
 	
-	transformInverse = getParameterTransformation(results, param, inverse=TRUE)
+	transformInverse = getParameterTransformation(results, parName, inverse=TRUE)
 	
 	inverseH0 = transformInverse(H0_value)
 	
-	popMu0 = results$priors[[ paste(param, ".mu.mu", sep="") ]]
-	popSd0 = sqrt( results$priors[[ paste(param, ".mu.var", sep="") ]] )
+	popMu0 = results$priors[[ paste(parName, "_part.mu.mu", sep="") ]]
+	popSd0 = sqrt( results$priors[[ paste(parName, "_part.mu.var", sep="") ]] )
 	
-	condPrior = getConditionParameterPrior(results, param, cond)
+	condPrior = getConditionParameterPrior(results, parName, cond)
 	
 	priorDensAtH0 = 0
 	if (condPrior$scale == 0) {
@@ -148,8 +148,8 @@ testMeanParameterValue = function(results, param, cond, H0_value) {
 	
 
 	#get the mean and condition effect posterior
-	popMu = results$posteriors[[ paste(param, ".mu", sep="") ]]
-	condEffect = results$posteriors[[ paste(param, "_cond[", cond, "]", sep="") ]]
+	popMu = results$posteriors[[ paste(parName, "_part.mu", sep="") ]]
+	condEffect = results$posteriors[[ paste(parName, "_cond[", cond, "]", sep="") ]]
 	
 	combinedPosterior = popMu + condEffect
 	
@@ -158,7 +158,7 @@ testMeanParameterValue = function(results, param, cond, H0_value) {
 	# Option: Use a prior sampling approach instead?
 	#CMBBHT::valueTest_SDDR()
 	
-	temp = data.frame(param = param, cond = cond, H0_value = H0_value, 
+	temp = data.frame(parName = parName, cond = cond, H0_value = H0_value, 
 										bf01 = res$bf01, bf10 = res$bf10, success = res$success, stringsAsFactors = FALSE)
 	
 	temp

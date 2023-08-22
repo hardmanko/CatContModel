@@ -8,46 +8,54 @@ double inverseGammaLogLikelihood(double x, double alpha, double beta) {
 	return alpha * std::log(beta) - lgammafn(alpha) - (alpha + 1) * std::log(x) - (beta / x);
 }
 
-double normal_varPostSample(const std::vector<double>& y, double mu, double a0, double b0) {
+// Sample from condition posterior distribution of variance (var_est) using an inverse-gamma conjugate prior.
+// y are observations. y ~ Normal(mu_est, var_est)
+// mu_est is estimated mu that pairs with var_est.
+// a0 and b0 are prior shape and rate: var_est ~ InverseGamma(a0, b0).
+double normal_varPostSample(const std::vector<double>& y, double mu_est, double a0, double b0) {
 
 	double SSE = 0;
-	for (unsigned int i = 0; i < y.size(); i++) {
-		double dif = y[i] - mu;
+	for (size_t i = 0; i < y.size(); i++) {
+		double dif = y[i] - mu_est;
 		SSE += dif * dif;
 	}
 
 	double a = a0 + y.size() / 2.0;
 	double b = b0 + SSE / 2;
 
-	double r = rgamma(a, 1 / b); //this takes shape and scale, so 1/b is scale, b being rate
+	double r = rgamma(a, 1 / b); // rgamma takes shape and scale, so 1/b is scale, b being rate
 	return 1 / r;
 }
 
-double normal_muPostSample(double mean, double N, double data_var, double mu0, double var0) {
-	double a = N / data_var + 1 / var0;
-	double b = mean * N / data_var + mu0 / var0;
-
-	double sd1 = sqrt(1 / a);
-	double mean1 = b / a;
-
-	return rnorm(mean1, sd1);
-
-	//return mean1 + sd1 * K4B_Bayes::_standardNormal(K4B_Bayes::_generator);
-}
-
-double normal_muPostSample(const std::vector<double>& y, double data_var, double mu0, double var0) {
+// Sample from condition posterior distribution of  location (mu_est) using a normal conjugate prior.
+// y are observations. y ~ Normal(mu_est, var_est).
+// var_est is the estimated variance that pairs with mu_est.
+// mu0 and var0 are prior mean and variance: mu_est ~ Normal(mu0, var0).
+double normal_muPostSample(const std::vector<double>& y, double var_est, double mu0, double var0) {
 #ifdef COMPILING_WITH_CX
 	double mean = Util::mean(y);
 #else
 	double sum = 0;
-	for (unsigned int i = 0; i < y.size(); i++) {
+	for (size_t i = 0; i < y.size(); i++) {
 		sum += y[i];
 	}
 	double mean = sum / y.size();
 #endif
 
-	return normal_muPostSample(mean, y.size(), data_var, mu0, var0);
+	return normal_muPostSample(mean, y.size(), var_est, mu0, var0);
 }
+
+// mean and N are the sample mean and count of observations.
+double normal_muPostSample(double mean, double N, double var_est, double mu0, double var0) {
+	double a = N / var_est + 1 / var0;
+	double b = mean * N / var_est + mu0 / var0;
+
+	double sd1 = sqrt(1 / a);
+	double mean1 = b / a;
+
+	return rnorm(mean1, sd1);
+}
+
 
 // goes from [0,1] to (-inf,inf)
 // i.e., this is qlogis
@@ -62,6 +70,7 @@ double logitInverse(double fullScale) {
 	return ex / (1 + ex);
 }
 
+// x are counts??, p are probs.
 //x and p must be the same length. sum(p) = 1
 double multinomialProportionalLogLikelihood(const std::vector<unsigned>& x, const std::vector<double>& p) {
 	double d = 0;

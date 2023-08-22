@@ -1,5 +1,9 @@
 #include "CCM_DistributionLUTs.h"
 
+//#include "CCM_Main.h"
+#include "CCM_Util.h"
+
+// In Main
 #ifndef PI
 #define PI       3.14159265358979323846
 #endif
@@ -16,6 +20,11 @@ VonMisesLUT vmLut;
 // VonMisesLUT //
 /////////////////
 
+
+VonMisesLUT::VonMisesLUT(void) {
+	this->setup(CatCont::curriedBessel_i);
+}
+
 void VonMisesLUT::setup(std::function<double(double)> besselFun) {
 	Config cfg;
 	cfg.besselFun = besselFun;
@@ -23,78 +32,68 @@ void VonMisesLUT::setup(std::function<double(double)> besselFun) {
 	this->setup(cfg);
 }
 
-void VonMisesLUT::setup(const Config& cfg) {
+void VonMisesLUT::setup(const Config& newCfg) {
 
-	Config prevConfig = _config;
+	if (newCfg.useLUT) {
 
-	_config = cfg;
+		//if (newCfg.stepSize > 0.1) {
+			// warn?
+		//}
 
-	//if (_config.stepSize > 0.1) {
-		// warn?
-	//}
+		// Set the internal bessel function to be the lerp of the LUT
+		_internalBessel = [this](double kappa) -> double {
+			return this->besselLerp(kappa);
+		};
 
-	if (!_config.useLUT) {
+		bool skipRecomputation = newCfg.skipRecomputationIfAble && this->readyToUseLUT(newCfg.maxKappa, newCfg.stepSize);
+		if (!skipRecomputation) {
+			// Recompute the LUT
+			size_t newLength = newCfg.maxKappa / newCfg.stepSize;
+			newLength += 10; // padding for numerical imprecision
+
+			_besselLUT.resize(newLength);
+
+			for (size_t i = 0; i < newLength; i++) {
+
+				double x = newCfg.stepSize * i;
+
+				_besselLUT[i] = newCfg.besselFun(x);
+			}
+
+			// TODO: The LUT is biased because the bessel function is an exponential-type scoop shape.
+			// This means that the curvature of the function always undershoots the straight line linear interpolation.
+			// Adjust by taking the midpoint between two LUT values, calculate the bessel there, then adjust the LUT
+			// endpoints to something like half the distance between the midpoint lerp and midpoint bessel.
+			// (The amount of bias is tiny and irrelevant.)
+		}
+		
+		_config = newCfg; // Assign new config
+	} 
+	else {
+		// If not using LUT, clear LUT
 		_besselLUT.clear();
 
+		_config = newCfg; // Assign new config
+		
 		_config.stepSize = 0;
 		_config.maxKappa = std::numeric_limits<double>::max();
 
 		_internalBessel = _config.besselFun;
-		return;
 	}
-
-	// Using the LUT
-
-	// Set the internal bessel function to be the lerp function
-	_internalBessel = [this](double kappa) -> double {
-		return this->besselLerp(kappa);
-	};
-
-	if (_config.skipRecomputationIfAble) {
-
-		bool hasLut = _besselLUT.size() > 0;
-
-		bool sufficientMaxKappa = prevConfig.maxKappa >= _config.maxKappa;
-		bool sufficientPrecision = prevConfig.stepSize <= _config.stepSize;
-
-		//bool rangeCorrect = abs(_config.maxKappa - cfg.maxKappa) < 0.00001;
-		//bool stepSizeCorrect = abs(_config.stepSize - cfg.stepSize) < 0.00001;
-
-		bool skipComputation = hasLut && sufficientMaxKappa && sufficientPrecision;
-		if (skipComputation) {
-			return;
-		}
-	}
-
-	// Recompute the LUT
-	size_t newLength = cfg.maxKappa / cfg.stepSize;
-	newLength += 10; // padding
-
-	_besselLUT.resize(newLength);
-
-	for (size_t i = 0; i < newLength; i++) {
-
-		double x = _config.stepSize * i;
-
-		_besselLUT[i] = _config.besselFun(x);
-	}
-
-	// TODO: The LUT is biased because the bessel function is an exponential-type scoop shape.
-	// This means that the curvature of the function always undershoots the straight line linear interpolation.
-	// Adjust by taking the midpoint between two LUT values, calculate the bessel there, then adjust the LUT
-	// endpoints to something like half the distance between the midpoint lerp and midpoint bessel.
 }
 
 const VonMisesLUT::Config& VonMisesLUT::getConfig(void) const {
 	return _config;
 }
 
-bool VonMisesLUT::ready(double maxKappa) {
+bool VonMisesLUT::ready(double maxKappa, double stepSize) const {
 	if (_config.useLUT) {
 		bool hasLut = _besselLUT.size() > 0;
-		bool maxKappaBigEnough = _config.maxKappa >= maxKappa;
 
-		return hasLut && maxKappaBigEnough;
+		bool sufficientMaxKappa = maxKappa <= _config.maxKappa; // Requested max precision is less than current (smaller LUT requested)
+		bool sufficientPrecision = stepSize >= _config.stepSize; // Requested step size is larger than current (less precise LUT requested)
+
+		return hasLut && sufficientMaxKappa && sufficientPrecision;
 	} else {
 
 		bool hasBesselFun = (bool)_config.besselFun;
@@ -103,6 +102,14 @@ bool VonMisesLUT::ready(double maxKappa) {
 	}
 
 	return false;
+}
+
+bool VonMisesLUT::readyToUseLUT(double maxKappa, double stepSize) const {
+	if (!_config.useLUT) {
+		return false;
+	}
+
+	return this->ready(maxKappa, stepSize);
 }
 
 // kappa must be non-negative and must be less than maxValue(). It is up to the user to verify this.
@@ -141,9 +148,11 @@ double VonMisesLUT::getMaxKappa(void) const {
 	return _config.maxKappa;
 }
 
-///////////////////////
+///////////////
 // NormalLUT //
-///////////////////////
+///////////////
+
+/*
 
 void NormalLUT::setup(const NormalLUT::Config& cfg) {
 	_config = cfg;
@@ -251,7 +260,7 @@ double NormalLUT::pnorm(double x, double mu, double sigma) {
 	return this->pnorm((x - mu) / sigma);
 }
 
-
+*/
 
 
 /////////////////

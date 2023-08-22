@@ -21,7 +21,7 @@
 #' values, you can combine the lists with the concatenate function, `c()`.
 #' 
 #' @param data The data you will use, in the same format as required by [`runParameterEstimation`].
-#' @param param The parameter to set to a constant value, e.g. `"pMem"`.
+#' @param parName The parameter to set to a constant value, e.g. `"pMem"`.
 #' @param value The constant value of the paramter. See also the `transformValueToLatent` argument.
 #' @param zeroConditionEffects Whether condition effects should all be set to 0. (See [`Glossary`].)
 #' @param transformValueToLatent Whether `value` should be transformed to the latent space. If `TRUE` (the default) you should provide parameter values in the manifest space (e.g. probabilities should be between 0 and 1). If `FALSE`, you should provide parameter values in the latent space.
@@ -33,12 +33,12 @@
 #' 
 #' @examples
 #' data = data.frame(pnum=rep(1:5, each=2), cond=rep(1:2, each=5))
-#' constParam = setConstantParameterValue(data, param = "pContBetween", value = 0.5)
+#' constParam = setConstantParameterValue(data, parName = "pContBetween", value = 0.5)
 #' 
 #' @export
-setConstantParameterValue = function(data, param, value, zeroConditionEffects = TRUE, transformValueToLatent = TRUE) {
+setConstantParameterValue = function(data, parName, value, zeroConditionEffects = TRUE, transformValueToLatent = TRUE) {
 	
-  paramParts = splitParamName(param)
+  paramParts = splitParamName(parName)
   
 	if (transformValueToLatent) {
 		trans = getParameterTransformation(NULL, paramParts$baseName, inverse=TRUE, minSD=0)
@@ -62,7 +62,7 @@ setConstantParameterValue = function(data, param, value, zeroConditionEffects = 
   	rval[[ paste( paramParts$baseName, ".mu", sep="" ) ]] = 0
   	rval[[ paste( paramParts$baseName, ".var", sep="" ) ]] = 1
 	} else {
-	  rval[[param]] = value
+	  rval[[parName]] = value
 	  zeroConditionEffects = FALSE
 	  #warning("To set values for individual parameters, use a named list.")
 	}
@@ -136,22 +136,20 @@ setConstantCategoryParameters = function(data, catParam, maxCategories, activate
 			warning( paste("More categories provided for participant ", pnum, " than the maximum number of categories.", sep="") )
 		}
 		
-		for (i in 1:maxCategories) {
+		for (k in 1:maxCategories) {
 			
-			catInd = i - 1 #zero-indexed
+			catMuName = paste( "catMu[", pnum, ",", k, "]", sep="")
+			catActiveName = paste( "catActive[", pnum, ",", k, "]", sep="")
 			
-			catMuName = paste( "catMu[", pnum, ",", catInd, "]", sep="")
-			catActiveName = paste( "catActive[", pnum, ",", catInd, "]", sep="")
-			
-			if (!is.na(catMu[i])) {
-				rval[[ catMuName ]] = catMu[i]
+			if (!is.na(catMu[k])) {
+				rval[[ catMuName ]] = catMu[k]
 			}
 			
-			if (!is.na(catActive[i])) {
-				rval[[ catActiveName ]] = catActive[i]
+			if (!is.na(catActive[k])) {
+				rval[[ catActiveName ]] = catActive[k]
 			}
 			
-			if (deactivateUnspecifiedCats && is.na(catActive[i]) && is.na(catActive[i])) {
+			if (deactivateUnspecifiedCats && is.na(catActive[k]) && is.na(catActive[k])) {
 				rval[[ catMuName ]] = 0.0
 				rval[[ catActiveName ]] = 0.0
 			}

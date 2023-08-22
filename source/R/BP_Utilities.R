@@ -177,10 +177,10 @@ makeDefaultFactors.BP = function(groups) {
 
 getAllPnums.BP = function(bpRes) {
 	allPnum = NULL
-	for (n in names(bpRes$groups)) {
-		pn = bpRes$groups[[n]]$pnums
-		pn = paste0(n, ":", pn)
-		allPnum = c(allPnum, pn)
+	for (gName in names(bpRes$groups)) {
+		gPnums = bpRes$groups[[gName]]$pnums
+		gPnums = paste0(gName, ":", gPnums)
+		allPnum = c(allPnum, gPnums)
 	}
 	allPnum
 }

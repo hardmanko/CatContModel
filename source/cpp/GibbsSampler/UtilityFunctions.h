@@ -17,11 +17,12 @@
 #define GS_COUT std::cout
 #endif
 
+// Conjugate sampling functions for normal data (or parameters)
+double normal_varPostSample(const std::vector<double>& y, double mu_est, double a0, double b0);
 
-double normal_varPostSample(const std::vector<double>& y, double mu, double a0, double b0);
+double normal_muPostSample(const std::vector<double>& y, double var_est, double mu0, double var0);
+double normal_muPostSample(double mean, double N, double var_est, double mu0, double var0);
 
-double normal_muPostSample(double mean, double N, double data_var, double mu0, double var0);
-double normal_muPostSample(const std::vector<double>& y, double data_var, double mu0, double var0);
 
 //This has not been properly tested!
 double inverseGammaLogLikelihood(double x, double shape, double scale);

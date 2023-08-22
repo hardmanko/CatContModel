@@ -23,11 +23,11 @@ bool EqualityConstraints::setup(const IndividualMappings& mappings, const vector
             }
 
             if (firstNotFound) {
-                logMessage("EqualityConstraints", "Parameter " + it->first + " does not exist and will be ignored.");
+                CatCont::message("Parameter " + it->first + " does not exist and will be ignored.", "EqualityConstraints");
             }
 
             if (secondNotFound) {
-                logMessage("EqualityConstraints", "Parameter " + it->second + " does not exist and will be ignored.");
+                CatCont::message("Parameter " + it->second + " does not exist and will be ignored.", "EqualityConstraints");
             }
 
             if (firstNotFound || secondNotFound) {
@@ -54,6 +54,10 @@ bool EqualityConstraints::setup(const IndividualMappings& mappings, const vector
 //This should include the given condition
 const vector<unsigned int>& EqualityConstraints::getEqualConditionIndices(string param, unsigned int cond) const {
     return groupMappings.at(param).at(cond);
+}
+
+bool EqualityConstraints::isFreeParameter(string parameter) const {
+	return getSourceParameter(parameter) == FreeParameter;
 }
 
 //Basically, read out of individualMappings
@@ -101,7 +105,7 @@ bool EqualityConstraints::simplifyIndividualMappings(IndividualMappings* mapping
             string nextPossibleSource = mapping->at(mostSimpleSource);
 
             if (cycleHistory.find(nextPossibleSource) != cycleHistory.end()) {
-                logMessage("EqualityConstraints::simplifyIndividualMappings()", "Error: Equality constraint cycle detected.");
+                CatCont::message("Error: Equality constraint cycle detected.", "EqualityConstraints");
                 return false;
             } else {
                 cycleHistory.insert(nextPossibleSource);
@@ -129,7 +133,7 @@ bool EqualityConstraints::simplifyIndividualMappings(IndividualMappings* mapping
 
 
 
-//conditionNames comes from the Data struct.
+//conditionNames comes from the DataCollection struct.
 EqualityConstraints::GroupMappings EqualityConstraints::calculateEqualConditionIndices(const IndividualMappings& mapping, const vector<string>& conditionNames) const {
 
     GroupMappings rval;
@@ -141,6 +145,8 @@ EqualityConstraints::GroupMappings EqualityConstraints::calculateEqualConditionI
 
     vector<string> names;
     for (auto it = mapping.begin(); it != mapping.end(); it++) {
+		// Only take parameters with _cond.
+		// TODO: Shouldn't it be that free parameters are rejected?
         if (it->first.find("_cond[") != string::npos) {
             names.push_back(it->first);
         }

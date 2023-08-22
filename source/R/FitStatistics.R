@@ -1,5 +1,90 @@
 
-#' Calculate Whole Model WAIC
+#' Calculate WAIC from a Likelihood Matrix
+#' 
+#' This is a general-purpose WAIC calculation function that can be used with any appropriate model. 
+#' It is not specific to CatContModel and can be used with other models.
+#' For information about WAIC, see Bayesian Data Analysis, Third Edition by Gelman, Carlin, Stern, Dunson, Vehtari, and Rubin.
+#' 
+#' @param likeMat A matrix of likelihoods (not log). Each row corresponds to one observation in the data set (e.g. a study/response pair).
+#' Each column corresponds to one sample from the posterior of the parameters (e.g. one iteration of a Gibbs sampler).
+#' 
+#' @return A list containing elements:
+#' \tabular{ll}{
+#' 	`WAIC_1`, `WAIC_2` \tab WAIC values that are calculated using two different methods of estimating the effective number of free parameters (`P_1` and `P_2`).\cr
+#'  `P_1`, `P_2` \tab Estimated effective number of free parameters used to calculate `WAIC_1` and `WAIC_2`, respectively. \cr
+#' 	`LPPD` \tab Log Posterior Predictive Density. Used to calculate both `WAIC_1` and `WAIC_2`.
+#' }
+#' 
+#' @export
+calculateWAIC_likelihoodMatrix = function(likeMat) {
+  
+  # Initialize accumulator variables that will be added to
+  LPPD = 0
+  P_1 = 0
+  P_2 = 0
+  
+  for (obs in 1:nrow(likeMat)) {
+    # A vector of likelihoods for a single observation, length equal to number of iterations
+    L = likeMat[obs,]
+    
+    # Calculate LPPD for this observation
+    LPPD = LPPD + log( mean(L) )
+    
+    # Calculate P_1
+    a = log( mean(L) )
+    b = mean( log(L) )
+    
+    P_1 = P_1 + 2 * (a - b)
+    
+    # Calculate P_2
+    P_2 = P_2 + var( log(L) )
+    
+  }
+  
+  # The two versions of WAIC differ in terms of which P is used
+  WAIC_1 = -2 * (LPPD - P_1)
+  WAIC_2 = -2 * (LPPD - P_2)
+  
+  # Return a list containing the results
+  list(WAIC_1 = WAIC_1, WAIC_2 = WAIC_2, P_1 = P_1, P_2 = P_2, LPPD = LPPD)
+  
+}
+
+calcWAIC_MF_singleSubsample = function(res) {
+  
+  postMat = convertPosteriorsToMatrix(res, stripConstantParameters = FALSE, stripCatActive = FALSE, stripCatMu = FALSE)
+  
+  likeMat = CCM_CPP_MF_batchLikelihood(res$config, res$data, postMat)
+
+  # Calculate WAIC per participant
+  allWAIC = NULL
+  for (pnum in res$pnums) {
+    rows = which(res$data$pnum == pnum)
+    waic_part = calculateWAIC_likelihoodMatrix(likeMat[rows,])
+    
+    waic_part$pnum = pnum
+    
+    allWAIC = rbind(allWAIC, as.data.frame(waic_part))
+  }
+  
+  # Sum across participants to get the total
+  totals = apply(allWAIC[ , c("WAIC_1", "WAIC_2", "P_1", "P_2", "LPPD") ], 2, sum)
+  totals = as.list(totals)
+  totals$pnum = "Total"
+  totals = as.data.frame(totals)
+  
+  #if (onlyTotal) {
+  #  allWAIC = totals
+  #} else {
+  allWAIC = rbind(totals, allWAIC)
+  #}
+  
+  allWAIC
+  
+}
+
+
+#' Calculate Whole-Model WAIC
 #' 
 #' WAIC is a whole-model fit statistic, like AIC and BIC. WAIC cannot be directly compared with AIC or BIC, but it is conceptually very similar.
 #' 
@@ -42,6 +127,7 @@
 #' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should probably only be less than 1 if `subsamples` is greater than 1. If `NULL`, `subsampleProportion` will be set to `1 / subsamples` and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
 #' @param onlyTotal If `TRUE`, exclude participant-level WAIC values (which aren't really valid because of the fact that participants are not independent). I recommend you leave this at `TRUE`.
 #' @param summarize Logical or `NULL`. Whether WAIC values from multiple subsamples should be summarized. If `NULL` (default), results will be summarized only if there are multiple subsamples.
+#' @param impl Implementation of WAIC calculation. `PC`: Pure c++ (faster). `BL_LM`: Batch likelihood, then likelihood matrix (slower).
 #' 
 #' @return A data.frame containing WAIC values, estimates of the effective number of free parameters, and LPPD.
 #' \tabular{ll}{
@@ -56,43 +142,25 @@
 #' }
 #' 
 #' @family generic functions
+#' @seealso [calculateWAIC_likelihoodMatrix()]
 #' 
 #' @export
-calculateWAIC = function(res, subsamples = 1, subsampleProportion = 1, onlyTotal = TRUE, summarize = NULL) {
+calculateWAIC = function(res, subsamples = 1, subsampleProportion = 1, onlyTotal = TRUE, summarize = NULL, impl=c("PC", "BL_LM")) {
 	
 	summarize = valueIfNull(summarize, subsamples > 1)
 	
-	res = calculateWAIC_convertPosteriorCatMu(res)
-	allWAIC = calculateWAIC_subsamples(res, subsamples, subsampleProportion)
+	# catMu is always degrees in R now
+	#res = calculateWAIC_convertPosteriorCatMu(res)
+	
+	allWAIC = calculateWAIC_subsamples(res, subsamples, subsampleProportion, impl=impl[1])
 	agg = calculateWAIC_aggregate(res, allWAIC, onlyTotal = onlyTotal, summarize = summarize)
 	agg
 	
 }
 
 
-# Convert catMu from degrees to radians if circular.
-calculateWAIC_convertPosteriorCatMu = function(res) {
-	
-	if (res$config$dataType != "circular" || res$config$maxCategories == 0) {
-		return(res)
-	}
-	
-	if (resultIsType(res, "WP")) {
-	  res = convertCatMuUnits(res, CatContModel::d2r)
-	  
-	} else if (resultIsType(res, "BP")) {
-		for (grp in names(res$groups)) {
-		  res$groups[[ grp ]] = convertCatMuUnits(res$groups[[ grp ]], CatContModel::d2r)
-		}
-	} else {
-	  stop("Invalid results type.")
-	}
-	
-	res
-}
 
-
-calculateWAIC_subsamples = function(res, subsamples, subsampleProportion) {
+calculateWAIC_subsamples = function(res, subsamples, subsampleProportion, impl) {
 	
 	subsampleIterationsToRemove = getSubsampleIterationsToRemove(res$runConfig$iterations, subsamples, subsampleProportion)
 	
@@ -116,8 +184,15 @@ calculateWAIC_subsamples = function(res, subsamples, subsampleProportion) {
 		}
 		
 		for (grp in names(groups)) {
-		  # The actual call to the CPP function that does the heavy lifting
-			colWAIC = CCM_CPP_calculateWAIC(groups[[ grp ]])
+		  
+		  thisSubsample = groups[[ grp ]]
+		  
+		  # Call the WAIC implementation
+		  if (impl == "BL_LM") {
+		    colWAIC = calcWAIC_MF_singleSubsample(thisSubsample)
+		  } else if(impl == "PC") {
+		    colWAIC = CCM_CPP_calculateWAIC(thisSubsample)
+		  }
 			
 			statNames = names(colWAIC)
 			statNames = statNames[ statNames != "pnum" ]
@@ -184,7 +259,29 @@ calculateWAIC_aggregate = function(res, allWAIC, onlyTotal, summarize = TRUE) {
 	}
 	
 	summaryValues
-	
+}
+
+
+# Depreciated
+# Convert catMu from degrees to radians if circular.
+calculateWAIC_convertPosteriorCatMu = function(res) {
+  
+  if (res$config$dataType != "circular" || res$config$maxCategories == 0) {
+    return(res)
+  }
+  
+  if (resultIsType(res, "WP")) {
+    res = convertCatMuUnits(res, CatContModel::d2r)
+    
+  } else if (resultIsType(res, "BP")) {
+    for (grp in names(res$groups)) {
+      res$groups[[ grp ]] = convertCatMuUnits(res$groups[[ grp ]], CatContModel::d2r)
+    }
+  } else {
+    stop("Invalid results type.")
+  }
+  
+  res
 }
 
 

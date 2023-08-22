@@ -17,7 +17,9 @@ void GibbsParameter::_updateCurrentValue(double s) {
 //////////////////
 double MH_Parameter::_getNextSample(void) {
 
-	ParameterList param = _gibbs->getCurrentParameterValues();
+	// Copy parameters so can modify
+	//ParameterList param = _gibbs->getCurrentParameterValues();
+	ParamContainer param = _gibbs->getCurrentParameterValues();
 
 	double currentValue = this->value();
 	double candidate = this->deviateFunction(currentValue);
@@ -28,8 +30,8 @@ double MH_Parameter::_getNextSample(void) {
 		return currentValue;
 	}
 
-	param[this->name] = currentValue; // what? why would this->value() not equal the stored value?
-	_gibbs->updateDependentParameters(&param); //Does this need to be here?
+	//param[this->name] = currentValue; // TODO: param should already have the current value.
+	//_gibbs->updateDependentParameters(&param); // TODO: Since the current values are already in, this update is not needed.
 	double currentLL = this->llFunction(currentValue, param);
 
 	param[this->name] = candidate;
@@ -58,6 +60,7 @@ double MH_Parameter::_getNextSample(void) {
 // DependentParameter //
 ////////////////////////
 
+/*
 double DependentParameter::evaluate(const ParameterList& param) const {
 	if (sourceParameter == name) {
 		return _samples.back();
@@ -65,7 +68,16 @@ double DependentParameter::evaluate(const ParameterList& param) const {
 
 	return param.at(sourceParameter);
 
-	return this->_gibbs->getParameter<GibbsParameter>(sourceParameter)->value();
+	//return this->_gibbs->getParameter<GibbsParameter>(sourceParameter)->value();
+}
+*/
+
+double DependentParameter::evaluate(const ParamContainer& param) const {
+	if (sourceParameter == name) {
+		return _samples.back();
+	}
+
+	return param.get(this->sourceParameter);
 }
 
 double DependentParameter::value(void) const {
@@ -103,12 +115,22 @@ double CalculatedParameter::_getNextSample(void) {
 }
 
 double CalculatedParameter::value(void) const {
-	return evaluate(_gibbs->getCurrentParameterValues());
+	return this->evaluate(_gibbs->getCurrentParameterValues());
 }
 
+/*
 double CalculatedParameter::evaluate(const ParameterList& param) const {
 	if (samplingFunction != nullptr) {
 		return samplingFunction(param);
+	}
+	throw(std::runtime_error("CalculatedParameter not configured with a sampling function!"));
+	return 0;
+}
+*/
+
+double CalculatedParameter::evaluate(const ParamContainer& param) const {
+	if (samplingFunction != nullptr) {
+		return this->samplingFunction(param);
 	}
 	throw(std::runtime_error("CalculatedParameter not configured with a sampling function!"));
 	return 0;
@@ -119,11 +141,7 @@ double CalculatedParameter::getSample(unsigned int iteration) const {
 }
 
 std::vector<double>& CalculatedParameter::getSamples(void) {
-
-	//for (unsigned int i = 0; i < _samples.size(); i++) {
-	//
-	//}
-
+	// Should recalculate based on sources? I think just return samples
 	return _samples;
 }
 
@@ -133,7 +151,8 @@ std::vector<double>& CalculatedParameter::getSamples(void) {
 ///////////////////////
 double DecorrelatingStep::_getNextSample(void) {
 
-	ParameterList paramCopy = _gibbs->getCurrentParameterValues();
+	//ParameterList paramCopy = _gibbs->getCurrentParameterValues();
+	ParamContainer paramCopy = _gibbs->getCurrentParameterValues();
 
 	std::map<std::string, double> currentValues = currentValuesFunction(paramCopy);
 	double llCurrent = llFunction(currentValues, paramCopy);
@@ -195,7 +214,7 @@ void ConstantVectorParameter::createElements(GibbsSampler* gibbs) {
 	}
 	_elementNames.clear();
 
-	for (unsigned int i = 0; i < fixedValues.size(); i++) {
+	for (size_t i = 0; i < fixedValues.size(); i++) {
 		ConstantParameter cp;
 
 		std::ostringstream oss;
@@ -256,7 +275,7 @@ void VectorMH_Parameter::createElements(GibbsSampler* gibbs) {
 	}
 	_elementNames.clear();
 
-	for (unsigned int i = 0; i < startValues.size(); i++) {
+	for (size_t i = 0; i < startValues.size(); i++) {
 		VectorElement ve;
 
 		//ve.sourceName = this->name;
@@ -277,7 +296,8 @@ void VectorMH_Parameter::createElements(GibbsSampler* gibbs) {
 
 
 std::vector<double> VectorMH_Parameter::__getNextSamples(void) {
-	ParameterList param = _gibbs->getCurrentParameterValues();
+	//ParameterList param = _gibbs->getCurrentParameterValues();
+	ParamContainer param = _gibbs->getCurrentParameterValues();
 
 	std::vector<double> currentValues(_elementNames.size());
 	for (unsigned int i = 0; i < currentValues.size(); i++) {
@@ -286,7 +306,7 @@ std::vector<double> VectorMH_Parameter::__getNextSamples(void) {
 
 	std::vector<double> candidateValues = this->deviateFunction(currentValues);
 
-	for (unsigned int i = 0; i < candidateValues.size(); i++) {
+	for (size_t i = 0; i < candidateValues.size(); i++) {
 		//if any of the candidates are outside of the range of possible values, reject all
 		if (candidateValues[i] < ranges[i].first || candidateValues[i] > ranges[i].second) {
 			acceptanceTracker.parameterRejected();
@@ -295,16 +315,18 @@ std::vector<double> VectorMH_Parameter::__getNextSamples(void) {
 	}
 
 	//I probably don't need to do this, because the current values should already be in, but safety...
-	for (unsigned int i = 0; i < currentValues.size(); i++) {
+	/*
+	for (size_t i = 0; i < currentValues.size(); i++) {
 		param[_elementNames[i]] = currentValues[i];
 	}
 	_gibbs->updateDependentParameters(&param); // Probably don't need to here
+	*/
 
 	double currentLL = this->llFunction(currentValues, param); //Calculate current log likelihood
 
 
 	//Update values for candidate values
-	for (unsigned int i = 0; i < candidateValues.size(); i++) {
+	for (size_t i = 0; i < candidateValues.size(); i++) {
 		param[_elementNames[i]] = candidateValues[i];
 	}
 	_gibbs->updateDependentParameters(&param);
@@ -334,13 +356,19 @@ const std::vector<std::string>& VectorMH_Parameter::getElementNames(void) const 
 }
 
 std::vector<double> VectorMH_Parameter::getCurrentValue(void) const {
+	/*
 	std::vector<double> values(_elementNames.size());
-	ParameterList param = _gibbs->getParameterList(_elementNames);
+	//ParameterList param = _gibbs->getParameterList(_elementNames);
+	//const ParamContainer& pc = _gibbs->getCurrentParamValues(_elementNames);
+	ParamMap param = _gibbs->getCurrentParameterValues(_elementNames);
 
 	for (unsigned int i = 0; i < _elementNames.size(); i++) {
 		values[i] = param.at(_elementNames[i]);
 	}
 	return values;
+	*/
+
+	return _gibbs->getCurrentValueVector(this->_elementNames);
 }
 
 std::vector<double> VectorMH_Parameter::getIterationValue(unsigned int iteration) const {

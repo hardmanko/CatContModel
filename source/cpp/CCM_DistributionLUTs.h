@@ -1,16 +1,19 @@
 #pragma once
 
-
 #include <limits>
 #include <vector>
 #include <cmath>
 #include <functional>
 
+#define VON_MISES_MAX_SD 10000
+#define VON_MISES_STEP_SIZE 0.01
 
 namespace CatCont {
 
 class VonMisesLUT {
 public:
+
+	VonMisesLUT(void);
 
 	struct Config {
 
@@ -22,7 +25,7 @@ public:
 		bool skipRecomputationIfAble = true;
 
 		double maxKappa;
-		double stepSize;
+		double stepSize = VON_MISES_STEP_SIZE;
 		
 	};
 
@@ -30,7 +33,8 @@ public:
 	void setup(const Config& cfg);
 	const Config& getConfig(void) const;
 
-	bool ready(double maxKappa = -1.0);
+	bool readyToUseLUT(double maxKappa, double stepSize = VON_MISES_STEP_SIZE) const;
+	bool ready(double maxKappa, double stepSize = VON_MISES_STEP_SIZE) const;
 
 	// Radians and precision
 	double dVonMises(double x, double mu, double kappa);
@@ -56,7 +60,7 @@ The LUTs are one-sided to cut memory use in half.
 
 sdRange and stepSize control the range and precision of the LUTs.
 Maybe sdRange = 39 and stepSize = 0.0001.
-*/
+
 class NormalLUT {
 public:
 
@@ -101,6 +105,7 @@ private:
 	std::vector<double> _dnormLUT;
 	std::vector<double> _pnormLUT;
 };
+*/
 
 /*
 class LogisticLUT {

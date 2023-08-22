@@ -1,6 +1,6 @@
 #pragma once
 
-#include "CCM_Util.h"
+#include "CCM_Main.h"
 
 namespace CatCont {
 
@@ -13,10 +13,9 @@ namespace CatCont {
 		vector<double> dtnorm(const vector<double>& x, double mu, double sd, double lower, double upper, bool log_);
 		double dtnorm_noBoundCheck(double x, double mu, double sd, double lower, double upper);
 
-		vector<double> betweenAndWithinLikelihood(const CombinedParameters& par, const ConditionData& data, const ModelConfiguration& mCfg);
-		double betweenAndWithinLL(const CombinedParameters& par, const ConditionData& data, const ModelConfiguration& mCfg);
+		// For within-item
+		double combineSDs(double pContWithin, double contSD, double catSD);
 
-		// OLD
-		void categoryWeights(double study, const CombinedParameters& par, const LinearConfiguration& lc, double* OUT_weights);
+
 	}
 }

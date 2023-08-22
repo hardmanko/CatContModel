@@ -61,7 +61,10 @@ public:
 
 	GibbsSampler(void);
 
-	void run(size_t samplesToCollect, bool clearExistingSamples = true);
+	bool setup(size_t iterPerUpdate, size_t seed, std::function<bool(GibbsSampler*, size_t)> iterationCallback = nullptr);
+
+	bool prepareToRun(bool clearExistingSamples = true);
+	bool run(size_t samplesToCollect, bool clearExistingSamples = true);
 
 	void clear(void);
 
@@ -76,17 +79,35 @@ public:
 	std::vector<GibbsParameter*> getParameters(const std::vector<std::string>& param);
 
 	std::vector<size_t> namesToIndices(std::vector<std::string> names) const;
+	std::vector<std::string> indicesToNames(std::vector<size_t> indices) const;
 
 	std::vector<double> getCurrentGroupValues(std::string group) const;
 
-
 	void setCurrentParameterValue(std::string p, double v);
-	const ParameterList& getCurrentParameterValues(void);
-	ParameterList getParameterList(std::vector<std::string> parameterNames);
-	ParameterList getParameterList(std::vector<size_t> parameterIndices);
-	ParameterList getIterationParameterValues(size_t iteration);
 
-	void updateDependentParameters(ParameterList* param) const;
+	
+	// Direct replacement
+	//const ParameterList& getCurrentParameterValues(void);
+	const ParamContainer& getCurrentParameterValues(void) const;
+
+	// Replaces getParameterList for a subset of parameters
+	// Should these return a ParamContainer with only a subset?
+	//ParameterList getParameterList(std::vector<std::string> parameterNames);
+	//ParameterList getParameterList(std::vector<size_t> parameterIndices);
+	//ParamContainer getCurrentParamValues(const std::vector<std::string>& paramNames) const;
+	//ParamContainer getCurrentParamValues(const std::vector<size_t>& paramInd) const;
+	ParamMap getCurrentValueMap(const std::vector<std::string>& paramNames) const;
+	ParamMap getCurrentValueMap(const std::vector<size_t>& paramInd) const;
+	std::vector<double> getCurrentValueVector(const std::vector<std::string>& paramNames) const;
+	std::vector<double> getCurrentValueVector(const std::vector<size_t>& paramInd) const;
+
+	// Replacement pair
+	//ParameterList getIterationParameterValues(size_t iteration);
+	ParamContainer getIterationParameterValues(size_t iteration) const;
+
+	// Direct replacement
+	//void updateDependentParameters(ParameterList* param) const;
+	void updateDependentParameters(ParamContainer* param) const;
 
 
 	std::mt19937_64& getGenerator(void) {
@@ -228,12 +249,15 @@ public:
 
 private:
 
-	std::map<std::string, std::vector<size_t>> _groupToIndices;
-
-	std::map<std::string, size_t> _nameToIndex;
 	std::vector<GibbsParameter*> _paramVector;
 
-	ParameterList _currentValues;
+	// index in _paramVector
+	std::map<std::string, std::vector<size_t>> _groupToIndices;
+	std::map<std::string, size_t> _nameToIndex; 
+
+
+	//ParameterList _currentValues;
+	ParamContainer _currentValueContainer;
 
 	size_t _storedIterations;
 
@@ -241,7 +265,9 @@ private:
 	
 	void _remakeIndices(void);
 
-	void _makeDependentParameterList(void);
+	void _initializeCurrentValues(void);
+
+	bool _makeDependentParameterList(void);
 	std::vector<size_t> _continuouslyUpdatedDependentParameters;
 	std::vector<size_t> _dependentParameters;
 	std::vector<size_t> _independentParameters;

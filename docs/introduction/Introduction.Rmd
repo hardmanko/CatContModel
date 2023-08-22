@@ -1,7 +1,7 @@
 ---
 title: "CatContModel Introduction"
 author: "Kyle Hardman"
-date: "Package version 0.8.1, October 2018"
+date: "Package version 0.9.0, November 2022"
 output: pdf_document
 number_sections: yes
 linkcolor: blue
@@ -27,15 +27,15 @@ I do not hold you responsible for having read and comprehended the Appendix of @
 
 This package works with two kinds of data: circular and linear. Circular data come from a circular study/response space, such as used by @HardmanVergauweRicker2017. Linear data, such as used by @RickerHardman2017, do not wrap around but are instead bounded by finite limits. See the [Linear Data](#linearData) section for more information on using linear data. Most of the examples use circular data.
 
-The data must be stored in a `data.frame` where each row of the data frame has the data for a single study/response pair, with information about which participant and condition the study/response pair are from. The data should have 4 columns, in no particular order:
+The data must be stored in a `data.frame` where each row of the data frame has the data for a single study/response pair, with information about which participant and condition the study/response pair are from. The data should have the following 4 columns, in no particular order:
 
-1. `pnum`: Character (or convertible to character). Participant number. You should have more than 1 participant, otherwise the hierarchical nature of the model will, at best, become dead weight and will, at worst, distort the results.
-2. `cond`: Character (or convertible to character). The name of a condition. If you only have 1 condition, just give any constant value here.
+1. `pnum`: Character (or convertible to character). Participant number/identifier. You can use any number of participants.
+2. `cond`: Character (or convertible to character). The names task conditions. If you only have 1 condition, just give any constant value here.
 3. `study`: Numeric. If the data are circular, the angle in degrees that the participant studied. If the data are linear, the studied value.
 4. `response`: Numeric. If the data are circular, the angle in degrees that the participant responded with. If the data are linear, the responded value.
 
 ```{r, eval=FALSE, include=FALSE}
-setwd("~/../Programming/R/CatContModel/docs/introduction/")
+setwd("D:/Programming/R/CatContModel/docs/introduction/")
 ```
 ```{r}
 library(CatContModel)
@@ -45,15 +45,45 @@ data = read.delim("../../examples/betweenItem/betweenItem_data.txt")
 data[1:5,]
 ```
 
+The data may have additional columns, like trial number, etc. The package will ignore extra columns without complaint.
+
+## Main Parameter Estimation 0.9.0
+
+As of version 0.9.0, parameter estimation is more feature rich, but also more complex.
+
+```{r eval=FALSE}
+config = makeModelConfig(data, modelVariant="betweenItem")
+
+results = runParameterEstimation(data, config, iterations=500)
+```
+
+
+
+```{r eval=FALSE}
+
+config = makeModelConfig(data, modelVariant="betweenItem")
+
+parCfg = makeParallelConfig(numNodes = 2, outputFile="parallelProgress.txt")
+
+mhOptimCfg = makeMHConfig(keepOptimIter = TRUE)
+
+results = runParameterEstimation(data, config, iterations=500, parallelConfig=parCfg, mhOptim=mhOptimCfg)
+
+```
+```{r eval=FALSE}
+saveRDS(results, "BI_parallel_500.RDS")
+```
+
+
 
 ## Main Parameter Estimation Function
 
 The behavior of the parameter estimation is controlled by a few configuration `list`s. You only need to supply the `iterations` and `modelVariant` members of the primary configuration list along with your data. See the documentation for `runParameterEstimation` for more information about the arguments and further arguments you can use.
 
 ```{r eval=FALSE}
-config = list(iterations=500, modelVariant="betweenItem")
+config = makeModelConfig(data, modelVariant="betweenItem")
 
-results = runParameterEstimation(config, data)
+results = runParameterEstimation(data, config, iterations = 500)
 ```
 ```{r echo=FALSE}
 results = readRDS("betweenItem_results.RDS")
@@ -134,6 +164,11 @@ I will show you how to combine these parallel chains in the [Combining Results f
 ## Verifying Convergence {#verifyingConvergence}
 
 It is important for the purposes of analysis that the posterior distribution of the parameters has converged. Many of the parameters in the model are estimated with the Metropolis-Hastings procedure, which can be somewhat slow to converge. As a result, it is important to find out when the posterior chains have converged so that the pre-convergence burn-in iterations can be removed.
+
+```{r eval=FALSE}
+convergencePlots(results, filename="convergence.pdf")
+```
+
 
 ### Plotting Chains
 
@@ -1022,7 +1057,7 @@ resCopy = results
 f = resCopy$config$factors
 
 f$SP[ f$SS == 2 & f$SP == 2 ] = '4' # Rename SP 2 to SP 4 for SS 2
-#DO NOT RENAME THE CELL IN THE cond COLUMN. That name is baked in.
+# DO NOT RENAME THE CELL IN THE cond COLUMN. Names in cond relate to the data and cannot change.
 
 # Although the SS factor isn't meaningless (it has 2 levels), we want to ignore it, so drop it.
 f$SS = NULL
@@ -1208,7 +1243,7 @@ If in doubt, you can check the documentation page for the function that you want
 
 If you use this package in your research, please cite it:
 
-Hardman, K.O. (2018). CatContModel: Categorical and Continuous 
+Hardman, K.O. (2022). CatContModel: Categorical and Continuous 
 Working Memory Models for Delayed Estimation Tasks (Version 0.8.1) [Computer software]. Retrieved from
 https://github.com/hardmanko/CatContModel/releases/tag/v0.8.1
 
@@ -1249,30 +1284,136 @@ results = runParameterEstimation(config, data, constantValueOverrides = pcbOverr
 
 ### Within-Item
 
-The within-item model has an issue, which is that if very few categories are active, `pContWithin` is essentially forced to be 1. Imagine the case in which there is only 1 active category located at 180 degrees and that `pContWithin` is 0.5. This means that the model will predict that memory responses will be on a line essentially going from (0, 90) to (360, 270), passing through (180, 180). This line would provide terrible fit for the data, unless there was something really bizarre about the data. This forces `pContWithin` to 1 so that the line will go from (0, 0) to (360, 360) and capture the bulk of the data. With more active categories, it becomes less of an issue as there are multiple line segments, so no part of any line segment is too far from the intercept 0, slope 1 line.
-The between-item model doesn't have this issue because the categorical and continuous response are treated separately. One possible solution to this is to use constant parameter values overrides to force a few categories (maybe 4) to always be active, but that does have the effect of always having a few active categories.
+Parameter estimation for the within-item model is somewhat fragile. The model may not work correctly in the following situations, which are elaborated on in the following subsections.
 
-For estimation of `catSD` and `contSD`, the within-item model is much more fragile than the between-item model due to how those parameters are estimated. In the between-item model, `catSD` is estimated from to categorical memory responses and categorical guesses while `contSD` is estimated from continuous memory responses. For the within item model, `catSD` is estimated from categorical guessing and from a part of the mixed categorical and continuous memory responses, while `contSD` is estimated from a part of the mixed categorical and continuous responses. 
+1) The number of categories is low (3 or less).
+2) The data contains very little categorical guessing.
 
-For more information, read the "Within-Item Model Variant" section of the Appendix of @HardmanVergauweRicker2017. In particular, notice how Equation 25 for $\sigma^{W}$ contains the two parameters of interest, `contSD` ($\sigma^{O}$) and `catSD` ($\sigma^{A}$). Then $\sigma^{W}$ gets plugged in to Equation 22, which contains data. Thus, $\sigma^{W}$ is straightforward to estimate because it is based on data directly, but `contSD` and `catSD` cannot be estimated directly: they could trade off perfectly without some other constraint. That other constraint comes from the estimation of `catSD` from categorical guesses.
+#### Low Number of Categories
 
-**Important**: From the above, if there is no categorical guessing, the within-item model _cannot estimate_ both `catSD` and `contSD`. In fact, it will likely be unable to estimate either of them as they will trade off horribly. If there is very little categorical guessing, like 10\% of guesses, you probably can't reasonably estimate either of `catSD` or `contSD`.
+The within-item model does not work well with a low number of categories. When the number of categories is low (approximately 1 to 3), the model will likely estimate that `pContWithin` is nearly 1.
 
-If there is truly 0 categorical guessing, one partial solution would be to set `catSD` ($\sigma^A$) to the constant value 0 (and probably also set `pCatGuess` to 0 to be sure that no categorical guessing is estimated). In this case, you cannot estimate both $\sigma^O$ and $\sigma^A$, but you can estimate their mixture, $\sigma^W$. The model doesn't directly estimate $\sigma^W$, but you can calculate it after the fact by using the following logic.
+The left panel below shows a case with a single category at 180 degrees. 
+Other than the categorical guessing band, responses are continuous memory responses.
 
-Start from Equation 25:
 
-$\sigma^W = [ P^2 * (\sigma^O)^2 + (1 - P^2) * (\sigma^A)^2 ]^{1/2}$
+```{r}
 
-If $\sigma^A = 0$, then the above equation becomes,
+par(mfrow=c(1,2))
+
+study = runif(1000, 0, 360) # Sample 1000 study values
+
+# Panel 1
+param = list(pMem = 0.7, pContWithin = 1, pCatGuess=1, contSD=20, catSD=10, catSelectivity=10, catMu = 180)
+
+samp = sampleDataFromModel(study, param, "withinItem")
+
+scatterplotWithColorBars(samp)
+abline(0,1)
+title("Data with 1 category")
+
+# Panel 2
+param$pContWithin = 0.5
+
+#param = list(pMem = 0.7, pContWithin = 0.5, pCatGuess=0.8, contSD=20, catSD=10, catSelectivity=10, catMu = 180)
+
+samp = sampleDataFromModel(study, param, "withinItem")
+
+scatterplotWithColorBars(samp)
+abline(0,1)
+title("Model with pContWithin=0.5")
+
+
+# Panel 3
+param$catMu = c(90, 270)
+param$pMem = 1
+
+#param = list(pMem = 0.7, pContWithin = 0.5, pCatGuess=0.8, contSD=20, catSD=10, catSelectivity=10, catMu = c(90, 270))
+
+samp = sampleDataFromModel(study, param, "withinItem")
+
+scatterplotWithColorBars(samp)
+abline(0,1)
+title("Model with pContWithin=0.5")
+
+```
+
+If the within-item model were used with the data, it would find the single category at 180 degrees. 
+If the model were to try the value 0.5 for `pContWithin, the resulting model prediction is that memory responses would
+be on a line going from (0, 90) to (360, 270), as in the right panel.
+The model prediction in the right panel is very dissimilar from the data, so a value of 0.5 for `pContWithin` does not work well, but a value of 1 would work well (as in the left panel).
+
+
+With 2 categories, the problem is less severe, but still present. If `pContWithin` is less than 1, the model predictions move away from the line of ideal responding. 
+
+With few categories, the line segments of modeled memory responses are long. As `pContWithin` reduces from 1, the ends of the line segments move far from the line of ideal responding, which misses most of the data (in typical data sets).
+
+With more categories in the data, the within-item model uses multiple line segments, so no part of any line segment is too far from the intercept 0, slope 1 line. As the number of categories increases, `pContWithin` is able to take values less than 1 more easily.
+
+
+
+These plots show data sampled from a within-item model with 1 category at 180 degrees (left) or 2 categories at 90 and 270 degrees (right). This is 
+
+```{r}
+
+param = list(pMem = 1, pContWithin = 0.5, pCatGuess=0.8, contSD=20, catSD=10, catSelectivity=10, catMu = c(90, 270))
+
+samp = sampleDataFromModel(runif(1000, 0, 360), param, "withinItem")
+
+scatterplotWithColorBars(samp)
+abline(0,1)
+```
+
+
+
+
+ Imagine the case in which there is only 1 active category located at 180 degrees and that `pContWithin` is 0.5. This means that the model will predict that memory responses will be on a line essentially going from (0, 90) to (360, 270), passing through (180, 180). This line would provide terrible fit for any normal data. This forces `pContWithin` to 1 so that the line will go from (0, 0) to (360, 360) and capture the bulk of the data. With more active categories, it becomes less of an issue as there are multiple line segments, so no part of any line segment is too far from the intercept 0, slope 1 line.
+
+The between-item model doesn't have this issue because the categorical and continuous responses are separate. Continuous responses always follow the line of ideal responding in that model
+
+
+Solution 2: Force some categories to be active. You can use constant parameter values overrides to force a few categories (maybe 4) to always be active, but that does have the effect of always having a few active categories. See the `setConstantCategoryParameters` function.
+
+
+
+#### Very Little or No Categorical Guessing
+
+For the within-item model, it is difficult to properly estimate `contSD` when there is very little or no categorical responding in the data.
+
+The within-item model assumes that each memory response is a mix of 1) continuous information about the exact value of the studied stimulus and 2) categorical information about the category of the studied stimulus. The variability of memory responses ($\sigma^{W}$ or `withinSD`) is a mixture of continuous variability ($\sigma^{O}$ or `contSD`) and categorical variability ($\sigma^{A}$ or `catSD`).
+
+By default, $\sigma^{W}$ is not estimated directly, but is a function of `contSD`, `catSD`, and `pContWithin`. The function for $\sigma^{W}$ is given in Equation 25 of @HardmanVergauweRicker2017, reproduced here with simplified notation where $P$ is `pContWithin`.
+
+$\sigma^W = [ P^2 * (\sigma^O)^2 + (1 - P)^2 * (\sigma^A)^2 ]^{1/2}$
+
+As shown in Equation 22 of @HardmanVergauweRicker2017, $\sigma^W$ is used to calculate the likelihood of memory responses. 
+Thus, $\sigma^{W}$ is straightforward to estimate because it is based directly on data, but `contSD` and `catSD` cannot be estimated directly: they could trade off perfectly without some other constraint. That other constraint comes from the estimation of `catSD` from categorical guesses.
+
+$\sigma^O$ and $\sigma^A$ are part of the calculation for $\sigma^W$, but are not themselves strongly identified from memory responses. $\sigma^O$ and $\sigma^A$ can trade off with one another (negative cross-correlation) and still produce the same value for $\sigma^W$. 
+
+The constraint on estimation of `contSD` and `catSD` comes from the estimation of `catSD` from categorical guesses.
+
+For the within-item model, `contSD` is estimated from the memory responses, which have both a categorical and a continuous component. `catSD` is estimated from categorical guesses, but also from the same memory responses as `contSD`. Thus, `catSD` can be estimated accurately based on the categorical guessing bands, which allows `contSD` to be estimated from the memory responses given that `catSD` has been estimated from the categorical guesses.
+
+**Conclusion**: From the above, if there is no categorical guessing, the within-item model _cannot estimate_ either `catSD` and `contSD`. Those parameters will have substantial negative cross-correlations with one another (at the participant level in the model). If there is very little categorical guessing (maybe 10\% of guesses), the model will not reliably estimate either `catSD` or `contSD` with default settings (but see Solutions below).
+
+
+Note: The between-item model does not have a problem with low amounts of categorical guessing. In that model, `catSD` is estimated from categorical memory responses and categorical guesses. If there are no categorical guesses, `catSD` can be estimated from categorical memory responses. Also, `contSD` is estimated from continuous memory responses without any connection to the value of `catSD`.
+
+
+
+*Solution 1*: If there is truly no categorical guessing in your data, one partial solution would be to set `catSD` ($\sigma^A$) to the constant value 0 (and probably also set `pCatGuess` to 0 to be sure that no categorical guessing is estimated). In this case, you cannot estimate both $\sigma^O$ and $\sigma^A$, but you can estimate their mixture, $\sigma^W$. The model doesn't directly estimate $\sigma^W$, but you can calculate it after the fact by using the following logic.
+
+Start from Equation 25 and set $\sigma^A = 0$, which results in the following simplification:
 
 $\sigma^W = [ P^2 * (\sigma^O)^2 ]^{1/2} = P * \sigma^O$
 
-where $P$ is `pContWithin`.
-
 Note that you cannot interpret $\sigma^O$ as meaning anything in this context, because you don't know what $\sigma^A$ is (it is not actually 0 even though the parameter was set to that value). You can only interpret $\sigma^W$ as being the mixture of two unknown quantities. Given that, it may be useful to know that $\sigma^W \leq max(\sigma^O, \sigma^A)$.
 
-If you have some small but decidedly nonzero amount of categorical guessing, it may be a better solution to set `catSD` to a constant value (based on past research you may be able to select a reasonable constant value).
+*Solution 2*: If you have a small but decidedly nonzero amount of categorical guessing, it may work to set `catSD` to a constant value. Based on past research you may be able to select a reasonable constant value.
+
+*Solution 3*: A new feature in v0.9.0 is to estimate $\sigma^{W}$ independently of `catSD`. By setting `withinItem_contSD_is_withinSD = TRUE` in the model configuration (see `makeModelConfig` function), `withinSD` is directly estimated rather than being indirectly estimated through other model parameters. Note that there will not be a parameter named `withinSD`: you must remember your setting and interpret the parameter named `contSD` as `withinSD`.
+
 
 ### ZL (Zhang & Luck, 2008)
 
@@ -1291,7 +1432,7 @@ Some delayed estimation tasks, such as those used by @RickerHardman2017, use sti
 
 ### Modifications to Distributions
 
-In order to accomodate linear data, a few modifications to the distributions used by the model were required. With linear data, rather than using Von Mises distributions, the model uses a combination of normal and truncated normal distributions. With reference to the equation numbers in the Appendix of @HardmanVergauweRicker2017, the following modifications were made:
+In order to accommodate linear data, a few modifications to the distributions used by the model were required. With linear data, rather than using Von Mises distributions, the model uses a combination of normal and truncated normal distributions. With reference to the equation numbers in the Appendix of @HardmanVergauweRicker2017, the following modifications were made:
 
 + In Equations 3, 4, and 7, the Von Mises distributions were changed to truncated normal distributions. The truncation points are the most extreme possible response values. This truncation range can either be set by the user or guessed by the package based on the observed range of responses across all participants.
 + In Equations 5 and 20, the Von Mises distributions were changed to normal distributions.
@@ -1319,9 +1460,9 @@ results = runParameterEstimation(config, data)
 
 Note that two new, important values are provided: `dataType` and `responseRange`. `dataType` is either "linear" or "circular" (defaults to "circular"). `responseRange` is a length 2 vector of numeric values giving the range of possible responses.
 
-Note that you do not need to provide `responseRange`. If you do not provide it, `responseRange` will be set to the range of the observed data. This is done across all participants, not per participant. If different participants were given tasks that differed in terms of the possible range of responses, you won't be able to use this package without modification. In many cases, the observed range of the data and the possible range of responses are very similar, but if you have data in which the observed and possible ranges differ substantially, you should provide the possible range.
+Note that you do not need to provide `responseRange`. If you do not provide it, `responseRange` will be set to the range of the observed responses in the data. This is done across all participants, not per participant. If different participants were given tasks that differed in terms of the possible range of responses, you won't be able to use this package without modification. In many cases, the observed range of the data and the possible range of responses are very similar, but if you have data in which the observed and possible ranges differ substantially, you should provide the possible range (see Category Location Restriction below for more rationale).
 
-You do not need to provide the possible range of the studied values. The possible range of studied values is irrelevant because studied values are treated as having known true values, which means that they have no distributional form. You don't need to know what studied values were possible if you know exactly what values were studied.
+You do not need to provide the possible range of the studied values. The possible range of studied values is irrelevant because studied values are treated as having known true values, which means that they have no distributional form. You don't need to know what studied values were possible if you know the exact values that were studied.
 
 Once the model is configured to work with linear data, all of the analyses proceed as usual. 
 All of the same parameters are used with both circular and linear data. All of the parameters have the same basic meaning regardless of whether circular or linear data are used.
@@ -1349,17 +1490,16 @@ results = runParameterEstimation(config, data,
 	mhTuningOverrides = mhTuningOverrides)
 ```
 
-This code example only shows `contSD`, but the logic is easily extended to the other standard deviation parameters. See the Chosing Priors subsection within the [Priors](#priors) section for more information on how to select priors.
+This code example only shows `contSD`, but the logic is easily extended to the other standard deviation parameters. See the Choosing Priors subsection within the [Priors](#priors) section for more information on how to select priors.
 
 ### Category Location Restriction
 
-Currently, the `catMu` parameters are not allowed outside of the range of the data. This may change at some point once I make a hard decision about how to allow it to happen. Details: There is a calculation in the likelihood function in which the density of an observed response given a `catMu` parameter is calculated. The density function is a truncated normal. If the `catMu` parameter is far outside of the possible range of responses, the proportion of the normal distribution within the response range (which is the truncation scale factor) is approximately 0. To calculate the truncated density, a normal density is divided by the truncation scale factor. Division by 0 is bad, so I have to choose how to prevent division by 0. There are no good solutions (at least that I know of), only less-bad solutions. The current less-bad solution is to prevent the `catMu` parameters from being outside of the response range. Obviously, the internal categories used by participants do not necessarily map neatly onto the response space chosen by the experimenter. It is always possible that there is a category just outside of the response space but that category is forced into the response space by the model. This is another reason to make the response range wider than the range of studied values, because having a buffer between the range of studied values and the range of possible responses makes it less likely that a studied value would be assigned to a category outside of the range of possible responses.
-
+Currently, the `catMu` parameters are not allowed outside of the range of the data. This may change at some point once I make a difficult decision about how to allow it to happen. Details: There is a calculation in the likelihood function in which the density of an observed response given a `catMu` parameter is calculated. The density function is a truncated normal. If the `catMu` parameter is far outside of the possible range of responses, the proportion of the normal distribution within the response range (which is the truncation scale factor) is approximately 0. To calculate the truncated density, a normal density is divided by the truncation scale factor. Division by 0 is bad, so I have to choose how to prevent division by 0. There are no good solutions (at least that I know of), only less-bad solutions. The current less-bad solution is to prevent the `catMu` parameters from being outside of the response range. Obviously, the internal categories used by participants do not necessarily map neatly onto the response space chosen by the experimenter. It is always possible that there is a category just outside of the response space but that category is forced into the response space by the model. This is a good reason to make the response range wider than the range of studied values in the experiment: If a participant has a category outside of the range of studied values but within the response range, the data will show their responses at the category location.
 
 
 ## catSelectivity
 
-`catSelectivity` is really hard to estimate. Don't expect to be able to do anything fancy with it, like giving it a condition effect as discussed in the [Constraining Parameter Estimation](#constrainingParameterEstimation) section. My recommendation is to just use one `catSelectivity` parameter per experiment and to not use it for inference. It could be a parameter of interest for some studies, but the difficulty in estimating `catSelectivity` means that I have to recommend against trying such a study.
+`catSelectivity` is really hard to estimate. Don't expect to be able to do anything fancy with it, like giving it a condition effect as discussed in the [Constraining Parameter Estimation](#constrainingParameterEstimation) section. My recommendation is to just use one `catSelectivity` parameter per participant and to not use it for inference. It could be a parameter of interest for some studies, but the difficulty in estimating `catSelectivity` means that I have to recommend against trying such a study.
 
 
 # References

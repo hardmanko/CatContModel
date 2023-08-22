@@ -1,41 +1,4 @@
 
-
-#' Glossary of Common Terms
-#' 
-#' This glossary covers some of the most common jargon used in this package.
-#' 
-#' @section Types of Result Object:
-#' + *Generic results object*: A results object that can be either a WP or a BP results object. If a function takes a generic results object, the name of the results object argument will be `res`. Many functions take generic results objects.
-#' + *WP results object*: A within-participants results object. The return value of [`runParameterEstimation`]. If a function takes a WP results object, the name of the results object argument will be `results`.
-#' + *BP results object*: A between-participants results object. The return value of [`combineGroupResults.BP`]. If a function takes a BP results object, the name of the results object argument will be `bpRes`.
-#' + *Parallel results object*: The return value of [`runParameterEstimation`] if the `parallel` argument is provided.
-#' 
-#' In this package, most functions can take either a WP or a BP results object. Only some functions can take Parallel objects.
-#' Pay attention to the name of the results object argument when calling a function to verify that you are providing the correct type of results object.
-#' The type of a results object can be checked with [`resultIsType`] or the R function `class`.
-#' 
-#' @section Latent vs Manifest Parameter Spaces:
-#' *Latent parameters* exist in an unexpected/unnatural space: 
-#' Probability parameters go from `-Inf` to `Inf` and standard deviation parameters can be negative. 
-#' When the parameters are sampled (with [`runParameterEstimation`]), they exist in the latent space. 
-#' The priors on the parameters are also with respect to the latest space. 
-#' Thus, the latent space is the "true" space for the parameters, in the sense of statistical theory and given the specification of the model.
-#' 
-#' *Manifest parameters* exist in the expected/natural space: 
-#' Probability parameters are between 0 and 1 and standard deviation parameters are positive, 
-#' being forced to be greater than or equal to `config$minSD`.
-#' 
-#' Functions to transform between spaces are returned by [`getParameterTransformation`].
-#' 
-#' @section Condition Effects:
-#' In terms of the model specifications, a *condition effect* is a parameter that accounts for differences between 
-#' within-participants conditions in the design. This is explained in more detail in the Condition Effects section 
-#' in the Appendix of Hardman, Vergauwe, and Ricker (2017). 
-#' In the equation on page 22, `P_j` is the condition effect parameter that is added to the participant parameter, `P_i`.
-#' 
-#' @name Glossary
-NULL
-
 ###############################################################################
 
 #' Check Type of Results Object
@@ -102,9 +65,9 @@ getCompletedIterations = function(res, check=TRUE) {
 
 #' Remove Burn-In Iterations
 #' 
-#' Due to the large number of parameters in the model and the fact that many of the paramters have Metropolis-Hastings updating steps, convergence can be slow. This function removes burn-in iterations from the beginning of the chains so that only converged posterior distributions will be analyzed.
+#' Due to the large number of parameters in the model and the fact that many of the parameters have Metropolis-Hastings updating steps, convergence can be slow. This function removes burn-in iterations from the beginning of the chains so that only converged posterior distributions will be analyzed.
 #'  
-#' Note that the Metropolis-Hastings acceptance rate given by [`examineMHAcceptance`] is unaffected by removing burn-in iterations.
+#' Note that the Metropolis-Hastings acceptance rate given by [`examineMHAcceptance`] is unaffected by removing burn-in iterations unless `recalculate = TRUE`.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
 #' @param burnIn Integer scalar or vector. Number of burn-in iterations to remove or a vector with length greater than 1 giving the indices of the iterations to remove.
@@ -218,7 +181,7 @@ cleanResults = function(res, burnIn) {
 #' For standard deviation parameters, the transformation forces the parameter to be greater than some value, given by `results$config$minSD`.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
-#' @param param Name of a parameter, e.g. `"pMem"`.
+#' @param parName Name of a parameter, e.g. `"pMem"`.
 #' @param inverse If `TRUE`, the inverse transformation is returned, if possible. Some transformations do not have an inverse.
 #' @param minSD Minimum value for standard deviation parameters. If `minSD` is provided, `res` may be `NULL`.
 #' 
@@ -227,9 +190,9 @@ cleanResults = function(res, burnIn) {
 #' @family generic functions
 #' 
 #' @export
-getParameterTransformation = function(res, param, inverse=FALSE, minSD=NULL) {
+getParameterTransformation = function(res, parName, inverse=FALSE, minSD=NULL) {
 
-  paramParts = splitParamName(param)
+  paramParts = splitParamName(parName)
   
   if ("probParam" %in% paramParts$types) {
     if (inverse) {
@@ -262,7 +225,7 @@ getParameterTransformation = function(res, param, inverse=FALSE, minSD=NULL) {
     transformation = function(x) { x }
     
   }	else {
-    stop( paste("No transformation found for parameter: ", param, ".", sep="") )
+    stop( paste("No transformation found for parameter: ", parName, ".", sep="") )
   }
 	
 	transformation
@@ -275,6 +238,7 @@ getParameterTransformation = function(res, param, inverse=FALSE, minSD=NULL) {
 
 #' Get Names of Model Parameters
 #' 
+#' This is mostly used internally by the package.
 #' 
 #' @param modelVariant If provided, results will only include the names of parameters used by the model variant.
 #' @param types A vector of names of parameter types.
@@ -357,15 +321,15 @@ getIndexedParamNames = function(data, maxCategories, modelVariant=NULL, types=c(
   pnums = unique(data$pnum)
   conds = unique(data$cond)
   
-  for (param in standardPN) {
+  for (parName in standardPN) {
     if ("participant" %in% types) {
-      indexedNames = c(indexedNames, paste0(param, "[", pnums, "]"))
+      indexedNames = c(indexedNames, paste0(parName, "_part[", pnums, "]"))
     }
     if ("hyper" %in% types) {
-      indexedNames = c(indexedNames, paste0(param, c(".mu", ".var")))
+      indexedNames = c(indexedNames, paste0(parName, c("_part.mu", "_part.var")))
     }
     if ("cond" %in% types) {
-      indexedNames = c(indexedNames, paste0(param, "_cond[", conds, "]"))
+      indexedNames = c(indexedNames, paste0(parName, "_cond[", conds, "]"))
     }
   }
   
@@ -467,20 +431,20 @@ splitParamName = function(pname) {
 #' Names of Factors with which a Parameter Varies
 #' 
 #' @param res A generic results object (see [`Glossary`]).
-#' @param param A parameter name.
+#' @param parName A parameter name (e.g. "pMem").
 #' 
 #' @return A character vector of factor names.
 #' 
 #' @family generic functions
 #' 
 #' @export
-getFactorsForConditionEffect = function(res, param) {
+getFactorsForConditionEffect = function(res, parName) {
 	
 	rval = NULL
 	if (resultIsType(res, "WP")) {
-		rval = getFactorsForConditionEffect.WP(res$config, param)
+		rval = getFactorsForConditionEffect.WP(res$config, parName)
 	} else if (resultIsType(res, "BP")) {
-		rval = getFactorsForConditionEffect.BP(res, param)
+		rval = getFactorsForConditionEffect.BP(res, parName)
 	} else if (resultIsType(res, "Parallel")) {
 	  stop("This function does not support Parallel results.")
 	}
@@ -488,11 +452,11 @@ getFactorsForConditionEffect = function(res, param) {
 	rval
 }
 
-getFactorsForConditionEffect.WP = function(config, param) {
+getFactorsForConditionEffect.WP = function(config, parName) {
 	
 	allFactorNames = getAllFactorNames(config$factors)
 	
-	thisFactors = config$conditionEffects[[param]]
+	thisFactors = config$conditionEffects[[parName]]
 	if (length(thisFactors) == 1) {
 		if (thisFactors == "all") {
 			thisFactors = allFactorNames
@@ -506,8 +470,8 @@ getFactorsForConditionEffect.WP = function(config, param) {
 	thisFactors
 }
 
-getFactorsForConditionEffect.BP = function(bpRes, param) {
-	ce = bpRes$config$conditionEffects[[ param ]]
+getFactorsForConditionEffect.BP = function(bpRes, parName) {
+	ce = bpRes$config$conditionEffects[[ parName ]]
 	bpFactors = getFactorTypeToName(bpRes$config$factors)$bp
 	c(ce, bpFactors)
 }
@@ -523,11 +487,11 @@ getFactorsForConditionEffect.BP = function(bpRes, param) {
 #' the cornerstone condition.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
-#' @param param A parameter name.
+#' @param parName A parameter name (e.g. "pMem").
 #' @param removeConstant Whether constant factors should be removed.
 #' 
 #' @export
-updateFactorsForConditionEffects = function(res, param, removeConstant = FALSE) {
+updateFactorsForConditionEffects = function(res, parName, removeConstant = FALSE) {
 	
 	if (resultIsType(res, "WP")) {
 		fun = updateFactorsForConditionEffects.WP
@@ -537,7 +501,7 @@ updateFactorsForConditionEffects = function(res, param, removeConstant = FALSE) 
 	  stop("This function does not support Parallel results.")
 	}
 	
-	factors = fun(res, param)
+	factors = fun(res, parName)
 	
 	if (removeConstant) {
 		factors = removeConstantFactors(factors, warnOnRemoval = FALSE)
@@ -546,7 +510,7 @@ updateFactorsForConditionEffects = function(res, param, removeConstant = FALSE) 
 	factors
 }
 
-updateFactorsForConditionEffects.BP = function(bpRes, param) {
+updateFactorsForConditionEffects.BP = function(bpRes, parName) {
 	
 	factors = normalizeFactors(bpRes$config$factors)
 	
@@ -555,7 +519,7 @@ updateFactorsForConditionEffects.BP = function(bpRes, param) {
 	for (grp in names(bpRes$groups)) {
 		
 		results = bpRes$groups[[ grp ]]
-		cef = getFactorsForConditionEffect.WP(results$config, param)
+		cef = getFactorsForConditionEffect.WP(results$config, parName)
 		
 		removedFactors = wpFactNames[ !(wpFactNames %in% cef) ]
 		
@@ -575,13 +539,13 @@ updateFactorsForConditionEffects.BP = function(bpRes, param) {
 	factors
 }
 
-updateFactorsForConditionEffects.WP = function(results, param) {
+updateFactorsForConditionEffects.WP = function(results, parName) {
 	
 	factors = normalizeFactors(results$config$factors, removeConstant = FALSE)
 	
 	factorNames = getAllFactorNames(factors, removeConstant = FALSE)
 	
-	condtionEffectFactors = getFactorsForConditionEffect.WP(results$config, param)
+	condtionEffectFactors = getFactorsForConditionEffect.WP(results$config, parName)
 	
 	for (fn in factorNames) {
 		
@@ -597,169 +561,7 @@ updateFactorsForConditionEffects.WP = function(results, param) {
 	factors
 }
 
-###############################################################################
 
-# @export
-#getvaryingFactorNames = function(res, param) {
-#	factors = updateFactorsForConditionEffects(res, param, removeConstant = TRUE)
-#	getAllFactorNames(factors, removeConstant = FALSE)
-#}
-
-
-###############################################################################
-
-#' Names of all Factors
-#' 
-#' @param factors A factors `data.frame`, e.g. `results$config$factors`.
-#' @param removeConstant Whether constant (non-varying) factors should be included in the returned factor names.
-#' 
-#' @return A character vector of factor names.
-#' 
-#' @export
-getAllFactorNames = function(factors, removeConstant = FALSE) {
-	if (removeConstant) {
-		factors = removeConstantFactors(factors, warnOnRemoval = FALSE)
-	}
-	
-	bpCols = c("key", "group", "cond")
-	allNames = names(factors)
-	ns = allNames[ !(allNames %in% bpCols) ]
-	ns
-}
-
-#' Map from Factor Name to Factor Type
-#' 
-#' There are two types of factors, those that vary within groups (WP factors)
-#' and those that vary between groups (BP factors). This function returns a `list`
-#' that maps from the names of factors to the types of those factors.
-#' 
-#' @param factors A factors `data.frame`, e.g. `results$config$factors`.
-#' 
-#' @return A list with factor names as keys and either the value of `"wp"` or `"bp"` for each factor name.
-#' 
-#' @export
-getFactorNameToType = function(factors) {
-  
-	factors = normalizeFactors(factors, removeConstant = TRUE, warnOnRemoval = FALSE)
-	
-	# ns is names of factors, not the base names like "cond"
-	ns = names(factors)
-	
-	ns = ns[ !(ns %in% c("cond", "group", "key")) ]
-	
-	nameToType = list()
-	
-	if (length(ns) > 0) {
-  	for (i in 1:length(ns)) {
-  		
-  		form = stats::formula( paste0(ns[i], " ~ group") )
-  		nunique = function(x) { length(unique(x)) }
-  		agg = stats::aggregate(form, factors, nunique)
-  		
-  		isWP = any(agg[ , ns[i] ] > 1)
-  		
-  		if (isWP) {
-  			nameToType[[ ns[i] ]] = "wp"
-  		} else {
-  			nameToType[[ ns[i] ]] = "bp"
-  		}
-  		
-  	}
-	}
-	
-	nameToType
-}
-
-#' Map from Factor Type to Factor Name
-#' 
-#' @param factors A factors `data.frame`, e.g. `results$config$factors`.
-#' 
-#' @return A list with three elements. `all`: all factor names. `bp`: between-participant factor names. `wp`: within-participant factor names.
-#' 
-#' @export
-getFactorTypeToName = function(factors) {
-	nameToType = getFactorNameToType(factors)
-	
-	typeToName = list(wp = character(0), bp = character(0))
-	for (n in names(nameToType)) {
-		typeToName[[ nameToType[[n]] ]] = c(typeToName[[ nameToType[[n]] ]], n)
-		typeToName[[ "all" ]] = c(typeToName[[ "all" ]], n)
-	}
-	
-	typeToName
-}
-
-
-#' Remove Constant (Non-Varying) Factors
-#' 
-#' @param factors A factors `data.frame`, e.g. `results$config$factors`.
-#' @param warnOnRemoval Whether a warning should be emitted when factors are removed.
-#' 
-#' @return The argument `factors` with constant factors removed.
-#' 
-#' @export
-removeConstantFactors = function(factors, warnOnRemoval = TRUE) {
-	
-	allFN = getAllFactorNames(factors)
-	removed = NULL
-	for (n in allFN) {
-		if (length(unique(factors[, n])) == 1) {
-			removed = c(removed, n)
-
-			factors[,n] = NULL
-		}
-	}
-	if (warnOnRemoval && !is.null(removed)) {
-		warning( paste0("The following factors are constant and have been removed: ", paste(removed, collapse = ", "), ".") )
-	}
-	
-	factors
-}
-
-#' Normalize the Format of Factors
-#' 
-#' Normalizing a factors `data.frame` involves
-#' 1. Creating the `group` and `key` columns if those columns did not exist in the original.
-#' 2. Converting R factors (i.e. those created with \code{\link[base]{factor}}) to character.
-#' 3. Optionally, removing constant factors.
-#' 
-#' @param factors A factors `data.frame`, e.g. `results$config$factors`.
-#' @param removeConstant Whether constant (non-varying) factors should be included in the returned factor names.
-#' @param warnOnRemoval Whether a warning should be emitted when factors are removed.
-#' 
-#' @return The argument `factors` in a normalized format.
-#' 
-#' @export
-normalizeFactors = function(factors, removeConstant = FALSE, warnOnRemoval = TRUE) {
-	
-	colNames = c("key", "group", "cond")
-	ns = names(factors)
-	ns = ns[ !(ns %in% colNames) ]
-
-	# Create group and key columns if they did not exist.
-	if (!("group" %in% names(factors))) {
-		factors$group = defaultGroupName()
-	}
-	if (!("key" %in% names(factors))) {
-		factors$key = paste0(factors$group, ":", factors$cond)
-	}
-	
-	# Remove any R factors
-	for (n in names(factors)) {
-		if (is.factor(factors[ , n ])) {
-			factors[ , n ] = as.character(factors[ , n ])
-		}
-	}
-	
-	# Reorder columns
-	factors = factors[ , c(colNames, ns) ]
-	
-	if (removeConstant) {
-		factors = removeConstantFactors(factors, warnOnRemoval)
-	}
-	
-	factors
-}
 
 
 
@@ -782,7 +584,7 @@ normalizeFactors = function(factors, removeConstant = FALSE, warnOnRemoval = TRU
 #' because in the model, condition effects are not added to population means, but participant means.
 #'
 #' @param res A generic results object (see [`Glossary`]).
-#' @param params A vector of parameter names. If `NULL`, the default, all valid parameters are used. Unlike most functions, `"catActive"` can be used as a parameter.
+#' @param parNames A vector of parameter names. If `NULL`, the default, all valid parameters are used. Unlike most functions, `"catActive"` can be used as a parameter.
 #' @param cip The credible interval proportion. Defaults to 95% credible intervals.
 #' @param addMu See [`getConditionEffects`].
 #' @param manifest See [`getConditionEffects`].
@@ -792,7 +594,7 @@ normalizeFactors = function(factors, removeConstant = FALSE, warnOnRemoval = TRU
 #' @family generic functions
 #'
 #' @export
-posteriorMeansAndCredibleIntervals = function(res, params=NULL, cip=0.95, addMu=TRUE, manifest=TRUE) {
+posteriorMeansAndCredibleIntervals = function(res, parNames=NULL, cip=0.95, addMu=TRUE, manifest=TRUE) {
 	
   if (resultIsType(res, "Parallel")) {
     stop("This function does not support Parallel results.")
@@ -802,11 +604,10 @@ posteriorMeansAndCredibleIntervals = function(res, params=NULL, cip=0.95, addMu=
 								 lower = function(x) { stats::quantile(x, (1 - cip) / 2) },
 								 upper = function(x) { stats::quantile(x, (1 + cip) / 2) })
 	
-	if (is.null(params)) {
-		#params = getAllParams(res, filter=TRUE)
-		params = getParamNames(res$config$modelVariant, types=c("prob", "sd"))
+	if (is.null(parNames)) {
+		parNames = getParamNames(res$config$modelVariant, types=c("prob", "sd"))
 		if (res$config$modelVariant != "ZL") {
-		  params = c(params, "catActive") # PMCI is able to summarize catActive
+		  parNames = c(parNames, "catActive") # PMCI is able to summarize catActive
 		}
 	}
 
@@ -819,15 +620,15 @@ posteriorMeansAndCredibleIntervals = function(res, params=NULL, cip=0.95, addMu=
 	allAgg = NULL
 	
 	# catActive special case
-	if ("catActive" %in% params) {
+	if ("catActive" %in% parNames) {
 		
-		params = params[ params != "catActive" ]
+		parNames = parNames[ parNames != "catActive" ]
 		
 		ica = getIterationCatActive(res)
 		
 		theseAgg = stats::aggregate(fullFormula, ica, function(x) { NA })
 		theseAgg$x = NULL
-		theseAgg$param = "catActive"
+		theseAgg$parName = "catActive"
 		
 		for (fn in names(aggFuns)) {
 			agg = stats::aggregate(fullFormula, ica, aggFuns[[ fn ]])
@@ -839,12 +640,12 @@ posteriorMeansAndCredibleIntervals = function(res, params=NULL, cip=0.95, addMu=
 	}
 	
 	# The rest of the parameters
-	for (param in params) {
+	for (parName in parNames) {
 		
-		condEff = getConditionEffects(res, param, prior = FALSE, posterior = TRUE, 
+		condEff = getConditionEffects(res, parName, prior = FALSE, posterior = TRUE, 
 																	addMu = addMu, manifest = manifest)
 		
-		ceFactors = getFactorsForConditionEffect(res, param)
+		ceFactors = getFactorsForConditionEffect(res, parName)
 		cce = collapseConditionEffects(condEff, factors, usedFactors = ceFactors)
 		
 		# If any factors are used, copy over missing factors
@@ -865,7 +666,7 @@ posteriorMeansAndCredibleIntervals = function(res, params=NULL, cip=0.95, addMu=
 		
 		theseAgg = stats::aggregate(fullFormula, df, function(x) { NA })
 		theseAgg$x = NULL
-		theseAgg$param = param
+		theseAgg$parName = parName
 		
 		for (fn in names(aggFuns)) {
 			agg = stats::aggregate(fullFormula, df, aggFuns[[ fn ]])
@@ -877,7 +678,7 @@ posteriorMeansAndCredibleIntervals = function(res, params=NULL, cip=0.95, addMu=
 	}
 	
 	colNames = names(allAgg)
-	allAgg = allAgg[ , c("param", colNames[ colNames != "param" ]) ]
+	allAgg = allAgg[ , c("parName", colNames[ colNames != "parName" ]) ]
 	allAgg
 }
 
@@ -922,7 +723,7 @@ getCatActiveDataFrame.BP = function(bpRes) {
 	
 	type2name = getFactorTypeToName(bpRes$config$factors)
 	
-	post = convertPosteriorsToMatrices(bpRes, param = "catActive")
+	post = convertPosteriorsToMatrices(bpRes, parName = "catActive")
 	
 	# Keep iteration and pnum, but sum across catActive parameters
 	caSum = apply(post$catActive, c(1, 3), sum)
@@ -958,7 +759,7 @@ getCatActiveDataFrame.BP = function(bpRes) {
 
 getCatActiveDataFrame.WP = function(results) {
 	
-	post = convertPosteriorsToMatrices(results, param = "catActive")
+	post = convertPosteriorsToMatrices(results, parName = "catActive")
 	
 	# Keep iteration and pnum, but sum across catActive parameters
 	caSum = apply(post$catActive, c(1, 3), sum)
@@ -1091,4 +892,14 @@ convertPosteriorsToMatrix.BP = function(bpRes, stripConstantParameters=TRUE, str
 	mat
 }
 
+
+
 ###############################################################################
+
+# @export
+#getvaryingFactorNames = function(res, parName) {
+#	factors = updateFactorsForConditionEffects(res, parName, removeConstant = TRUE)
+#	getAllFactorNames(factors, removeConstant = FALSE)
+#}
+
+

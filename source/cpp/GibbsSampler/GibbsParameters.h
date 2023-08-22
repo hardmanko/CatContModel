@@ -17,6 +17,152 @@ class GibbsSampler; //Forward declaration
 
 typedef std::map<std::string, double> ParameterList; //A map string -> double is a conventient way to pass around parameter values
 
+// Simple way to pass named values
+typedef std::map<std::string, double> ParamMap;
+
+// Idea: Interface?
+struct ParamMapInterface {
+	virtual double get(const std::string& name) const = 0;
+};
+
+// Complex way to pass named values, with optional indexing for speed.
+class ParamContainer {
+public:
+
+	static const size_t BadIndex = -1;
+
+	struct ParamProxy {
+
+		bool setup(const ParamContainer& source, const std::string& name) {
+			this->name = name;
+			this->index = source.getIndex(name);
+			return this->index != ParamContainer::BadIndex;
+		}
+
+		std::string name;
+		size_t index = ParamContainer::BadIndex;
+		double value = 0;
+
+		double getValue(const ParamContainer& source) const {
+			return source.get(this->index);
+		}
+
+		void updateValue(const ParamContainer& source) {
+			this->value = this->getValue(source);
+		}
+		
+	};
+
+	ParamProxy makeProxy(const std::string& name) const {
+		ParamProxy rval;
+		rval.setup(*this, name);
+		return rval;
+	}
+
+	bool setup(const std::vector<std::string>& names) {
+		std::vector<double> values(names.size(), 0);
+		return setup(names, values);
+	}
+
+	bool setup(const std::vector<std::string>& names, const std::vector<double>& values) {
+		if (names.size() != values.size()) {
+			return false;
+		}
+
+		//_names = names;
+		_values = values;
+		for (size_t i = 0; i < names.size(); i++) {
+			_nameToIndex[names[i]] = i;
+		}
+
+		return true;
+	}
+
+	bool setValues(const std::vector<double>& values) {
+		if (values.size() == this->_values.size()) {
+			this->_values = values;
+			return true;
+		}
+		return false;
+	}
+
+	double& operator[](const std::string& name) {
+		// Check if need to create parameter
+		if (!this->hasName(name)) {
+			_nameToIndex[name] = _values.size();
+			_values.push_back(0);
+		}
+
+		size_t ind = _nameToIndex.at(name);
+		return _values[ind];
+	}
+
+	const double& operator[](const std::string& name) const {
+		return this->at(name);
+	}
+
+	const double& at(const std::string& name) const {
+		// No creating parameters in this function
+
+		size_t ind = _nameToIndex.at(name);
+		return _values[ind];
+	}
+
+	void set(const std::string& name, double value) {
+		size_t ind = _nameToIndex.at(name);
+		this->set(ind, value);
+	}
+
+	double get(const std::string& name) const {
+		size_t ind = _nameToIndex.at(name);
+		return this->get(ind);
+	}
+
+	void set(size_t ind, double value) {
+		_values[ind] = value;
+	}
+
+	double get(size_t ind) const {
+		return _values[ind];
+	}
+
+	void set(ParamProxy pp, double value) {
+		_values[pp.index] = value;
+	}
+
+	double get(ParamProxy pp) const {
+		return _values[pp.index];
+	}
+
+	bool hasName(const std::string& name) const {
+		return _nameToIndex.find(name) != _nameToIndex.end();
+	}
+
+	size_t getIndex(const std::string& name) const {
+		const auto& it = _nameToIndex.find(name);
+		if (it == _nameToIndex.end()) {
+			return BadIndex;
+		}
+		return it->second;
+	}
+
+	std::vector<std::string> reconstructOrderedNames(void) const {
+		std::vector<std::string> rval(_values.size());
+		for (const auto& it : _nameToIndex) {
+			rval[it.second] = it.first;
+		}
+		return rval;
+	}
+
+private:
+
+	//std::vector<std::string> _names;
+	std::vector<double> _values;
+	std::map<std::string, size_t> _nameToIndex; // Index in this container
+
+};
+
+
 enum class ParameterDimension {
 	ZERO,
 	SCALAR,
@@ -107,6 +253,7 @@ public:
 		return _samples.at(iteration);
 	}
 
+	// This function is unsafe to use
 	virtual std::vector<double>& getSamples(void) {
 		return _samples;
 	}
@@ -229,7 +376,8 @@ public:
 		_dimension = ParameterDimension::SCALAR;
 	}
 
-	std::function<double(const ParameterList&)> samplingFunction;
+	//std::function<double(const ParameterList&)> samplingFunction;
+	std::function<double(const ParamContainer&)> samplingFunction;
 
 	std::string type(void) const OVERRIDE {
 		return "ConjugateParameter";
@@ -248,13 +396,20 @@ public:
 		updateContinuously = true;
 	}
 
-	bool updateContinuously;
+	bool updateContinuously; // If false, this parameter value is only updated once per iteration, not when other parameters are updated.
 
 	bool hasDependency(void) OVERRIDE {
 		return true;
 	}
 
-	virtual double evaluate(const ParameterList& param) const = 0;
+	// Names of parameters on which this parameter depends. 
+	// Returning an empty vector is treated as dependent on all other parameters (i.e. no parameter may depend on this parameter).
+	std::vector<std::string> getDependencyNames(void) const {
+		return {};
+	}
+
+	//virtual double evaluate(const ParameterList& param) const = 0;
+	virtual double evaluate(const ParamContainer& param) const = 0;
 };
 
 class DependentParameter : public GenericDependentParameter {
@@ -279,7 +434,10 @@ public:
 		return "DependentParameter";
 	}
 
-	double evaluate(const ParameterList& param) const OVERRIDE;
+	//double evaluate(const ParameterList& param) const OVERRIDE;
+	double evaluate(const ParamContainer& param) const OVERRIDE;
+
+
 	double value(void) const OVERRIDE;
 
 	double getSample(unsigned int iteration) const OVERRIDE;
@@ -287,6 +445,10 @@ public:
 
 	virtual bool hasDependency(void) OVERRIDE {
 		return true;
+	}
+
+	virtual std::vector<std::string> getDependencyNames(void) const OVERRIDE {
+		return { this->sourceParameter };
 	}
 
 protected:
@@ -295,20 +457,28 @@ protected:
 
 };
 
+// This class has a problem with specifying which parameters it depends on.
 class CalculatedParameter : public GenericDependentParameter {
 public:
 	CalculatedParameter(void) {
 		_dimension = ParameterDimension::SCALAR;
 	}
 
+	//void setup(std::function<double(const ParamContainer&)> samplingFunction_, const std::vector<std::string>& sourceNames_);
+
 	//An arbitrary function that can do whatever (but probably calculate the parameter based on other parameters).
-	std::function<double(const ParameterList&)> samplingFunction;
+	//std::function<double(const ParameterList&)> samplingFunction;
+	std::function<double(const ParamContainer&)> samplingFunction;
+
+	std::vector<std::string> sourceParameters; // Optional but helpful
 
 	std::string type(void) const OVERRIDE {
 		return "CalculatedParameter";
 	}
 
-	double evaluate(const ParameterList& param) const OVERRIDE;
+	//double evaluate(const ParameterList& param) const OVERRIDE;
+	double evaluate(const ParamContainer& param) const OVERRIDE;
+
 	double value(void) const OVERRIDE;
 
 	double getSample(unsigned int iteration) const OVERRIDE;
@@ -316,6 +486,10 @@ public:
 
 	virtual bool hasDependency(void) OVERRIDE {
 		return true;
+	}
+
+	virtual std::vector<std::string> getDependencyNames(void) const OVERRIDE {
+		return this->sourceParameters;
 	}
 
 protected:
@@ -446,7 +620,8 @@ public:
 	}
 
 	std::function<double(double)> deviateFunction;
-	std::function<double(double, const ParameterList&)> llFunction; //including the prior
+	//std::function<double(double, const ParameterList&)> llFunction; //including the prior
+	std::function<double(double, const ParamContainer&)> llFunction; //including the prior
 
 	struct {
 		double lower;
@@ -477,9 +652,13 @@ public:
 		_dimension = ParameterDimension::ZERO;
 	}
 
-	std::function<std::map<std::string, double>(const ParameterList&)> currentValuesFunction;
-	std::function<std::map<std::string, double>(const ParameterList&)> candidateValuesFunction;
-	std::function<double(const std::map<std::string, double>&, const ParameterList&)> llFunction;
+	//std::function<std::map<std::string, double>(const ParameterList&)> currentValuesFunction;
+	//std::function<std::map<std::string, double>(const ParameterList&)> candidateValuesFunction;
+	//std::function<double(const std::map<std::string, double>&, const ParameterList&)> llFunction;
+
+	std::function<ParamMap(const ParamContainer&)> currentValuesFunction;
+	std::function<ParamMap(const ParamContainer&)> candidateValuesFunction;
+	std::function<double(const ParamMap&, const ParamContainer&)> llFunction;
 
 
 	std::string type(void) const OVERRIDE {
@@ -555,7 +734,9 @@ public:
 	std::vector<std::pair<double, double>> ranges;
 
 	std::function<std::vector<double>(const std::vector<double>&)> deviateFunction;
-	std::function<double(std::vector<double>, const ParameterList&)> llFunction;
+
+	//std::function<double(std::vector<double>, const ParameterList&)> llFunction;
+	std::function<double(std::vector<double>, const ParamContainer&)> llFunction;
 
 
 

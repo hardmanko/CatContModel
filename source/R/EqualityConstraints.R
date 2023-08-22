@@ -8,11 +8,11 @@ getConstrainedConditionEffects = function(config) {
 
 	cec = NULL
 	
-	for (param in names(config$conditionEffects)) {
+	for (parName in names(config$conditionEffects)) {
 		
-		thisFactors = getFactorsForConditionEffect.WP(config, param)
+		thisFactors = getFactorsForConditionEffect.WP(config, parName)
 
-		thisCEC = getConstrainedConditionEffectList(config=config, param=param, usedFactors=thisFactors)
+		thisCEC = getConstrainedConditionEffectList(config=config, parName=parName, usedFactors=thisFactors)
 		cec = rbind(cec, thisCEC)
 		
 	}
@@ -49,7 +49,7 @@ getConstrainedConditionEffects = function(config) {
 }
 
 
-getConstrainedConditionEffectList = function(config, param, usedFactors) {
+getConstrainedConditionEffectList = function(config, parName, usedFactors) {
 	
 	factors = config$factors
 	
@@ -58,14 +58,13 @@ getConstrainedConditionEffectList = function(config, param, usedFactors) {
 	#special case: no factors used.
 	if (length(usedFactors) == 0) {
 		for (i in 1:nrow(factors)) {
-			target = paste(param, "_cond[", factors$cond[i], "]", sep="")
-			source = paste(param, "_cond[", config$cornerstoneConditionName, "]", sep="")
+			target = paste(parName, "_cond[", factors$cond[i], "]", sep="")
+			source = paste(parName, "_cond[", config$cornerstoneConditionName, "]", sep="")
 			
 			if (factors$cond[i] == config$cornerstoneConditionName) {
 				source = "FREE_PARAMETER"
 			}
 			
-			#rval[[target]] = source
 			rval = rbind(rval, data.frame(target=target, source=source, stringsAsFactors=FALSE))
 		}
 		return(rval)
@@ -98,12 +97,12 @@ getConstrainedConditionEffectList = function(config, param, usedFactors) {
 		}
 		
 		for (cond in theseConds) {
-			target = paste(param, "_cond[", cond, "]", sep="")
+			target = paste(parName, "_cond[", cond, "]", sep="")
 			
 			if (cond == thisLevelSource) {
 				source = "FREE_PARAMETER"
 			} else {
-				source = paste(param, "_cond[", thisLevelSource, "]", sep="")
+				source = paste(parName, "_cond[", thisLevelSource, "]", sep="")
 			}
 			
 			rval = rbind(rval, data.frame(target=target, source=source, stringsAsFactors=FALSE))
@@ -116,16 +115,16 @@ getConstrainedConditionEffectList = function(config, param, usedFactors) {
 }
 
 
-getConditionParameterParts = function(param) {
+getConditionParameterParts = function(parName) {
 	
-	if (!grepl("_cond[", param, fixed=TRUE)) {
+	if (!grepl("_cond[", parName, fixed=TRUE)) {
 		warning("Non-condition parameter provided to getConditionParameterParts().")
 		return("")
 	}
 	
-	bits = strsplit(param, "_cond[", fixed=TRUE)[[1]]
+	bits = strsplit(parName, "_cond[", fixed=TRUE)[[1]]
 	
-	rval = list(param = bits[1])
+	rval = list(parName = bits[1])
 	
 	rval$cond = strsplit(bits[2], "]", fixed=TRUE)[[1]]
 	
@@ -133,9 +132,9 @@ getConditionParameterParts = function(param) {
 }
 
 
-getRootSourceConditionParameter = function(results, param, cond, fullParam = NULL) {
+getRootSourceConditionParameter = function(results, parName, cond, fullParam = NULL) {
 	
-	target = paste(param, "_cond[", cond, "]", sep="")
+	target = paste(parName, "_cond[", cond, "]", sep="")
 	if (!is.null(fullParam)) {
 		target = fullParam
 	}
@@ -160,14 +159,18 @@ getRootSourceConditionParameter = function(results, param, cond, fullParam = NUL
 }
 
 # WP only
-getEqualConditionParameters = function(results, param) {
+getEqualConditionParameters = function(results, parName) {
 	
+  if (!resultIsType(results, "WP")) {
+    stop("getEqualConditionParameters can only be used with WP results objects.")
+  }
+  
 	fcopy = results$config$factors
 	fcopy$equalityGroup = 0
 	
 	for (i in 1:nrow(fcopy)) {
-		target = paste(param, "_cond[", fcopy$cond[i], "]", sep="")
-		rootSource = getRootSourceConditionParameter(results, param, fcopy$cond[i])
+		target = paste(parName, "_cond[", fcopy$cond[i], "]", sep="")
+		rootSource = getRootSourceConditionParameter(results, parName, fcopy$cond[i])
 		
 		if (target == rootSource) {
 			fcopy$equalityGroup[i] = max(fcopy$equalityGroup) + 1
@@ -176,8 +179,8 @@ getEqualConditionParameters = function(results, param) {
 	}
 	
 	for (i in 1:nrow(fcopy)) {
-		target = paste(param, "_cond[", fcopy$cond[i], "]", sep="")
-		rootSource = getRootSourceConditionParameter(results, param, fcopy$cond[i])
+		target = paste(parName, "_cond[", fcopy$cond[i], "]", sep="")
+		rootSource = getRootSourceConditionParameter(results, parName, fcopy$cond[i])
 		
 		if (target != rootSource) {
 			
@@ -193,9 +196,9 @@ getEqualConditionParameters = function(results, param) {
 
 
 # This function accounts for equality constraints
-getConditionParameterPrior = function(results, param, cond, fullParam = NULL) {
+getConditionParameterPrior = function(results, parName, cond, fullParam = NULL) {
 	
-	target = paste(param, "_cond[", cond, "]", sep="")
+	target = paste(parName, "_cond[", cond, "]", sep="")
 	if (!is.null(fullParam)) {
 		target = fullParam
 	}
@@ -207,7 +210,7 @@ getConditionParameterPrior = function(results, param, cond, fullParam = NULL) {
 	}
 	
 	source = results$equalityConstraints[[ target ]]
-	#rootSource = getRootSourceParameter(results, param, cond)
+	#rootSource = getRootSourceParameter(results, parName, cond)
 	
 	if (is.null(source)) {
 		warning(paste("No source parameter specified for \"", target, "\". It must be a free parameter.", sep=""))
@@ -227,8 +230,8 @@ getConditionParameterPrior = function(results, param, cond, fullParam = NULL) {
 			
 		} else {
 			
-			rval$location = results$priors[[ paste(targetParts$param, "_cond.loc", sep="") ]]
-			rval$scale = results$priors[[ paste(targetParts$param, "_cond.scale", sep="") ]]
+			rval$location = results$priors[[ paste(targetParts$parName, "_cond.loc", sep="") ]]
+			rval$scale = results$priors[[ paste(targetParts$parName, "_cond.scale", sep="") ]]
 			
 		}
 		

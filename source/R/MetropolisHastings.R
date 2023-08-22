@@ -43,8 +43,8 @@ examineMHAcceptance = function(results, recalculate=FALSE) {
       
       for (cat in 1:results$config$maxCategories) {
         
-        cmn = paste("catMu[", pnum, ",", cat - 1, "]", sep="")
-        can = paste("catActive[", pnum, ",", cat - 1, "]", sep="")
+        cmn = paste("catMu[", pnum, ",", cat, "]", sep="")
+        can = paste("catActive[", pnum, ",", cat, "]", sep="")
         
         if (cmn %in% names(results$constantValueOverrides) || !(cmn %in% names(results$posteriors))) {
           next #skip constant catMu and, if somehow the catMu is not in the posteriors, skip it as well
@@ -162,7 +162,8 @@ calculateMHAcceptance = function(results) {
       acceptRates = rbind(acceptRates, temp)
     }
     
-    # Even if catMu, do
+    # Calcaulate acceptance rate.
+    # Even if this parameter is catMu, do this to get acceptance for both active and inactive cats.
     pv = results$posteriors[[pn]]
     pv = c(results$startingValues[[pn]], pv)
     
@@ -199,7 +200,7 @@ getMHTuningList = function(targets, mhTuningOverrides=list()) {
   
   rval = list()
   for (i in 1:nrow(targets)) {
-    pn = targets$param[i]
+    pn = targets$parName[i]
     if (!is.null(mhTuningOverrides[[pn]])) {
       rval[[pn]] = mhTuningOverrides[[pn]]
       
@@ -225,7 +226,7 @@ getMHTuningList = function(targets, mhTuningOverrides=list()) {
 #' @param optimRate Modifies how rapidly MH tuning parameters are updated. Values greater than 1 result in faster optimization.
 #' @param targetAcceptance The target MH acceptance rate for parameters. See details for more.
 #' @param chosenTuning When optimization is complete, final tuning values are chosen based on `chosenTuning`. See details.
-#' @param startingTuningValues MH tuning values start from here. Starting values default to [`getDefaultMHTuning`].
+#' @param startingTuningValues A named list of starting values for MH tuning values. Defaults to [`getDefaultMHTuning`].
 #' @param constantTuningValues A named list of constant values for MH tuning values. See also the `mhTuningOverrides` argument of [`makeModelConfig`].
 #' @param modelVariant If provided, only parameters used by the `modelVariant` will be in the returned object.
 #' 
@@ -235,23 +236,39 @@ getMHTuningList = function(targets, mhTuningOverrides=list()) {
 #' rate for that parameter. If listing target acceptance rates, include a element named "default" with the default 
 #' acceptance rate for unlisted parameters. Alternately, set targets for parameters by modifying the returned `targets` data frame.
 #' 
-#' `chosenTuning` options are 
-#' 1) last: The MH tuning values that were used for the last sample.
-#' 2) best: For each parameter type (listed in `rval$targets`), the MH tuning value used for the best sample for that parameter (lowest difference from target). 
-#' 3) bestHalfMean: For each parameter type, the mean of the MH tuning values for the best half of samples for that parameter.
+#' `chosenTuning` specifies which tuning values are automatically selected when doing MH optimization through [`runParameterEstimation`].
+#' If using [`optimizeMHTuning`], all sets of tuning values can be examined and/or selected.
+#' 
+#' The options for `chosenTuning` are:
+#' + `"last"`: The MH tuning values that were updated following the last sample.
+#' + `"best"`: For each parameter type (listed in `rval$targets`), the MH tuning value used for the best sample for that parameter (lowest difference from target). 
+#' + `"bestHalfMean"`: For each parameter type, the mean of the MH tuning values for the best half of samples for that parameter.
 #' 
 #' @return A configuration list that can be used as the `mhOptimConfig` argument of [`optimizeMHTuning`] or the `mhOptim` argument of [`runParameterEstimation`]. 
 #' Values in this list can be changed to configure MH optimization in detailed ways.
 #' 
+#' @family MetropolisHastings 
 #' @export
 #' 
-#' @family MetropolisHastings 
+#' @examples 
+#' targetAcceptance = list(default = 0.4, pMem = 0.6, pMem_cond = 0.4)
 #' 
+#' startingTuning = list(contSD = 0.8, catSD_cond = 0.3)
+#' 
+#' constantTuning = list(pCatGuess = 0.8, catSelectivity = 2.5)
+#' 
+#' mhConfig = makeMHConfig(optimSamples=7, optimSampleIter=70,
+#' chosenTuning = "best",
+#' targetAcceptance = targetAcceptance,
+#' startingTuningValues = startingTuning,
+#' constantTuningValues = constantTuning,
+#' modelVariant = "betweenItem"
+#' )
 makeMHConfig = function(optimSamples=10, optimSampleIter=100, optimRate=1,
                         targetAcceptance=0.5, 
                         chosenTuning=c("bestHalfMean", "best", "last"),
                         startingTuningValues=getDefaultMHTuning(),
-                        constantTuningValues=NULL, # config$mhTuningOverrides
+                        constantTuningValues=NULL,
                         modelVariant=NULL) 
 {
   
@@ -286,7 +303,7 @@ makeMHConfig = function(optimSamples=10, optimSampleIter=100, optimRate=1,
   targetsDF = data.frame()
   
   for (n in usedParamNames) {
-    temp = data.frame(param=n)
+    temp = data.frame(parName=n)
     if (grepl("_cond", n, fixed=TRUE)) {
       temp$targetStat = "mean"
     } else {
@@ -340,7 +357,7 @@ MHOptim_updateTuning = function(res, mhOptimConfig, proportionComplete=0) {
       next
     }
     
-    targetRow = mhOptimConfig$targets[ mhOptimConfig$targets$param == n, ]
+    targetRow = mhOptimConfig$targets[ mhOptimConfig$targets$parName == n, ]
     
     # Don't update constant values
     if (!is.na(targetRow$constantTuning)) {
@@ -368,11 +385,11 @@ MHOptim_updateTuning = function(res, mhOptimConfig, proportionComplete=0) {
     
     nextTuning[[n]] = res$MH$tuning[[n]] * nextScale
     
-    progTemp = data.frame(param=n, acceptanceRate=acceptanceRate, dif=dif, scale=nextScale, 
+    progTemp = data.frame(parName=n, acceptanceRate=acceptanceRate, dif=dif, scale=nextScale, 
                           oldTuning=res$MH$tuning[[n]], newTuning=nextTuning[[n]])
     progress = rbind(progress, progTemp)
     
-    bestTemp = data.frame(param=n, acceptanceRate=acceptanceRate, dif=dif, tuning=res$MH$tuning[[n]])
+    bestTemp = data.frame(parName=n, acceptanceRate=acceptanceRate, dif=dif, tuning=res$MH$tuning[[n]])
     bestInfo = rbind(bestInfo, bestTemp)
     
   }
@@ -441,9 +458,17 @@ optimizeMHTuning = function(data, modCfg,
                                  modelVariant = modCfg$modelVariant)
   }
   
-  # TODO: Maybe there could be a configOnly argument?
-  if (mhOptimConfig$optimSamples <= 0) {
-    return(mhOptimConfig)
+  # Set MH overrides from modCfg. 
+  # This is primarily for when mhOptimConfig is provided. 
+  # If NULL, modCfg$mhTuningOverrides are set by makeMHConfig.
+  for (n in names(modCfg$mhTuningOverrides)) {
+    mhOptimConfig$targets[ mhOptimConfig$targets$parName == n, c("startingTuning", "currentTuning", "constantTuning") ] = modCfg$mhTuningOverrides[[n]]
+  }
+
+  if (mhOptimConfig$optimSamples <= 0 || mhOptimConfig$optimSampleIter <= 0) {
+    warning("No MH optimization possible: optimSamples <= 0 or optimSampleIter <= 0.")
+    rval = list(chosenTuning=getMHTuningList(mhOptimConfig$targets))
+    return(rval)
   }
   
   if (all(!is.na(mhOptimConfig$targets$constantTuning))) {
@@ -467,12 +492,11 @@ optimizeMHTuning = function(data, modCfg,
     sampleOptimCfg = mhOptimConfig
     sampleOptimCfg$targets = nextTargets
     
-    #
-    sampleModCfg = modCfg
-    
     # Silent after first sample
     runConfig = makeRunConfig(mhOptimConfig$optimSampleIter, verbose = (sampleIndex == 1))
     
+    # Copy model config for this sample
+    sampleModCfg = modCfg
     
     # Starting values to continue chain
     sampleModCfg$startingParamValues = nextStartingValues
@@ -492,8 +516,8 @@ optimizeMHTuning = function(data, modCfg,
     
     # Copy updated tuning values into nextTargets
     for (i in 1:nrow(nextTargets)) {
-      if (nextTargets$param[i] %in% names(update$updatedTuning)) {
-        nextTargets$currentTuning[i] = update$updatedTuning[[ nextTargets$param[i] ]]
+      if (nextTargets$parName[i] %in% names(update$updatedTuning)) {
+        nextTargets$currentTuning[i] = update$updatedTuning[[ nextTargets$parName[i] ]]
       }
     }
     
@@ -508,18 +532,18 @@ optimizeMHTuning = function(data, modCfg,
   }
   
   
-  bestInfo = bestInfo[ order(bestInfo$param), ] # Reorder for users
+  bestInfo = bestInfo[ order(bestInfo$parName), ] # Reorder for users
   
   # Fill in the tuning types
   tunings = list(last = list(), best = list(), bestHalfMean = list())
   
-  for (n in unique(bestInfo$param)) {
+  for (n in unique(bestInfo$parName)) {
     
     # last: The last used tuning values are the current tuning values
-    tunings$last[[n]] = nextTargets$currentTuning[ nextTargets$param == n ]
+    tunings$last[[n]] = nextTargets$currentTuning[ nextTargets$parName == n ]
     
     # The best and bestHalfMean tunings depend on the tuning steps
-    bt = bestInfo[ bestInfo$param == n, ]
+    bt = bestInfo[ bestInfo$parName == n, ]
     
     bt = bt[ order(abs(bt$dif)), ] # Order by lowest abs dif from target
     
@@ -541,10 +565,11 @@ optimizeMHTuning = function(data, modCfg,
   
   # TODO: Where to put this?
   for (n in names(chosenTuning)) {
+    # Set chosenTuning for the combined results.
     combinedRes$config$mhTuningOverrides[[n]] = chosenTuning[[n]]
     
-    # The actual tuning values are replaced with chosen tuning so that continueSampling works.
-    # Actual tunings used for each sample are in sampleResults
+    # Replace the tuning values that were used for the last sample with chosenTuning so that continueSampling works.
+    # The actual tunings used for each sample are in sampleResults.
     combinedRes$MH$tuning[[n]] = chosenTuning[[n]]
   }
   
@@ -557,7 +582,7 @@ optimizeMHTuning = function(data, modCfg,
     sampleResults = sampleResults
   )
   
-  cat("\nMH optimization complete!.\n")
+  cat("\nMH optimization complete.\n")
   
   rval
 }

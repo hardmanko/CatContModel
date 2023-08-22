@@ -1,3 +1,10 @@
+# TODO Renaming:
+# testSingleEffect -> HT_Factorial_Single
+# testMainEffectsAndInteractions -> HT_Factorial
+# testConditionEffects -> HT_ConditionPairs, HT_Pairwise
+#
+# Also rename this file to HypothesisTests.R
+# And Tests_Generic_Utilities.R -> HypothesisTests_Utilities.R
 
 
 #' Perform a Single Hypothesis Test of a Main Effect or Interaction
@@ -9,7 +16,7 @@
 #' See the details of [`testMainEffectsAndInteractions`] for some discussion of fully-crossed vs non-fully-crossed designs.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
-#' @param param The name of the parameter for which to perform the test.
+#' @param parName The name of the parameter for which to perform the test.
 #' @param testedFactors Character vector. The factors for which to perform the hypothesis test as a vector of factor names. A single factor name results in the test of the main effect of the factor. Multiple factor names result in the test of the interaction of all of those factors.
 #' @param dmFactors See \code{\link[CMBBHT]{testHypothesis}}.
 #' @param usedFactorLevels See \code{\link[CMBBHT]{testHypothesis}}.
@@ -25,7 +32,7 @@
 #' @family generic functions
 #' 
 #' @export
-testSingleEffect = function(res, param, testedFactors, dmFactors = testedFactors, 
+testSingleEffect = function(res, parName, testedFactors, dmFactors = testedFactors, 
 														usedFactorLevels = NULL, priorSamples = res$runConfig$iterations, 
 														testFunction = CMBBHT::testFunction_SDDR, contrastType = NULL,
 														addMu = NULL, manifest = NULL) 
@@ -39,7 +46,7 @@ testSingleEffect = function(res, param, testedFactors, dmFactors = testedFactors
 	
 	
 	if (is.null(manifest)) {
-		if (param %in% getParamNames(types="sd")) {
+		if (parName %in% getParamNames(types="sd")) {
 			manifest = TRUE
 		} else {
 			manifest = FALSE
@@ -54,7 +61,7 @@ testSingleEffect = function(res, param, testedFactors, dmFactors = testedFactors
 	
 	factors = normalizeFactors(res$config$factors)
 	
-	cefs = getConditionEffects(res, param, priorSamples = priorSamples, addMu = addMu, manifest = manifest)
+	cefs = getConditionEffects(res, parName, priorSamples = priorSamples, addMu = addMu, manifest = manifest)
 	
 	if (!all(factors$key %in% cefs$colKeys$key)) {
 		stop("factors contains a key not found in the condition effects.")
@@ -85,14 +92,14 @@ testSingleEffect = function(res, param, testedFactors, dmFactors = testedFactors
 
 
 
-testMEI_singleParameter = function(res, param, priorSamples = res$runConfig$iterations, doPairwise = FALSE, 
+testMEI_singleParameter = function(res, parName, priorSamples = res$runConfig$iterations, doPairwise = FALSE, 
 																					 testFunction = CMBBHT::testFunction_SDDR, 
 																					 addMu = NULL, manifest = NULL) 
 {
 	factors = normalizeFactors(res$config$factors)
 	
 	#Strip WP factors without condition effects, but use all others.
-	factWithCondEff = getFactorsForConditionEffect(res, param)
+	factWithCondEff = getFactorsForConditionEffect(res, parName)
 	FN = getFactorTypeToName(factors)
 	FN$wp = FN$wp[ FN$wp %in% factWithCondEff ]
 	
@@ -111,10 +118,10 @@ testMEI_singleParameter = function(res, param, priorSamples = res$runConfig$iter
 		
 		factorName = paste0(theseFactors, collapse=":")
 		
-		thisRes = testSingleEffect(res, param, testedFactors = theseFactors, priorSamples = priorSamples, 
+		thisRes = testSingleEffect(res, parName, testedFactors = theseFactors, priorSamples = priorSamples, 
 															 testFunction = testFunction, addMu = addMu, manifest = manifest)
 		
-		omnibus = data.frame(param=param, factor=factorName, levels="Omnibus", 
+		omnibus = data.frame(parName=parName, factor=factorName, levels="Omnibus", 
 												 bf10=thisRes$bf10, bf01=thisRes$bf01, success=thisRes$success, 
 												 stringsAsFactors = FALSE)
 		allTests = rbind(allTests, omnibus)
@@ -132,13 +139,13 @@ testMEI_singleParameter = function(res, param, priorSamples = res$runConfig$iter
 				usedFactorLevels[[thisFactor]] = comb[j,]
 				usedFactorLevels = as.data.frame(usedFactorLevels, stringsAsFactors = FALSE)
 				
-				thisRes = testSingleEffect(res, param, testedFactors = thisFactor, 
+				thisRes = testSingleEffect(res, parName, testedFactors = thisFactor, 
 																	 usedFactorLevels = usedFactorLevels, priorSamples = priorSamples, 
 																	 testFunction = testFunction, addMu = addMu, manifest = manifest)
 				
 				levelNames = paste0(comb[j,], collapse=", ")
 				
-				pairwise = data.frame(param=param, factor=factorName, levels=levelNames, 
+				pairwise = data.frame(parName=parName, factor=factorName, levels=levelNames, 
 															bf10=thisRes$bf10, bf01=thisRes$bf01, success=thisRes$success, 
 															stringsAsFactors = FALSE)
 				allTests = rbind(allTests, pairwise)
@@ -178,9 +185,10 @@ testMEI_singleParameter = function(res, param, priorSamples = res$runConfig$iter
 #' For example, a main effect might change depending on whether or not you include an interaction in the model. 
 #' Thus, when working with non-fully-crossed designs, you must decide what effects you want to include in the model when you are testing an effect. 
 #' 
-#' This function does marginal tests: It only estimates what it needs to to do the test. 
-#' Thus, if testing a main effect, only that main effect is estimated. If testing a two-factor interaction, 
-#' only the two related main effects and that interaction are estimated.
+#' This function does marginal tests: It only estimates what it needs to do the test. 
+#' Thus, if testing a main effect, only that main effect is modeled. If testing a two-factor interaction, 
+#' only the two related main effects and that interaction are modeled. 
+#' This is different than testing for the existence of, e.g., a main effect in the context of an interaction.
 #' You cannot do more with this function, but see [`testSingleEffect`] for a function that gives you more control over the test that is performed. 
 #' In addition, for designs that are not fully croseed, you can still use [`testConditionEffects`] to examine pairwise comparisons. 
 #' See the introduction.pdf manual for more discussion of non-fully-crossed designs.
@@ -200,17 +208,17 @@ testMEI_singleParameter = function(res, param, priorSamples = res$runConfig$iter
 #' Focus on the Between-Participants Design section beginning on page 15, but earlier material provides important context.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
-#' @param param Optional. Character vector of names of parameters to perform tests for. If `NULL` (default), is set to all parameters with condition effects.
-#' @param summarize If `TRUE` (default), the results across subsamples will be summarized. If `FALSE`, the results from each of the subsamples will be returned. Those results can be later summarized with [`summarizeSubsampleResults`].
+#' @param parNames Optional. Character vector of names of parameters to perform tests for. If `NULL`, is set to all parameters with condition effects.
+#' @param summarize If `TRUE`, the results across subsamples will be summarized. If `FALSE`, the results from each of the subsamples will be returned. Those results can be later summarized with [`summarizeSubsampleResults`].
 #' @param subsamples Number of subsamples of the posterior chains to take. If greater than 1, `subsampleProportion` should be set to a value between 0 and 1 (exclusive).
 #' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should probably only be less than 1 if `subsamples` is greater than 1. If `NULL`, `subsampleProportion` will be set to `1 / subsamples` and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
 #' @param doPairwise Do pairwise tests of differences between levels of main effects (these are often called "post-hoc" tests).
-#' @param testFunction See \code{\link[CMBBHT]{testHypothesis}}.
+#' @param testFunction See \code{\link[CMBBHT]{testHypothesis}} in the CMBBHT package.
 #' @param addMu Passed to same argument of [`getConditionEffects`].
 #' @param manifest Passed to same argument of [`getConditionEffects`].
 #' 
 #' @return Depends on the value of `summarize`. If `summarize == TRUE`, it will have the same return value as [`summarizeSubsampleResults`], so see that function. If `summarize == FALSE`, a `data.frame` with columns
-#' * `param`: The parameter name.
+#' * `parName`: The parameter name.
 #' * `factor`: The factor name.
 #' * `levels`: The levels of the factor. If "Omnibus", all levels are used in an omnibus test of the effect. If all of the tests are omnibus tests (which is true as long as `doPairwise == FALSE`), this column is omitted for simplicity.
 #' * `bf10`: The Bayes factor in favor of there being a difference between factor levels.
@@ -222,8 +230,8 @@ testMEI_singleParameter = function(res, param, priorSamples = res$runConfig$iter
 #' @family generic functions
 #' 
 #' @export
-testMainEffectsAndInteractions = function(res, param = NULL, 
-																						 subsamples = 20, subsampleProportion = 1, 
+testMainEffectsAndInteractions = function(res, parNames = NULL, 
+																						 subsamples = 1, subsampleProportion = 1, 
 																						 summarize = TRUE, doPairwise = FALSE, 
 																						 testFunction = CMBBHT::testFunction_SDDR,
 																						 addMu = NULL, manifest = NULL) 
@@ -239,9 +247,11 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 		warning("Design is not fully crossed, which means that main effects and interactions cannot be orthogonal. This complicates the meaning of tests. See the documentation of testMainEffectsAndInteractions for more information.")
 	}
 	
-	if (is.null(param)) {
+	if (is.null(parNames)) {
 		#All parameters can vary because its BP. 
-	  param = getParamNames(res$config$modelVariant, types=c("prob", "sd"))
+		parNames = getParamNames(res$config$modelVariant, types=c("prob", "sd"))
+	  
+	  # Param without condition effects get NULL rval from testMEI_singleParameter
 		#param = getParametersWithConditionEffects(res$config$conditionEffects)
 	}
 	
@@ -251,7 +261,7 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 	
 	pb = utils::txtProgressBar(0, 1, 0, style=3)
 	currentStep = 1
-	lastStep = length(subsampleIterationsToRemove) * length(param)
+	lastStep = length(subsampleIterationsToRemove) * length(parNames)
 	
 	for (sub in 1:length(subsampleIterationsToRemove)) {
 		
@@ -261,9 +271,9 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 			resSub = res
 		}
 		
-		for (pn in param) {
+		for (pn in parNames) {
 			
-			htr = testMEI_singleParameter(resSub, param = pn,
+			htr = testMEI_singleParameter(resSub, parName = pn,
 																		priorSamples = resSub$runConfig$iterations, doPairwise = doPairwise, 
 																		testFunction = testFunction, addMu = addMu, manifest = manifest)
 			BFs = rbind(BFs, htr)
@@ -276,7 +286,7 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 	
 	close(pb)
 	
-	aggregateBy = c("param", "factor", "levels")
+	aggregateBy = c("parName", "factor", "levels")
 	if (all(BFs$levels == "Omnibus")) {
 		BFs$levels = NULL
 		aggregateBy = aggregateBy[ aggregateBy != "levels" ]
@@ -284,7 +294,6 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 	
 	rval = cleanAndSummarizeMEIResults(BFs, summarize=summarize, aggregateBy = aggregateBy)
 	rval
-	
 }
 
 
@@ -294,23 +303,23 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 #' Test Differences Between Conditions
 #' 
 #' Tests the differences between the conditions in the experiment for different parameters. 
-#' This test does all pairwise comparisons between all conditions. For omnibus tests, see \code{\link{testMainEffectsAndInteractions}}.
+#' This test does all pairwise comparisons between all conditions. For omnibus tests, see [`testMainEffectsAndInteractions`].
 #' 
 #' @details
 #' 
 #' You can estimate how much the variability in the posterior chains affects the Bayes factors by using the 
-#' \code{subsamples} and \code{subsampleProportion} arguments. If \code{subsamples} is greater than 1, 
+#' `subsamples` and `subsampleProportion` arguments. If `subsamples` is greater than 1, 
 #' multiple subsamples from the posterior chains will be taken and the standard deviation (and other measures) 
 #' of the Bayes factors across the subsamples will be calculated. The number of iterations used in each subsample 
-#' is a proportion of the total number of iterations and is set by \code{subsampleProportion}. 
+#' is a proportion of the total number of iterations and is set by `subsampleProportion`. 
 #' Note that this is not the standard deviation of the Bayes factors over repeated samples of data sets, 
 #' so it tells you nothing about what would happen if you had different data. 
 #' It essentially tells you whether or not you ran enough iterations to have a stable Bayes factor estimate. 
-#' The closer \code{subsampleProportion} is to 1, the less independent the subsamples will be, 
-#' so you should use a reasonably low value of \code{subsampleProportion}. 
+#' The closer `subsampleProportion` is to 1, the less independent the subsamples will be, 
+#' so you should use a reasonably low value of `subsampleProportion`. 
 #' The degree to which the subsamples are independent influences to what extent the standard deviation is underestimated: 
 #' The less independent, the larger the underestimate will be. 
-#' If you want fully independent subsamples, you can set \code{subsampleProportion} to \code{NULL}. 
+#' If you want fully independent subsamples, you can set `subsampleProportion` to `NULL`. 
 #' However, this means that the number of subsamples and the proportion of iterations in each subsample to be 
 #' inversely related, which means that you have to choose between a low number of subsamples or a low number of iterations per subsample.
 #' 
@@ -318,17 +327,17 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 #' are summarized (`summarize = TRUE`). See [`summarizeSubsampleResults`] for the return value format in that case.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
-#' @param param A vector of parameter names for which to perform condition tests (e.g. "pMem"). If `NULL` (the default), tests are performed for all parameters with condition effects.
+#' @param parNames A vector of parameter names for which to perform condition tests (e.g. "pMem"). If `NULL` (the default), tests are performed for all parameters with condition effects.
 #' @param addMu Passed to same argument of [`getConditionEffects`]. If using a Between-Participants design, `addMu` must be `TRUE`.
 #' @param manifest Passed to same argument of [`getConditionEffects`].
 #' @param credP Credible interval proportion for the posterior difference between the tested conditions. Ignored if `subsamples != 1`.
 #' @param subsamples Number of subsamples of the posterior chains to take. See details. If greater than 1, subsampleProportion should be set to a value between 0 and 1 (exclusive).
-#' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should probably only be less than 1 if \code{subsamples} is greater than 1. If \code{NULL}, \code{subsampleProportion} will be set to \code{1 / subsamples} and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
+#' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should probably only be less than 1 if \code{subsamples} is greater than 1. If `NULL`, `subsampleProportion` will be set to `1 / subsamples` and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
 #' @param summarize Boolean. Should the results be summarized with \code{\link{summarizeSubsampleResults}}?
 #' 
 #' @return A data frame containing test results with the following columns (see details for info about different return value if using subsamples and summarizing):
 #' \tabular{ll}{
-#' 	\code{param} \tab The name of the parameter being tested.\cr
+#' 	\code{parName} \tab The name of the parameter being tested.\cr
 #' 	\code{key} \tab The conditions being compared, like cond1 - cond2, where "-" can be interpreted as a minus sign.\cr
 #' 	\code{bf01} \tab Bayes factor in favor of the null hypothesis of no difference between the conditions.\cr
 #' 	\code{bf10} \tab Bayes factor in favor of the alternative hypothesis of there being a difference between the conditions. Note: `bf10 * bf01 = 1`.\cr
@@ -341,10 +350,9 @@ testMainEffectsAndInteractions = function(res, param = NULL,
 #'
 #' @rdname testConditionEffects
 #' @export
-testConditionEffects = function(res, param = NULL, credP = 0.95, addMu = TRUE, manifest = TRUE, subsamples = 1, subsampleProportion = 1, summarize = FALSE) {
-	
-  # TODO: Rename to testConditionDifferences? testConditionPairs?
-  
+testConditionEffects = function(res, parNames = NULL, credP = 0.95, addMu = TRUE, manifest = TRUE, subsamples = 1, subsampleProportion = 1, summarize = FALSE) 
+{
+
   if (resultIsType(res, "BP") && !addMu) {
     stop("For Between-Participants designs, addMu must be TRUE.")
   } else if (resultIsType(res, "Parallel")) {
@@ -375,14 +383,14 @@ testConditionEffects = function(res, param = NULL, credP = 0.95, addMu = TRUE, m
 	subsampleIterationsToRemove = getSubsampleIterationsToRemove(getCompletedIterations(res), subsamples, subsampleProportion)
 	
 	
-	if (is.null(param)) {
+	if (is.null(parNames)) {
 		#param = getParamNames(res$config$modelVariant, types=c("prob", "sd"))
-		param = getParametersWithConditionEffects(res$config$conditionEffects)
+		parNames = getParametersWithConditionEffects(res$config$conditionEffects)
 	}
 	
 	pb = utils::txtProgressBar(0, 1, 0, style=3)
 	currentStep = 1
-	lastStep = length(subsampleIterationsToRemove) * length(param)
+	lastStep = length(subsampleIterationsToRemove) * length(parNames)
 	
 	allSubsamples = NULL
 	for (sub in 1:length(subsampleIterationsToRemove)) {
@@ -400,14 +408,14 @@ testConditionEffects = function(res, param = NULL, credP = 0.95, addMu = TRUE, m
 			groups = resSub$groups
 		}
 		
-		for (p in param) {
+		for (pn in parNames) {
 			
 			equalConds = list()
 			unique_groupEq = NULL
 			
 			for (grp in names(groups)) {
 				
-				eqCond = getEqualConditionParameters(groups[[grp]], p)
+				eqCond = getEqualConditionParameters(groups[[grp]], pn)
 				eqCond$group = grp
 				
 				eqCond$key = paste(grp, eqCond$cond, sep=":")
@@ -423,7 +431,7 @@ testConditionEffects = function(res, param = NULL, credP = 0.95, addMu = TRUE, m
 			
 			if (nrow(pairs) >= 1) {
 				
-				condEff = getConditionEffects(resSub, param = p, priorSamples = resSub$runConfig$iterations, addMu = addMu, manifest = manifest)
+				condEff = getConditionEffects(resSub, parName = pn, priorSamples = resSub$runConfig$iterations, addMu = addMu, manifest = manifest)
 				
 				for (r in 1:nrow(pairs)) {
 					
@@ -444,7 +452,7 @@ testConditionEffects = function(res, param = NULL, credP = 0.95, addMu = TRUE, m
 					
 					keyLabel = paste0( paste(eqKeys_i, collapse="/"), " - ", paste(eqKeys_j, collapse="/"))
 					
-					temp = data.frame(param=p, key=keyLabel, 
+					temp = data.frame(parName=pn, key=keyLabel, 
 														bf01=ht$bf01, bf10=ht$bf10, success = ht$success, 
 														stringsAsFactors=FALSE)
 					
@@ -482,7 +490,7 @@ testConditionEffects = function(res, param = NULL, credP = 0.95, addMu = TRUE, m
 	}
 	
 	if (summarize) {
-	  rval = cleanAndSummarizeMEIResults(allSubsamples, summarize = summarize, aggregateBy = c("param", "key"))
+	  rval = cleanAndSummarizeMEIResults(allSubsamples, summarize = summarize, aggregateBy = c("parName", "key"))
 	} else {
 	  rval = allSubsamples
 	}

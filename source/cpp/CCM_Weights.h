@@ -2,11 +2,113 @@
 
 #include <functional>
 
-#include "CCM_Util.h"
+#include "CCM_Main.h"
 #include "CCM_Linear.h"
 #include "CCM_Circular.h"
 
+#include "MF_Parameters.h"
+
+//#define USING_CAT_SPLINE
+
+std::vector<double> CCM_CPP_CalculateWeights(std::string dataType, std::string weightType, double study, std::vector<double> activeCatMu, double catSelectivity);
+
 namespace CatCont {
+
+	enum class WeightsDistribution : int {
+		Default, // HVR17
+		Nearest, // no parameters
+		NearestInRange // temp using catSel as range, but should use a plateau parameter
+#ifdef USING_CAT_SPLINE
+		, 
+		PlatSpline // multiple parameters. unimplemented
+#endif
+	};
+	WeightsDistribution weightsDistributionFromString(string weightsDistStr);
+
+#ifdef USING_CAT_SPLINE
+	enum class LambdaVariant : int {
+		None, // lambda is always 0
+		CatWeightSum, // 0 to 1, increases with cat weight
+		InverseCatWeightSum, // 0 to 1, decreases with cat weight
+		Minus1to1 // -1 to 1, increases with cat weight
+	};
+	LambdaVariant lambdaVariantFromString(string lambdaVariantStr);
+#endif
+
+
+
+	struct WeightsConfig {
+		DataType dataType;
+		size_t maxCategories;
+
+		WeightsDistribution weightDist = WeightsDistribution::Default;
+
+		double zeroSumCutoff = 1e-250; // If the weight sum is below this, weights are set to equal values.
+		double zapsmallCutoff = 0; // If a (rescaled) weight is below this, it is set to 0. Maybe 1e-6?
+	};
+
+    struct WeightsCalculator {
+
+		WeightsCalculator(const ModelConfiguration& modCfg);
+		WeightsCalculator(const WeightsConfig& wConfig);
+
+		WeightsConfig config;
+
+		//shared_ptr<ModelConfiguration> modCfg; // or ref/smart pointer?
+		//DataType dataType;
+		//double zeroSumCutoff = 1e-250; // If the weight sum is below this, weights are set to equal values.
+		//double zapsmallCutoff = 0; // If a (rescaled) weight is below this, it is set to 0. Maybe 1e-6?
+
+		// Calculated weights
+		
+		vector<double> weights; // The weights vector is sized on construction to be large enough for any number of weights.
+		size_t weightCount = 0; // Weight count tracks how many weights are stored.
+
+		// returns calculated weights in weightCount and weights members
+		void calcWeights(double study, const vector<double>& catMu, double catSelectivity);
+
+		vector<double> copyFilledWeights(void) const;
+		void clearWeights(void);
+
+		// uses calculated weights
+		double sumWeights(void) const;
+
+#ifdef USING_PLAT_SPLINE
+		double calcLambda(void) const; 
+		//double calcLambda(double study, const CategoryParameters& catPar);
+
+		// I dunno if this sould be member function. It calculates multiple weights.
+		double calcLambdaIntegral(const vector<double>& studys, const CategoryParameters& catPar);
+
+		void _calcWeights_platSpline(double study, const CategoryParameters& catPar);
+
+#endif
+
+
+
+	private:
+		
+		void _calcWeights_default_HVR17(double study, const vector<double>& catMu, double catSelectivity);
+		//void _calcWeights_linear(double study, const vector<double>& catMu, double catSelectivity);
+		//void _calcWeights_circular(double study, const vector<double>& catMu, double catSelectivity);
+		void _rescaleWeights(double densSum);
+		void _zapSmallWeights(void);
+
+		void _calcWeights_nearest(double study, const vector<double>& catMu);
+		void _calcWeights_nearestInRange(double study, const vector<double>& catMu, double catRange);
+		std::vector<double> _studyMuDistance(double study, const vector<double>& catMu) const;
+
+		
+    };
+
+
+	// These functions are the old way of doing things.
+	namespace Circular {
+		void categoryWeights(double study, const MemFirst::CombinedParameters& par, double* OUT_weights);
+	}
+	namespace Linear {
+		void categoryWeights(double study, const MemFirst::CombinedParameters& par, const LinearConfiguration& lc, double* OUT_weights);
+	}
 
 #ifdef USING_PLAT_SPLINE
 
@@ -20,13 +122,10 @@ namespace CatCont {
 
 	std::vector<double> dPlatSplineWeights(double study, CategoryParameters catPar, const ModelConfiguration& modCfg);
 
-#endif
+	double calcPlatSplineLambda(const std::vector<double>& weights, LambdaVariant variant);
 
-	//double calcPlatSplineLambda(const std::vector<double>& weights, LambdaVariant variant);
+	double dPlatSpline(double study, const CategoryParameters& catPar, const ModelConfiguration& modCfg);
 
-	//double dPlatSpline(double study, const CategoryParameters& catPar, const ModelConfiguration& modCfg);
-
-/*
 	struct PlatSplineWeightsCalculator {
 
 		ModelConfiguration* modCfg;
@@ -45,136 +144,7 @@ namespace CatCont {
 		double zeroDerivativeCubicSplineDensity(double z);
 
 	};
-*/
-
-
-    struct WeightsCalculator {
-
-		WeightsCalculator(ModelConfiguration* modCfg);
-
-		ModelConfiguration* modCfg; // or ref/smart pointer?
-
-		// Calculated weights
-		size_t weightCount;
-		vector<double> weights;
-
-		// returns calculated weights in weightCount and weights members
-		void calcWeights(double study, const CategoryParameters& catPar);
-
-		// uses calculated weights
-		double sumWeights(void) const;
-
-#ifdef USING_PLAT_SPLINE
-		double calcLambda(void) const; 
-		//double calcLambda(double study, const CategoryParameters& catPar);
-
-		// I dunno if this sould be member function. It calculates multiple weights.
-		double calcLambdaIntegral(const vector<double>& studys, const CategoryParameters& catPar);
 
 #endif
-
-		vector<double> copyFilledWeights(void) const;
-		void reset(void);
-
-	private:
-
-		void _calcWeights_platSpline(double study, const CategoryParameters& catPar);
-		void _calcWeights_linear(double study, const CategoryParameters& catPar);
-		void _calcWeights_circular(double study, const CategoryParameters& catPar);
-
-		void _rescaleWeights(double densSum);
-		
-    };
-
-
-
-
-	/*
-	struct WeightsConfig {
-
-		std::function<double(double, double, double)> densityFunction; // x, mu, catSel
-
-	};
-
-	
-	struct WeightsManager {
-
-		void setup(size_t maxCat, DataType dataType) {
-
-			weights.resize(maxCat);
-
-			if (dataType == DataType::Circular) {
-
-				densityFunction = [](double study, double mu, double catSel) -> double {
-					return vmLut.dVonMises(study, mu, catSel); // assume catSel is precision at this point
-				};
-
-			} else if (dataType == DataType::Linear) {
-
-				//This distribution is not truncated: Category assignment is independent of the study/response space.
-				densityFunction = Linear::normalPDF;
-			}
-
-		}
-
-		//WeightsConfig config;
-		std::function<double(double, double, double)> densityFunction; // x, mu, catSel
-
-		// The density function for the PlatSpline method takes the whole vector of mus
-
-		std::vector<double> weights;
-
-		void calcWeights(double study, const CombinedParameters& par, const Linear::LinearConfiguration& lc) {
-
-			unsigned int n = par.cat.mu.size();
-
-			double densSum = 0;
-			for (unsigned int i = 0; i < n; i++) {
-
-				double d = this->densityFunction(study, par.cat.mu[i], par.cat.selectivity);
-				densSum += d;
-				this->weights[i] = d;
-			}
-
-			if (densSum < 1e-250 && !_usingLambda) {
-
-				//If densSum is tiny, give equal weights but only if not using lambda
-				for (unsigned int i = 0; i < n; i++) {
-					this->weights[i] = 1.0 / n;
-				}
-
-			} else {
-				for (unsigned int i = 0; i < n; i++) {
-					this->weights[i] /= densSum;
-				}
-			}
-
-			//return n;
-		}
-
-
-		vector<double> lambdaStudy; // The study values that are "integrated" over.
-
-		void calcLambda(const CombinedParameters& par) {
-
-		}
-
-		// per participant?
-		double getLambda(void) {
-			if (!_usingLambda) {
-				return 0;
-			}
-
-			return _lastLambda;
-		}
-
-	private:
-
-		bool _usingLambda;
-		double _lastLambda;
-
-
-	};
-	*/
 
 }

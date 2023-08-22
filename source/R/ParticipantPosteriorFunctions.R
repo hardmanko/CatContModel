@@ -7,7 +7,7 @@
 #' This function helps with retrieving posterior chains for parameters.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
-#' @param param The name of the parameter.
+#' @param parName The name of the parameter.
 #' @param pnum The participant number. If `NULL`, the population mean of the parameter will be used. For between-participants designs, may be provided in a `"group:pnum"` format, in which case `group` may be omitted.
 #' @param cond The condition to use. If `NULL`, no condition effect will be applied.
 #' @param group Only for between-participants designs. The name of the group of participants that `pnum` is in.
@@ -18,7 +18,7 @@
 #' @family generic functions
 #' 
 #' @export
-getParameterPosterior = function(res, param, pnum, cond, group = NULL, manifest = TRUE) {
+getParameterPosterior = function(res, parName, pnum, cond, group = NULL, manifest = TRUE) {
 	
 	if (!is.null(pnum) && grepl(":", pnum, fixed=TRUE)) {
 		grp_pnum = strsplit(pnum, ":", fixed=TRUE)[[1]]
@@ -30,34 +30,34 @@ getParameterPosterior = function(res, param, pnum, cond, group = NULL, manifest 
 		if (!is.null(group)) {
 			warning('The "group" argument is ignored for within-participants designs.')
 		}
-		rval = getParameterPosterior.WP(res, param, pnum, cond, manifest = manifest)
+		rval = getParameterPosterior.WP(res, parName, pnum, cond, manifest = manifest)
 	} else if (resultIsType(res, "BP")) {
 		if (is.null(group)) {
 			stop('The "group" argument must be provided for between-participants designs.')
 		}
-		rval = getParameterPosterior.BP(res, param, pnum, cond, group = group, manifest = manifest)
+		rval = getParameterPosterior.BP(res, parName, pnum, cond, group = group, manifest = manifest)
 	}
 	
 	rval
 	
 }
 
-getParameterPosterior.WP = function(results, param, pnum, cond, manifest=TRUE) {
+getParameterPosterior.WP = function(results, parName, pnum, cond, manifest=TRUE) {
 	
 	if (!is.null(pnum)) {
-		param_base = results$posteriors[[ paste(param, "[", pnum, "]", sep="") ]]
+		param_base = results$posteriors[[ paste(parName, "_part[", pnum, "]", sep="") ]]
 	} else {
-		param_base = results$posteriors[[ paste(param, ".mu", sep="") ]]
+		param_base = results$posteriors[[ paste(parName, "_part.mu", sep="") ]]
 	}
 	
 	param_cond = rep(0, length(param_base))
 	if (!is.null(cond)) {
-		param_cond = results$posteriors[[ paste(param, "_cond[", cond, "]", sep="") ]]
+		param_cond = results$posteriors[[ paste(parName, "_cond[", cond, "]", sep="") ]]
 	}
 	
 	param_latent = param_base + param_cond
 	
-	transformationFunction = getParameterTransformation(results, param)
+	transformationFunction = getParameterTransformation(results, parName)
 	if (!manifest) {
 		transformationFunction = function(x) { x }
 	}
@@ -65,8 +65,8 @@ getParameterPosterior.WP = function(results, param, pnum, cond, manifest=TRUE) {
 	
 }
 
-getParameterPosterior.BP = function(bpRes, param, pnum, cond, group, manifest=TRUE) {
-	getParameterPosterior.WP(bpRes$groups[[ group ]], param=param, pnum=pnum, cond=cond, manifest = manifest)
+getParameterPosterior.BP = function(bpRes, parName, pnum, cond, group, manifest=TRUE) {
+	getParameterPosterior.WP(bpRes$groups[[ group ]], parName=parName, pnum=pnum, cond=cond, manifest = manifest)
 }
 
 
@@ -74,8 +74,8 @@ getParameterPosterior.BP = function(bpRes, param, pnum, cond, group, manifest=TR
 ###############################################################################
 
 # Trivial wrapper around getParameterPosterior
-getParameterCredibleInterval = function(results, param, cip=0.95, pnum=NULL, cond=NULL, manifest=TRUE) {
-  post = getParameterPosterior(results, param, pnum=pnum, cond=cond, manifest=manifest)
+getParameterCredibleInterval = function(results, parName, cip=0.95, pnum=NULL, cond=NULL, manifest=TRUE) {
+  post = getParameterPosterior(results, parName, pnum=pnum, cond=cond, manifest=manifest)
   
   stats::quantile(post, c((1 - cip)/2, (1 + cip)/2))
 }
@@ -88,19 +88,19 @@ getParameterCredibleInterval = function(results, param, cip=0.95, pnum=NULL, con
 #' The results of this function are essentially those of [`getParameterPosterior`], but for all participants, conditions, and groups.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
-#' @param param A parameter name.
+#' @param parName A parameter name (e.g. "pMem").
 #' @param manifest Whether the parameters should be converted to the manifest space (see [`Glossary`]).
 #' @param format One of `"data.frame"` or `"matrix"`.
 #' 
 #' @family generic functions
 #' 
 #' @export
-getAllParameterPosteriors = function(res, param, manifest, format = "data.frame") {
+getAllParameterPosteriors = function(res, parName, manifest, format = "data.frame") {
 	
 	if (resultIsType(res, "WP")) {
-		rval = getAllParameterPosteriors.WP(res, param, manifest)
+		rval = getAllParameterPosteriors.WP(res, parName, manifest)
 	} else if (resultIsType(res, "BP")) {
-		rval = getAllParameterPosteriors.BP(res, param, manifest)
+		rval = getAllParameterPosteriors.BP(res, parName, manifest)
 	}
 	
 	if (format == "matrix") {
@@ -112,14 +112,14 @@ getAllParameterPosteriors = function(res, param, manifest, format = "data.frame"
 	rval
 }
 
-getAllParameterPosteriors.BP = function(bpRes, param, manifest = FALSE) {
+getAllParameterPosteriors.BP = function(bpRes, parName, manifest = FALSE) {
 	
 	allPost = NULL
 	allDesign = NULL
 	
 	for (group in names(bpRes$groups)) {
 		
-		ppce = getAllParameterPosteriors.WP(bpRes$groups[[ group ]], param, manifest = manifest)
+		ppce = getAllParameterPosteriors.WP(bpRes$groups[[ group ]], parName, manifest = manifest)
 		
 		ppce$design$group = group
 		ppce$design$key = paste(ppce$design$group, ppce$design$cond, sep=":")
@@ -133,7 +133,7 @@ getAllParameterPosteriors.BP = function(bpRes, param, manifest = FALSE) {
 	list(design = allDesign, post = allPost)
 }
 
-getAllParameterPosteriors.WP = function(results, param, manifest = FALSE) {
+getAllParameterPosteriors.WP = function(results, parName, manifest = FALSE) {
 	
 	design = unique(subset(results$data, select=c("pnum", "cond")))
 	
@@ -142,7 +142,7 @@ getAllParameterPosteriors.WP = function(results, param, manifest = FALSE) {
 	
 	for (i in 1:nrow(design)) {
 		
-		postCombined[,i] = getParameterPosterior.WP(results, param, pnum = design$pnum[i], cond = design$cond[i], manifest = manifest)
+		postCombined[,i] = getParameterPosterior.WP(results, parName, pnum = design$pnum[i], cond = design$cond[i], manifest = manifest)
 		
 	}
 	
@@ -160,7 +160,7 @@ getAllParameterPosteriors.WP = function(results, param, manifest = FALSE) {
 #' Note that inactive categories have already been removed, which is why the return value does not include the `catActive` parameters.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
-#' @param pnum A single participant number. For between-participants designs, may be provided in a `"group:pnum"` format, in which case `group` may be omitted.
+#' @param pnum A single participant number. For between-participants designs, may be provided in a `"group:pnum"` format, in which case the `group` argument may be omitted.
 #' @param cond A single condition name.
 #' @param iteration The index of an iteration of the chain.
 #' @param group Only for between-participants designs. The name of the group of participants that `pnum` is in.
@@ -201,9 +201,9 @@ getSingleIterationParameters.WP = function(results, pnum, cond, iteration, remov
 	
 	combinedParam = list()
 	for (pp in standardParam) {
-		condParam = results$posteriors[[ paste(pp, "_cond[", cond, "]", sep="") ]][iteration]
+		condParam = results$posteriors[[ paste0(pp, "_cond[", cond, "]") ]][iteration]
 		
-		partParam = results$posteriors[[ paste(pp, "[", pnum, "]", sep="") ]][iteration]
+		partParam = results$posteriors[[ paste0(pp, "_part[", pnum, "]") ]][iteration]
 		
 		trans = getParameterTransformation(results, pp)
 		
@@ -213,10 +213,10 @@ getSingleIterationParameters.WP = function(results, pnum, cond, iteration, remov
 	#Do catMu
 	if ("catMu" %in% allParam) {
   	ca = cm = rep(NA, results$config$maxCategories)
-  	for (i in 1:results$config$maxCategories) {
-  		istr = paste("[", pnum, ",", i - 1, "]", sep="")
-  		cm[i] = results$posteriors[[ paste("catMu", istr, sep="") ]][iteration]
-  		ca[i] = results$posteriors[[ paste("catActive", istr, sep="") ]][iteration]
+  	for (k in 1:results$config$maxCategories) {
+  		istr = paste0("_part[", pnum, ",", k, "]")
+  		cm[k] = results$posteriors[[ paste0("catMu", istr) ]][iteration]
+  		ca[k] = results$posteriors[[ paste0("catActive", istr) ]][iteration]
   	}
   	
   	if (removeInactiveCategories) {
@@ -249,32 +249,37 @@ getSingleIterationParameters.BP = function(bpRes, pnum, cond, group, iteration, 
 #' The column index for a pnum can be gotten with `which(results$pnums == pnum)`.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
-#' @param param A list of parameter names. If `NULL`, the default, all parameters are done.
+#' @param parNames A vector of parameter names. If `NULL`, the default, all parameters are used
 #' 
 #' @return A named list of matrices and/or arrays.
 #' 
 #' @family generic functions
 #' @export
-convertPosteriorsToMatrices = function(res, param = NULL) {
+convertPosteriorsToMatrices = function(res, parNames = NULL) {
 	
 	if (resultIsType(res, "WP")) {
-		rval = convertPosteriorsToMatrices.WP(res, param)
+		rval = convertPosteriorsToMatrices.WP(res, parNames)
 	} else if (resultIsType(res, "BP")) {
-		rval = convertPosteriorsToMatrices.BP(res, param)
+		rval = convertPosteriorsToMatrices.BP(res, parNames)
+	} else {
+		stop("Result type must be WP or BP for convertPosteriorsToMatrices.")
 	}
 	
 	rval
 }
 
-convertPosteriorsToMatrices.WP = function(results, param = NULL) {
+convertPosteriorsToMatrices.WP = function(results, parNames = NULL) {
 	
-	matrixParams = c("pMem", "pBetween", "pContBetween", "pContWithin", "pCatGuess", 
-									 "contSD", "catSelectivity", "catSD")
-	arrayParams = c("catActive", "catMu")
+	matrixParams = getParamNames(results$config$modelVariant, types = c("prob", "sd"))
+	arrayParams = getParamNames(results$config$modelVariant, types = "cat")
 	
-	if (!is.null(param)) {
-		matrixParams = matrixParams[ matrixParams %in% param ]
-		arrayParams = arrayParams[ arrayParams %in% param ]
+	#matrixParams = c("pMem", "pBetween", "pContBetween", "pContWithin", "pCatGuess", 
+	#								 "contSD", "catSelectivity", "catSD")
+	#arrayParams = c("catActive", "catMu")
+	
+	if (!is.null(parNames)) {
+		matrixParams = matrixParams[ matrixParams %in% parNames ]
+		arrayParams = arrayParams[ arrayParams %in% parNames ]
 	}
 	
 	post = list()
@@ -291,24 +296,24 @@ convertPosteriorsToMatrices.WP = function(results, param = NULL) {
 		
 		pnum = results$pnums[pInd]
 		
-		istr = paste("[", pnum, "]", sep="")
+		#istr = paste("[", pnum, "]", sep="")
 		
 		for (mp in matrixParams) {
-			post[[mp]][,pInd] = results$posteriors[[paste(mp, istr, sep="")]]
+			post[[mp]][,pInd] = results$posteriors[[paste0(mp, "_part[", pnum, "]")]]
 		}
 		
 		if (results$config$maxCategories > 0) {
-			for (cat in 1:results$config$maxCategories) {
+			for (k in 1:results$config$maxCategories) {
 				
-				istr = paste("[", pnum, ",", cat - 1, "]", sep="")
+				istr = paste0("_part[", pnum, ",", k, "]")
 				
 				for (ap in arrayParams) {
 					
-					pname = paste(ap, istr, sep="")
+					pname = paste0(ap, istr)
 					
 					x = results$posteriors[[pname]]
 					
-					post[[ap]][pInd,cat,] = x
+					post[[ap]][pInd,k,] = x
 					
 				}
 				
@@ -319,28 +324,33 @@ convertPosteriorsToMatrices.WP = function(results, param = NULL) {
 	post
 }
 
-convertPosteriorsToMatrices.BP = function(bpRes, param=NULL) {
+convertPosteriorsToMatrices.BP = function(bpRes, parNames=NULL) {
 	
-	matrixParams = c("pMem", "pBetween", "pContBetween", "pContWithin", "pCatGuess", 
-									 "contSD", "catSelectivity", "catSD")
-	arrayParams = c("catActive", "catMu")
+	# print("Am I really BP? I am really BP.")
 	
-	if (is.null(param)) {
-		param = c(matrixParams, arrayParams)
+	matrixParams = getParamNames(bpRes$config$modelVariant, types = c("prob", "sd"))
+	arrayParams = getParamNames(bpRes$config$modelVariant, types = "cat")
+	
+	#matrixParams = c("pMem", "pBetween", "pContBetween", "pContWithin", "pCatGuess", 
+	#								 "contSD", "catSelectivity", "catSD")
+	#arrayParams = c("catActive", "catMu")
+	
+	if (is.null(parNames)) {
+		parNames = c(matrixParams, arrayParams)
 	}
 	
 	post = list()
 	
 	for (grp in names(bpRes$groups)) {
 		
-		tp = convertPosteriorsToMatrices.WP(bpRes$groups[[grp]], param)
+		tp = convertPosteriorsToMatrices.WP(bpRes$groups[[grp]], parNames)
 		
-		for (mp in matrixParams[ matrixParams %in% param ]) {
+		for (mp in matrixParams[ matrixParams %in% parNames ]) {
 			colnames(tp[[mp]]) = paste0(grp, ":", colnames(tp[[mp]]))
 			post[[mp]] = cbind(post[[mp]], tp[[mp]])
 		}
 		
-		for (ap in arrayParams[ arrayParams %in% param ]) {
+		for (ap in arrayParams[ arrayParams %in% parNames ]) {
 			dn = dimnames(tp[[ap]])
 			dn[[1]] = paste0(grp, ":", dn[[1]])
 			dimnames(tp[[ap]]) = dn
@@ -394,7 +404,7 @@ abind1 = function(x, y, along) {
 #' For `catActive`, the reported values are the sum of the individual `catActive` parameters on a single iteration (i.e. the number of active categories). The credible intervals for `catActive` should be interpreted in the context of them only taking on integer values.
 #' 
 #' @param res A generic results object (see [`Glossary`]).
-#' @param params A vector of parameter names. If `NULL`, all valid parameters are used. `"catActive"` is a valid parameter for this function.
+#' @param parNames A vector of parameter names. If `NULL`, all valid parameters are used. `"catActive"` is a valid parameter for this function.
 #' @param cip The credible interval proportion. Defaults to 95% credible intervals.
 #' @param fun A user provided function that will be passed a vector of group X participant X condition posterior values to summarize (i.e. the kind of function you would pass to `stats::aggregate()`).
 #' @param removeNoDataCells Remove parameter summaries for group X participant X condition cells of the design for which there is no data.
@@ -403,7 +413,7 @@ abind1 = function(x, y, along) {
 #' \tabular{ll}{
 #'	`pnum` \tab The participant number.\cr
 #' 	`cond` \tab The zero-indexed condition index.\cr
-#' 	`param` \tab The parameter name.\cr
+#' 	`parName` \tab The parameter name.\cr
 #' 	`mean` \tab The posterior mean.\cr
 #' 	`lower`,`upper` \tab The lower and upper bounds of the credible interval.\cr
 #' 	`fun` \tab If `fun` was provided, the results of that function call.
@@ -412,7 +422,7 @@ abind1 = function(x, y, along) {
 #' @family generic functions
 #' 
 #' @export
-participantPosteriorSummary = function(res, params=NULL, cip=0.95, fun=NULL, removeNoDataCells=TRUE) {
+participantPosteriorSummary = function(res, parNames=NULL, cip=0.95, fun=NULL, removeNoDataCells=TRUE) {
 	
 	aggFuns = list(mean = mean,
 								 lower = function(x) { stats::quantile(x, (1 - cip) / 2) },
@@ -423,22 +433,22 @@ participantPosteriorSummary = function(res, params=NULL, cip=0.95, fun=NULL, rem
 	
 	validParams = getParamNames(res$config$modelVariant)
 	validParams = validParams[ validParams != "catMu" ]
-	if (is.null(params)) {
-	  params = validParams
+	if (is.null(parNames)) {
+		parNames = validParams
 	}
 	
 	baseFormula = stats::formula(x ~ pnum * cond * group)
 	
 	allSummary = NULL
 	
-	for (param in params) {
+	for (parName in parNames) {
 		
 		pp = NULL
-		if (param == "catActive") {
+		if (parName == "catActive") {
 			pp = getIterationCatActive(res, drop=NULL)
 			pp$cond = "ALL_CONDS"
 		} else {
-			pp = getAllParameterPosteriors(res, param, manifest = TRUE)
+			pp = getAllParameterPosteriors(res, parName, manifest = TRUE)
 			if (resultIsType(res, "WP")) {
 				pp$group = defaultGroupName()
 			}
@@ -446,7 +456,7 @@ participantPosteriorSummary = function(res, params=NULL, cip=0.95, fun=NULL, rem
 		
 		baseAgg = stats::aggregate(baseFormula, pp, function(x) {NA})
 		baseAgg$x = NULL
-		baseAgg$param = param
+		baseAgg$parName = parName
 		
 		for (fn in names(aggFuns)) {
 			agg = stats::aggregate(baseFormula, pp, aggFuns[[ fn ]])
@@ -481,7 +491,7 @@ participantPosteriorSummary = function(res, params=NULL, cip=0.95, fun=NULL, rem
 		allSummary = allSummary[ keep, ]
 	}
 	
-	ns = c("param", "group", "pnum", "cond", names(aggFuns))
+	ns = c("parName", "group", "pnum", "cond", names(aggFuns))
 	allSummary[ , ns ]
 	
 }

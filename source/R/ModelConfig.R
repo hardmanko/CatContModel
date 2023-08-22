@@ -12,7 +12,8 @@
 #' @param dataType One of "circular" or "linear".
 #' @param maxCategories For modelVariants with category parameters (catMu and catActive), the number of categories to use.
 #' @param minSD The smallest value of standard deviation parameters. Use `NULL` for defaults that depend on `dataType`. See details.
-#' @param catMuPriorApproximationPrecision The joint prior on `catMu` and `catActive` is not easily normalized so that it integrates to 1. The prior is rescaled to integrate to 1 by approximating the integral using a grid with `catMuPriorApproximationPrecision` points.
+#' @param catMuPriorApproximationPrecision The joint prior on `catMu` and `catActive` is not easily normalized so that it integrates to 1. 
+#' The prior is rescaled to integrate to 1 by approximating the integral using a grid with `catMuPriorApproximationPrecision` points.
 #' @param factors A data.frame explained in details. Use `NULL` for a one-factor design.
 #' @param conditionEffects A named list where the names are parameters (e.g. "pMem") and the values are vectors of names of factors in `factors`. See details.
 #' @param cornerstoneConditionName The name of the condition that will be used as the cornerstone condition. Defaults to the condition with the most observations in the data set.
@@ -22,20 +23,23 @@
 #' @param catMuRange The allowed range of `catMu` parameters. Defaults to `responseRange`, but there are reasons why you might want to allow categories to be outside of the response range.
 #' @param calculateParticipantLikelihoods Whether (log) likelihoods should be calculated on each iteration for each participant. Setting to `TRUE` enables the use of [`calculateInappropriateFitStatistics`]. Recommend `FALSE`.
 #' @param priorOverrides User-provided values for fixed priors. If only some of the priors are provided, the rest will be set to defaults. See [`getDefaultPriors()`] for naming/format of list.
-#' @param mhTuningOverrides A list of overrides of the default tuning parameters for the Metropolis-Hastings algorithm. See the Tuning Metropolis-Hastings Acceptance Rates section of the manual for more information. See also [`getDefaultMHTuning()`] for naming/format of list.
+#' @param mhTuningOverrides A list of overrides of the default tuning parameters for the Metropolis-Hastings algorithm. 
+#' See the Tuning Metropolis-Hastings Acceptance Rates section of the manual for more information. 
+#' See also [`getDefaultMHTuning()`] for naming/format of list.
 #' @param constantParamValues A named list of constant values for parameters. See [`setConstantParameterValue`] and [`setConstantCategoryParameters`].
-#' @param startingParamValues A named list of starting values for parameters with the same format as `constantParamValues`. By default, starting values will be randomly sampled and overdispersed so they can find their way to a converged distribution.
+#' @param startingParamValues A named list of starting values for parameters with the same format as `constantParamValues`. 
+#' By default, starting values will be randomly sampled and overdispersed so they can find their way to a converged distribution.
 #' @param checkConfig If `TRUE`, [`checkModelConfig`] will be called.
-#' @param ... Undocumented features that are under development. Do not use.
+#' @param ... Undocumented features. Do not use.
 #' 
 #' @return A list that can be passed as the `config` argument of [`runParameterEstimation`].
 #' 
 #' @details  `minSD` sets the smallest allowable standard deviation for standard deviation parameters (contSD, catSD, catSelectivity).
 #' For circular data, smaller values increase the setup time and memory usage of the Von Mises look up table exponentially.
-#' The default `minSD` for circular data is 1 and for linear data is 0.001.
+#' The default `minSD` for circular data is 1 degree and for linear data is 0.001 units.
 #'  
 #' The `factors` data.frame describes how the conditions in your data can be arranged into factors. 
-#' See the examples for a case with 4 conditions arranged into a 2x2 factorial design.
+#' See examples (for this function) for a case with 4 conditions arranged into a 2x2 factorial design.
 #'  
 #' The `conditionEffects` list gives the factors along which parameters are allowed to vary. Thus, it can be used to
 #' create models that differ in terms of flexibility, enabling nested model comparison with [`calculateWAIC`].
@@ -66,11 +70,14 @@
 #' 
 #' @examples 
 #' myConds = c("A1", "A2", "B1", "B2")
-#' factors = makeFactors(condNames=myConds, letterFact=c("A", "A", "B", "B"), numberFact=c("1", "2", "1", "2"))
+#' factors = makeFactors(cond=myConds, 
+#'     letterFact=c("A", "A", "B", "B"), 
+#'     numberFact=c("1", "2", "1", "2"))
 #' conditionEffects = list(pMem="all", contSD="letterFact", catSD="none")
 #'
 #' testData = SIM_sampleTestData("betweenItem", conds=myConds)
-#' config = makeModelConfig(testData, "betweenItem", factors=factors, conditionEffects=conditionEffects)
+#' config = makeModelConfig(testData, "betweenItem", 
+#'     factors=factors, conditionEffects=conditionEffects)
 #' 
 makeModelConfig = function(data, modelVariant, 
                            dataType = "circular", 
@@ -163,6 +170,7 @@ checkModelConfig = function(data, config, immediateWarnings = FALSE, checkData =
                            "dataType", "responseRange", "catMuRange", 
                            "calculateParticipantLikelihoods", 
                            "priorOverrides", "mhTuningOverrides", "constantParamValues", "startingParamValues",
+                           "sharedParameters",
                            "privateConfig")
   
   disallowedConfigKeys = usedConfigKeys[ !(usedConfigKeys %in% allAllowedConfigKeys) ]
@@ -172,22 +180,7 @@ checkModelConfig = function(data, config, immediateWarnings = FALSE, checkData =
                 paste(disallowedConfigKeys, collapse=", "))
     stop(msg)
   }
-  
-  
-  ####################
-  # Data checks
-  if (checkData) {
-    requiredColumns = c("pnum", "cond", "study", "response")
-    if (!all(requiredColumns %in% names(data))) {
-      stop( paste0("The required columns are not in the data set. These columns are: ", paste(requiredColumns, collapse=", ")) )
-    }
-    
-    if (config$dataType == "circular" && (all(data$study < 10) || all(data$response < 10))) {
-      msg = "Data appear to be in radians rather than degrees. The data should be in degrees. See CatContModel::r2d()"
-      #warning(msg, immediate. = TRUE)
-      warning(msg)
-    }
-  }
+
 
   
   ########################
@@ -239,6 +232,22 @@ checkModelConfig = function(data, config, immediateWarnings = FALSE, checkData =
       stop("config$catMuRange[1] >= config$catMuRange[2]. The lower end of the catMu range must be lower!")
     }
     
+  }
+  
+  ####################
+  # Data checks
+  # Must come after dataType
+  if (checkData) {
+    requiredColumns = c("pnum", "cond", "study", "response")
+    if (!all(requiredColumns %in% names(data))) {
+      stop( paste0("The required columns are not in the data set. These columns are: ", paste(requiredColumns, collapse=", ")) )
+    }
+    
+    if (config$dataType == "circular" && (all(data$study < 10) || all(data$response < 10))) {
+      msg = "Data appear to be in radians rather than degrees. The data should be in degrees. See CatContModel::r2d()"
+      #warning(msg, immediate. = TRUE)
+      warning(msg)
+    }
   }
   
 
@@ -306,7 +315,7 @@ checkModelConfig = function(data, config, immediateWarnings = FALSE, checkData =
   } else {
     for (n in names(config$priorOverrides)) {
       if (!(n %in% names(defaultPriors))) {
-        stop(paste0("Invalid prior name: ", n))
+        warning(paste0("Invalid prior name: ", n))
       }
     }
   }
@@ -333,8 +342,8 @@ checkModelConfig = function(data, config, immediateWarnings = FALSE, checkData =
   # factors
 
   if (is.null(config$factors)) {
-    config$factors = makeFactors(data=data)
-    message("Note: config$factors is missing. A one-factor design is assumed.")
+    config$factors = makeFactors(cond=sort(unique(data$cond)), check=FALSE)
+    message("Note: factors not provided. A one-factor design is assumed.")
   }
   config$factors = checkFactors(data, config$factors, factorsToCharacter = TRUE)
   
@@ -364,7 +373,7 @@ checkModelConfig = function(data, config, immediateWarnings = FALSE, checkData =
   config$conditionEffects = verifyConditionEffects(config, immediateWarnings=immediateWarnings)
   
   
-  #################
+  ######################
   # Single Participant
   if (length(unique(data$pnum)) == 1) {
     message("Single participant design detected. Removing hierarchical priors. See documentation for singleParticipantConfiguration() for more information.")
@@ -372,68 +381,96 @@ checkModelConfig = function(data, config, immediateWarnings = FALSE, checkData =
     config = singleParticipantConfiguration(config)
   }
   
+  ######################
+  # Shared Participant Parameters
+  if (is.null(config$sharedParameters)) {
+    config$sharedParameters = character(0)
+  } else {
+    
+    # TODO: Clean this whole section up. config$model????
+    
+    # This is for MemFirst
+    allowedShared = c("catMu", "catActive")
+    
+    
+    # If CatFirst
+    if (!is.null(config$privateConfig$CatFirst)) {
+      allowedShared = c(getParamNames(), "catType")
+    }
+    
+    disallowedUsed = config$sharedParameters[ !(config$sharedParameters %in% allowedShared) ]
+    if (length(disallowedUsed) > 0) {
+      stop(paste0("The following parameters are not allowed to be shared: ", paste0(disallowedUsed, collapse=", ")))
+    }
+    
+    # Sharing dependencies:
+    catMuShared = "catMu" %in% config$sharedParameters
+    catActiveShared = "catActive" %in% config$sharedParameters
+    catTypeShared = "catType" %in% config$sharedParameters
+    if (!catMuShared && (catActiveShared || catTypeShared)) {
+      if (catActiveShared) {
+        stop("catActive cannot be shared if catMu is not shared.")
+      }
+      if (catTypeShared) {
+        stop("catType cannot be shared if catMu is not shared.")
+      }
+    }
+  }
+  
   config
 }
 
 
-# @examples 
-# factors = makeFactors(condNames=c("A1", "A2", "B1", "B2"), letterFact=c("A", "A", "B", "B"), numberFact=c("1", "2", "1", "2"))
-makeFactors = function(data, condNames=sort(unique(data$cond)), ...) {
-  
-  # TODO: This should probably be broken into two functions: makeFactors and checkFactors. 
-  # Or have makeFactors be really basic and rely on checkModelConfig
-  
-  # Check condition names
-  if (!missing(data) && !is.null(data)) {
-    dataConds = unique(data$cond)
-    allConds = union( dataConds, condNames )
-    
-    for (cond in allConds) {
-      if (!(cond %in% condNames)) {
-        warning(paste("The condition ", cond, " is in the data but not in factors.", sep=""))
-      }
-      if (!(cond %in% dataConds)) {
-        stop(paste("The condition ", cond, " is in factors but not in the data.", sep=""))
-      }
-    }
-  }
-  
+
+#' Define Factors Levels for Conditions
+#' 
+#' Convenience function for defining how conditions (`cond`) map to factor levels.
+#' See `factors` argument of [`makeModelConfig`].
+#' 
+#' @param cond Names of conditions in the `cond` column of `data`.
+#' @param ... Named arguments, each a character vector with the same length as `condNames`. The name is taken to be the name of a factor. 
+#' The values in the vector are levels of the factor that correspond to levels of `cond`. See examples.
+#' @param data The data you will fit. Used to check that the conditions are in the data. Can be `NULL` or missing to skip checks.
+#' @param check If `TRUE`, the factors will be checked.
+#' 
+#' @return A `data.frame` that can be passed as the `factors` argument of [`makeModelConfig`].
+#' 
+#' @export
+#' @examples 
+#' factors = makeFactors(cond=c("A1", "A2", "B1", "B2"), 
+#'   letterFact=c("A", "A", "B", "B"), 
+#'   numberFact=c("1", "2", "1", "2"))
+makeFactors = function(cond, ..., data=NULL, check=TRUE) {
   
   factorMap = list(...)
   
   if (length(factorMap) == 0) {
-    factorMap$Factor = condNames
+    factorMap$DefaultFactor = cond
     #message("Note: config$factors not provided. A one-factor design is assumed.")
   }
   
+  # Copy over factors
+  rval = data.frame(cond=cond, stringsAsFactors = FALSE)
   
-  # Check for illegal factor names and factor level names
-  illegalFactorNames = c("cond", "group", "key")
-  
-  for (fn in names(factorMap)) {
-    
-    if (fn %in% illegalFactorNames) {
-      stop(paste0("Factors cannot be named any of: ", paste(illegalFactorNames, collapse = ", ")))
-    }
-    
-    if (length(factorMap[[fn]]) != length(condNames)) {
-      stop(paste0("Factor ", fn, " does not have the same number of levels as there are conditions."))
-    }
-    
-    nameBad = grepl("[:.]+", fn)
-    levelsBad = any(grepl("[:.]+", factorMap[[fn]]))
-    if (nameBad || levelsBad) {
-      stop('Factor names and factor levels cannot contain colon (":") or period (".").')
-    }
-    
+  if (any(names(factorMap) == "")) {
+    stop("Factors must have a non-empty name.")
+  }
+
+  if (any(names(factorMap) == "cond")) {
+    stop('Factors cannot be named "cond".')
   }
   
-  
-  # Copy over factors
-  rval = data.frame(cond=condNames, stringsAsFactors = FALSE)
-  
   for (factName in names(factorMap)) {
+    # Check length
+    if (length(factorMap[[factName]]) != length(cond)) {
+      stop(paste0("The length of factor ", factName, " is different from the length of cond."))
+    }
+    
     rval[,factName] = factorMap[[factName]]
+  }
+  
+  if (check) {
+    rval = checkFactors(data=data, factors=rval)
   }
   
   rval
@@ -442,27 +479,31 @@ makeFactors = function(data, condNames=sort(unique(data$cond)), ...) {
 
 checkFactors = function(data, factors, factorsToCharacter=TRUE) {
   
-  dataConds = unique(data$cond)
-  allConds = union( dataConds, factors$cond )
-  
-  for (cond in allConds) {
-    if (!(cond %in% factors$cond)) {
-      stop(paste0('The condition "', cond, '" is in the data but not in factors.'))
-    }
-    if (!(cond %in% dataConds)) {
-      stop(paste0('The condition "', cond, '" is in factors but not in the data.'))
+  # C1: Check condition names
+  if (!is.null(data)) {
+    dataConds = unique(data$cond)
+    allConds = union( dataConds, factors$cond )
+    
+    for (cond in allConds) {
+      if (!(cond %in% factors$cond)) {
+        stop(paste0('The condition "', cond, '" is in the data but not in factors.'))
+      }
+      if (!(cond %in% dataConds)) {
+        stop(paste0('The condition "', cond, '" is in factors but not in the data.'))
+      }
     }
   }
   
-  # Convert factors to character (in case they were R factors)
+  # C2: Convert factors to character (in case they were R factors)
   if (factorsToCharacter) {
     for (n in names(factors)) {
       factors[ , n ] = as.character(factors[ , n ])
     }
   }
   
+  # C3: Check for illegal factor names and factor level names
   if (any(c("key", "group") %in% names(factors))) {
-    stop('factors cannot have factors named either "key" or "group". These are reserved column names.')
+    stop('Factors cannot be named either "key" or "group".')
   }
   
   for (n in names(factors)) {
@@ -471,6 +512,16 @@ checkFactors = function(data, factors, factorsToCharacter=TRUE) {
     if (nameBad || levelsBad) {
       stop('Factor names and factor levels may not contain colon (":") or period (".").')
     }
+  }
+  
+  # C4: Factors contains cond
+  if (!("cond" %in% names(factors))) {
+    stop('Factors must have a "cond" column.')
+  }
+  
+  # C5: Elements in cond are unique
+  if (length(factors$cond) != length(unique(factors$cond))) {
+    stop("Duplicate cond in factors.")
   }
   
   factors
@@ -489,8 +540,8 @@ verifyConditionEffects = function(config, immediateWarnings = FALSE) {
     pceToUse = getDefaultParametersWithConditionEffects(config$modelVariant)
     
     config$conditionEffects = list()
-    for (param in pceToUse) {
-      config$conditionEffects[[ param ]] = "all"
+    for (parName in pceToUse) {
+      config$conditionEffects[[ parName ]] = "all"
     }
     
     message(paste0("Note: config$conditionEffects not set. It was set to use all factors for ", paste(pceToUse, collapse = ", "), "."))
@@ -510,10 +561,16 @@ verifyConditionEffects = function(config, immediateWarnings = FALSE) {
   }
   
   #set all unmentioned condition effects to "none"
+  unmentionedCE = c()
   for (n in parametersWithPossibleConditionEffects) {
     if (!(n %in% names(config$conditionEffects))) {
       config$conditionEffects[[n]] = "none"
+      unmentionedCE = c(unmentionedCE, n)
     }
+  }
+  if (length(unmentionedCE) > 0) {
+    msg = paste0('In conditionEffects, the following parameters were set to the default value of "none": ', paste(unmentionedCE, collapse=", "))
+    message(msg)
   }
   
   #Double check that condition effect factor names are in factors
@@ -533,20 +590,20 @@ verifyConditionEffects = function(config, immediateWarnings = FALSE) {
   
   # Check that config$conditionEffects are correct, given the constant value overrides that are being used.
   # This was checkConditionEffectsGivenConstantParameters
-  for (param in names(config$conditionEffects)) {
+  for (parName in names(config$conditionEffects)) {
     
-    if (length(config$conditionEffects[[param]]) > 1 || config$conditionEffects[[param]] != "none") {
-      thisCPN = paste(param, "_cond[", config$factors$cond, "]", sep="")
+    if (length(config$conditionEffects[[parName]]) > 1 || config$conditionEffects[[parName]] != "none") {
+      thisCPN = paste(parName, "_cond[", config$factors$cond, "]", sep="")
       
       inCPV = thisCPN %in% names(config$constantParamValues)
       
       if (all(inCPV)) {
-        message( paste0("Note: Parameter ", param, " has constant value overrides on all condition effect parameters. It has been noted to have no condition parameters.") )
+        message( paste0("Note: Parameter ", parName, " has constant value overrides on all condition effect parameters. It has been noted to have no condition parameters.") )
         
-        config$conditionEffects[[param]] = "none"
+        config$conditionEffects[[parName]] = "none"
         
       } else if (any(inCPV)) {
-        msg = paste0("Parameter ", param, " has constant value overrides on some condition effect parameters. It will have condition effects estimated, but some follow-up tests may not work correctly. After parameter estimation is complete, consider setting results$config$conditionEffects$", param, " to \"none\".")
+        msg = paste0("Parameter ", parName, " has constant value overrides on some condition effect parameters. It will have condition effects estimated, but some follow-up tests may not work correctly. After parameter estimation is complete, consider setting results$config$conditionEffects$", parName, " to \"none\".")
         if (immediateWarnings) {
           warning( msg, immediate. = TRUE )
         }
@@ -586,7 +643,6 @@ convertModelConfigUnits = function(config, convFun) {
 #' This function does that by setting the normally-estimated parameters of the hierarchical priors to constant values. See details.
 #' 
 #' @param config A model configuration. See [`makeModelConfig`].
-# @param priors A list of priors like that returned by [`getDefaultPriors`].
 #' 
 #' @details
 #' All of the standard parameters (all but catMu or catActive) have hierarchical priors.
@@ -597,10 +653,10 @@ convertModelConfigUnits = function(config, convFun) {
 #' + P.var ~ InverseGamma(`P.var.a`, `P.var.b`).
 #' Call [`getDefaultPriors`] to see default values for `P.mu.mu`, etc.
 #' 
-#' This function sets P.mu and P.var to constant values (see `config$constantParamValues`).
+#' This function sets `P.mu` and `P.var` to constant values (see `constantParamValues` in the returned list).
 #' The values for `P.mu` and `P.var` are set equal to the values for `P.mu.mu` and `P.mu.var` for all standard parameters.
-#' The values of P.mu.mu and P.mu.var are gotten from 1) `config$priorOverrides` and 2) `priors`. 
-#' If there is no `priorOverride` for the parameter, the value is taken from `priors`.
+#' The values of `P.mu.mu` and `P.mu.var` are gotten from `config$priorOverrides`. 
+#' If there is no prior override for a parameter, the value is gotten from [`getDefaultPriors`].
 #' 
 #' @return An updated model configuration.
 #' 

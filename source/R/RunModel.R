@@ -42,7 +42,10 @@ makeRunConfig = function(iterations, iterationsPerStatusUpdate=10, verbose=TRUE)
 #' + `response`: Participant response.
 #' 
 #' If `config$dataType == "circular"`, then `study` and `response` should be degrees in the interval `[0, 360)`. 
-#' If `config$dataType == "linear"`, then `study` and `response` can be in any units. For default priors and
+#' If `config$dataType == "linear"`, then `study` and `response` can be in any units. 
+#' For default priors and MH tuning values, it is best for linear data to have the same range as circular data 
+#' (i.e. approximately 360 units long, but 100 to 1000 units should be fine).
+#' 
 #' 
 #' If `mhOptim` is `TRUE` or the return value of [`makeMHConfig`], Metropolis-Hastings tuning values will be optimized at the start of parameter estimation. 
 #' If `TRUE`, the defaults of [`makeMHConfig`] are used.
@@ -50,12 +53,7 @@ makeRunConfig = function(iterations, iterationsPerStatusUpdate=10, verbose=TRUE)
 #' If the model converges during MH optimization, there is no need to discard all optimization iterations as burn-in.
 #' If using parallel estimation, optimization is done in each chain separately.
 #' 
-#' If `iterations` is less than or equal to the number of iterations of MH optimization, 
-#' `iterations` is treated as additional iterations to sample after MH optimization is complete.
-#' If `iterations` is greater than the number of MH optimization iterations, 
-#' `iterations` is treated as the total number of iterations to sample.
-#' 
-#' `iterations` follow MH optimization iterations, so if using MH, `iterations` can be 0.
+#' The `iterations` argument specifies the number of iterations to sample after MH optimization is complete. If using MH optimization, `iterations` can be 0.
 #' 
 #' 
 #' @return A list containing the results of the Gibbs samplers:
@@ -119,38 +117,12 @@ RPE_mhOptim = function(data, modCfg, runConfig, mhOptim) {
   if (doOptim) {
     mho = optimizeMHTuning(data, modCfg, mhOptimConfig = mhOptimConfig)
     
-    #modCfg$mhTuningOverrides = mho$chosenTuning # Not used
-    
-    ## Treat iterations as total if > MH iter. Iter < MH: stop.
-    #if (runConfig$iterations > getCompletedIterations(mho$combinedResults)) {
-      # treat iterations as total including MHO.
-    #  nIter = runConfig$iterations - getCompletedIterations(mho$combinedResults)
-      
-    #  rval = continueSampling(mho$combinedResults, nIter, combinedOnly = TRUE)
-    #} else {
-      # If iterations <= MH iterations, just stop there.
-    #  rval = mho$combinedResults
-    #}
-    
     ## Treat iterations as after MHO
     if (runConfig$iterations > 0) {
       rval = continueSampling(mho$combinedResults, runConfig$iterations, combinedOnly = TRUE)
     } else {
       rval = mho$combinedResults
     }
-    
-    ## Treat iterations as total (if you want the 1000 MHO iter, but say 1000, then you get 2000)
-    #nIter = runConfig$iterations - mho$combinedResults$runConfig$iterations
-    #if (nIter <= 0) {
-    #  warning(paste0("The requested number of iterations (", 
-    #                 runConfig$iterations, ") were less than or equal to the number of MH optimization iterations (", 
-    #                 mho$combinedResults$runConfig$iterations, 
-    #                 "). Treating requested iterations as being in addition to the MH optimization iterations.")
-    #  )
-    #  nIter = runConfig$iterations
-    #}
-    
-    #rval = continueSampling(mho$combinedResults, nIter, combinedOnly = TRUE)
     
   } else {
     rval = RPE_internal(data=data, modCfg=modCfg, runConfig=runConfig)
@@ -161,55 +133,35 @@ RPE_mhOptim = function(data, modCfg, runConfig, mhOptim) {
 
 
 
-# Actual implementation that calls into C++
+# Final RPE function that calls into C++
 RPE_internal = function(data, modCfg, runConfig) {
   
   # Data checks are in checkModelConfig
   modCfg = checkModelConfig(data, modCfg, immediateWarnings = TRUE, checkData = TRUE)
   
-  # Equality constraints are not part of model config
+  # Equality constraints are not currently part of model config
   equalityConstraints = getConstrainedConditionEffects(modCfg)
   
-  # Convert from degrees to radians
-  preparedModCfg = modCfg
-  if (modCfg$dataType == "circular") {
-    preparedModCfg = convertModelConfigUnits(preparedModCfg, convFun = CatContModel::d2r)
-    # TODO: Anything else? Data in c++. Maybe model units in c++ as well?
-  }
-  
   if (runConfig$verbose) {
-    message(paste0("Running ", runConfig$iterations, " iterations."))
+    cat(paste0("Running ", runConfig$iterations, " iterations.\n"))
   }
   
   # Run estimation in C++
   results = CCM_CPP_runParameterEstimation(
     data = data,
-    modelConfig = preparedModCfg,
+    modelConfig = modCfg,
     runConfig = runConfig,
     equalityConstraints = equalityConstraints
   )
   
   results$data = data
-  results$config = modCfg # Store unconverted model config
+  results$config = modCfg
   results$runConfig = runConfig
   
-  # Store package version
   results$runConfig$packageVersion = utils::packageVersion("CatContModel")
   
-  # Equality constraints are saved in results
   results$equalityConstraints = equalityConstraints
-  
-  ####
-  # Convert estimated catMu from radians to degrees
-  if (results$config$dataType == "circular" && results$config$maxCategories > 0) {
-    
-    conversionFun = function(catMuRadians) {
-      catMuDeg = CatContModel::r2d(catMuRadians)
-      CatContModel::clampAngle(catMuDeg, pm180 = FALSE, degrees = TRUE)
-    }
-    
-    results = convertCatMuUnits(results, conversionFun)
-  }
+
   
   ####
   # Create list of actual starting values from posterior chains
@@ -221,10 +173,10 @@ RPE_internal = function(data, modCfg, runConfig) {
       results$posteriors[[n]] = rep(results$posteriors[[n]], results$runConfig$iterations + 1) # +1 because of the start value
     }
     
-    # Store actual starting values rather than startingValueOverrides, which may only be a few of the parameters
+    # Store actual starting values rather than startingValueOverrides, which may be only a few of the parameters
     results$startingValues[[n]] = results$posteriors[[n]][1]
     
-    results$posteriors[[n]] = results$posteriors[[n]][-1] # strip off the start value (mainly so that the number of iterations is correct)
+    results$posteriors[[n]] = results$posteriors[[n]][-1] # strip off the start value
   }
   
   # Set the class of results object to within-participants (WP)
@@ -243,7 +195,7 @@ RPE_internal = function(data, modCfg, runConfig) {
 #' This function allows you to continue sampling iterations from where the parameter estimation left off.
 #' 
 #' @param results Results from [`runParameterEstimation`].
-#' @param iterations The number of new iterations to sample.
+#' @param iterations The number of new iterations to sample (if `totalIterations == FALSE`).
 #' @param totalIterations If `TRUE`, the `iterations` argument is treated as the total number of iterations that are desired. If the current number of samples is greater than or equal to `iterations`, this function returns immediately.
 #' @param combinedOnly If `TRUE`, only the combined results (old combined with new) will be returned. If `FALSE`, the old, new, and combined results will be returned in a list.
 #' 
@@ -336,15 +288,16 @@ continueSampling = function(results, iterations, totalIterations=FALSE, combined
 #' Note that you must remove burn-in iterations before merging results.
 #' 
 #' @param ... Multiple results objects from the [`runParameterEstimation`] function.
-#' @param doIntegrityChecks If `TRUE`, check that all of the results are comparable in terms of priors, constant parameter values, etc. The only time you should set this to `FALSE` is if you think there is a bug in the integrity checks.
 #' @param resList Instead of providing individual results objects as `...`, you can use `resList` to provide a list of results objects (numeric indices starting with 1).
+#' @param doIntegrityChecks If `TRUE`, check that all of the results are comparable in terms of priors, constant parameter values, etc. The only time you should set this to `FALSE` is if you think there is a bug in the integrity checks.
+#' @param compareExclude A vector of names of comparisons to NOT do. See `include` argument of [`compareResults`] for names.
 #'
 #' @return The combined chains in an updated results object.
 #' 
 #' @family WP functions
 #'
 #' @export
-combineResults = function(..., doIntegrityChecks=TRUE, resList=NULL, compareExclude=NULL) {
+combineResults = function(..., resList=NULL, doIntegrityChecks=TRUE, compareExclude=NULL) {
 
 	resultsList = list(...)
 	if (is.null(resList)) {
@@ -398,30 +351,28 @@ combineResults = function(..., doIntegrityChecks=TRUE, resList=NULL, compareExcl
 #' Compare Two Results Objects for Configuration Consistency
 #' 
 #' The purpose of this function is to confirm that two sets of results have sampled from the same data and model.
-#' By default, nothing is compared. The various comparisons must be enabled individually. This is a WP function only.
+#' The aspects to be compared are given by the `include` argument, excluding those aspects given by `exclude`.
+#' This is a WP function only: No Parallel or BP objects allowed.
 #' 
 #' @param res1 The first results object from [`runParameterEstimation`].
 #' @param res2 The second results object.
-#' @param data Compare data sets.
-#' @param config Compare `results$config`.
-#' @param constantValues Compare `results$config$constantParamValues`.
-#' @param equalityConstraints Compare `results$equalityConstraints`.
-#' @param priors Compare `results$priors`.
-#' @param mhTuning Compare `results$MH$tuning`.
-#' @param msgFun A function of one argument to pass messages to. Defaults to `stop`. Another good choice is `warning`.
+#' @param include A vector of comparisons to do.
+#' @param exclude A vector of comparisons to NOT do. See names in `include`.
 #' 
-#' @family WP functions
+#' @return Nothing, but stops if the results don't match.
 #' 
+#' @family WP functions 
 #' @export
 compareResults = function(res1, res2, 
-                          include = c("data", "modCfg", "priors", "constantParameters", "equalityConstraints", "mhTuning"), exclude=NULL)
+                          include = c("data", "modCfg", "priors", "constantParameters", "equalityConstraints", "mhTuning"), 
+                          exclude=NULL)
 {
 	
   if (!(resultIsType(res1, "WP") && resultIsType(res2, "WP"))) {
     stop("Can only compare WP results.")
   }
   
-  # Strip exclude
+  # Strip exclude from include
   include = include[ !(include %in% exclude) ]
   
   #errorFun = stop
