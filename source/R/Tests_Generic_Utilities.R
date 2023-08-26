@@ -27,7 +27,8 @@ cleanAndSummarizeMEIResults = function(BFs, summarize, aggregateBy) {
 		ff$success = NULL
 		
 		wmsg = paste0("Bayes factor estimation failed for ", sum(BFs$success == FALSE), " subsamples. The cases with failures have been printed to the console below. Failures have been stripped from the results.")
-		warning( wmsg, immediate. = TRUE )
+		logWarning( wmsg, immediate. = TRUE )
+		
 		cat("\n\nFailures:\n")
 		print( ff[ ff$failures > 0, ] )
 		cat("\n\n")
@@ -194,7 +195,7 @@ summarizeSubsampleResults = function(BFs, proportioniles = c(0, 0.025, 0.5, 0.97
 #all(x > 0)
 geoMean = function(x) {
 	if (any(x <= 0)) {
-		warning("All x must be > 0 to calculate the geometric mean.")
+		logWarning("All x must be > 0 to calculate the geometric mean.")
 		return(NA)
 	}
   # The calculation is:

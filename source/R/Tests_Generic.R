@@ -79,7 +79,7 @@ testSingleEffect = function(res, parName, testedFactors, dmFactors = testedFacto
 													 dmFactors = dmFactors, contrastType = contrastType,
 													 testFunction = testFunction, usedFactorLevels = usedFactorLevels)
 	}, error = function(e) {
-		warning(e$message)
+		logWarning(e$message)
 		return(list(success=FALSE))
 	})
 	
@@ -216,6 +216,7 @@ testMEI_singleParameter = function(res, parName, priorSamples = res$runConfig$it
 #' @param testFunction See \code{\link[CMBBHT]{testHypothesis}} in the CMBBHT package.
 #' @param addMu Passed to same argument of [`getConditionEffects`].
 #' @param manifest Passed to same argument of [`getConditionEffects`].
+#' @param progress Boolean. If `TRUE`, a text progress bar is shown.
 #' 
 #' @return Depends on the value of `summarize`. If `summarize == TRUE`, it will have the same return value as [`summarizeSubsampleResults`], so see that function. If `summarize == FALSE`, a `data.frame` with columns
 #' * `parName`: The parameter name.
@@ -234,7 +235,7 @@ testMainEffectsAndInteractions = function(res, parNames = NULL,
 																						 subsamples = 1, subsampleProportion = 1, 
 																						 summarize = TRUE, doPairwise = FALSE, 
 																						 testFunction = CMBBHT::testFunction_SDDR,
-																						 addMu = NULL, manifest = NULL) 
+																						 addMu = NULL, manifest = NULL, progress = subsamples > 1) 
 {
   if (resultIsType(res, "Parallel")) {
     stop("Cannot analyze Parallel results.")
@@ -244,7 +245,7 @@ testMainEffectsAndInteractions = function(res, parNames = NULL,
 	
 	cmbbhtf = subset(factors, select=getAllFactorNames(factors))
 	if (!CMBBHT::isDesignFullyCrossed(cmbbhtf)) {
-		warning("Design is not fully crossed, which means that main effects and interactions cannot be orthogonal. This complicates the meaning of tests. See the documentation of testMainEffectsAndInteractions for more information.")
+		logWarning("Design is not fully crossed, which means that main effects and interactions cannot be orthogonal. This complicates the meaning of tests. See the documentation of testMainEffectsAndInteractions for more information.")
 	}
 	
 	if (is.null(parNames)) {
@@ -256,14 +257,18 @@ testMainEffectsAndInteractions = function(res, parNames = NULL,
 	}
 	
 	subsampleIterationsToRemove = getSubsampleIterationsToRemove(res$runConfig$iterations, subsamples, subsampleProportion)
+	#subsamples = length(subsampleIterationsToRemove)
 	
 	BFs = NULL
 	
-	pb = utils::txtProgressBar(0, 1, 0, style=3)
-	currentStep = 1
-	lastStep = length(subsampleIterationsToRemove) * length(parNames)
-	
-	for (sub in 1:length(subsampleIterationsToRemove)) {
+	if (progress) {
+		pb = utils::txtProgressBar(0, 1, 0, style=3)
+		
+		currentStep = 1
+		lastStep = subsamples * length(parNames)
+	}
+
+	for (sub in 1:subsamples) {
 		
 		if (length(subsampleIterationsToRemove[[sub]]) > 0) {
 			resSub = removeBurnIn(res, subsampleIterationsToRemove[[sub]])
@@ -278,13 +283,17 @@ testMainEffectsAndInteractions = function(res, parNames = NULL,
 																		testFunction = testFunction, addMu = addMu, manifest = manifest)
 			BFs = rbind(BFs, htr)
 			
-			utils::setTxtProgressBar(pb, value = currentStep / lastStep)
-			currentStep = currentStep + 1
+			if (progress) {
+				utils::setTxtProgressBar(pb, value = currentStep / lastStep)
+				currentStep = currentStep + 1
+			}
 			
 		}
 	}
 	
-	close(pb)
+	if (progress) {
+		close(pb)
+	}
 	
 	aggregateBy = c("parName", "factor", "levels")
 	if (all(BFs$levels == "Omnibus")) {
@@ -334,6 +343,7 @@ testMainEffectsAndInteractions = function(res, parNames = NULL,
 #' @param subsamples Number of subsamples of the posterior chains to take. See details. If greater than 1, subsampleProportion should be set to a value between 0 and 1 (exclusive).
 #' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should probably only be less than 1 if \code{subsamples} is greater than 1. If `NULL`, `subsampleProportion` will be set to `1 / subsamples` and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
 #' @param summarize Boolean. Should the results be summarized with \code{\link{summarizeSubsampleResults}}?
+#' @param progress Boolean. If `TRUE`, a text progress bar is shown.
 #' 
 #' @return A data frame containing test results with the following columns (see details for info about different return value if using subsamples and summarizing):
 #' \tabular{ll}{
@@ -350,7 +360,7 @@ testMainEffectsAndInteractions = function(res, parNames = NULL,
 #'
 #' @rdname testConditionEffects
 #' @export
-testConditionEffects = function(res, parNames = NULL, credP = 0.95, addMu = TRUE, manifest = TRUE, subsamples = 1, subsampleProportion = 1, summarize = FALSE) 
+testConditionEffects = function(res, parNames = NULL, credP = 0.95, addMu = TRUE, manifest = TRUE, subsamples = 1, subsampleProportion = 1, summarize = FALSE, progress = subsamples > 1) 
 {
 
   if (resultIsType(res, "BP") && !addMu) {
@@ -361,18 +371,18 @@ testConditionEffects = function(res, parNames = NULL, credP = 0.95, addMu = TRUE
   
   if (!is.null(credP)) {
     if (credP <= 0 || credP >= 1) {
-      warning("credP is outside of the interval (0,1) and will be ignored.")
+    	logWarning("credP is outside of the interval (0,1) and will be ignored.")
       credP = NULL
     }
   }
   
   if (subsamples > 1) {
     if (!is.null(credP)) {
-      warning("credP is ignored if subsamples != 1.")
+    	logWarning("credP is ignored if subsamples != 1.")
       credP = NULL
     }
     if (!summarize) {
-      message("Note: if using subsamples, you probably want to set summarize to TRUE.")
+      logMsg("Note: if using subsamples, you probably want to set summarize to TRUE.")
     }
   } else if (subsamples == 1) {
     summarize = FALSE
@@ -388,9 +398,11 @@ testConditionEffects = function(res, parNames = NULL, credP = 0.95, addMu = TRUE
 		parNames = getParametersWithConditionEffects(res$config$conditionEffects)
 	}
 	
-	pb = utils::txtProgressBar(0, 1, 0, style=3)
-	currentStep = 1
-	lastStep = length(subsampleIterationsToRemove) * length(parNames)
+	if (progress) {
+		pb = utils::txtProgressBar(0, 1, 0, style=3)
+		currentStep = 1
+		lastStep = length(subsampleIterationsToRemove) * length(parNames)
+	}
 	
 	allSubsamples = NULL
 	for (sub in 1:length(subsampleIterationsToRemove)) {
@@ -475,13 +487,17 @@ testConditionEffects = function(res, parNames = NULL, credP = 0.95, addMu = TRUE
 				}
 			}
 			
-			utils::setTxtProgressBar(pb, value = currentStep / lastStep)
-			currentStep = currentStep + 1
+			if (progress) {
+				utils::setTxtProgressBar(pb, value = currentStep / lastStep)
+				currentStep = currentStep + 1
+			}
 			
 		}
 	}
 	
-	close(pb)
+	if (progress) {
+		close(pb)
+	}
 	
 	# Remove default group name from key.
 	#TODO: This is a bad hack

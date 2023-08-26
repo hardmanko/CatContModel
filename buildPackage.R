@@ -11,6 +11,7 @@ library(usethis)
 packageName = "CatContModel"
 CatContPackageVersion = "0.9.0"
 addingDataSets = FALSE
+buildLevel = "package" # test, document, full, package
 
 
 baseDir = "D:/Programming/R/CatContModel/"
@@ -176,12 +177,14 @@ file.remove( autogenToRM )
 # Try these if package claims to be in use:
 # unloadNamespace(packageName)
 # remove.packages("CatContModel")
-# library(CatContModel) # Then restart R again
+# library(CatContModel) # Load package, then restart R
 
 
 ######
 # Basic install without documentation and with all functions exported
-devtools::install(args="--no-multiarch", dependencies = FALSE)
+if (buildLevel == "test") {
+  devtools::install(args="--no-multiarch", dependencies = FALSE)
+}
 
 
 
@@ -231,12 +234,18 @@ if (FALSE) {
 ######
 # Install with documentation which also hides unexported functions
 
-devtools::document() # If you remove NAMESPACE before documenting, the package is invalid.
-file.remove("NAMESPACE") # roxygen2 no longer overwrites NAMESPACE, so remove it.
-devtools::document() # If NAMESPACE is removed after 1 documentation pass, the package is valid.
+if (buildLevel %in% c("document", "full", "packaged")) {
+  devtools::document() # If you remove NAMESPACE before documenting, the package is invalid.
+  file.remove("NAMESPACE") # roxygen2 no longer overwrites NAMESPACE, so remove it.
+  devtools::document() # If NAMESPACE is removed after 1 documentation pass, the package is valid.
+  
+  #unloadNamespace(packageName)
+}
 
 # Install with documentation
-devtools::install(args="--no-multiarch")
+if (buildLevel == "document") {
+  devtools::install(args="--no-multiarch")
+}
 
 
 
@@ -262,17 +271,19 @@ file.copy(from = paste0(baseDir, "docs/toCopy/Introduction.pdf.asis"),
 # At this point, there should be a proper R package structure in packageLocation
 #####
 
-unloadNamespace(packageName)
-
 # Remove object files cuz it's confuzzling to gcc (how does gcc not know what an object file is?)
 srcDir = paste0(packageLocation, "/src/")
 objectFiles = dir( srcDir, recursive = FALSE)
 objectFiles = objectFiles[ grepl("\\.o$", objectFiles) ]
-file.remove( paste0(srcDir, objectFiles) )
+if (length(objectFiles) > 0) {
+  file.remove( paste0(srcDir, objectFiles) )
+}
 
 # Install the package from source. This is the full installation.
-install.packages(pkgs=packageLocation, repos=NULL, type="source", 
-                 build_vignettes=TRUE, clean=FALSE)
+if (buildLevel == "full") {
+  install.packages(pkgs=packageLocation, repos=NULL, type="source", 
+                   build_vignettes=TRUE, clean=FALSE)
+}
 
 
 
@@ -288,23 +299,34 @@ install.packages(pkgs=packageLocation, repos=NULL, type="source",
 
 
 
-#Check the package (as for submission to CRAN).
-devtools::check()
+# Check the package (as for submission to CRAN).
+# This blows away documentation afaict
+if (FALSE) {
+  devtools::check()
+}
 
 
 #############
 # Make sure to increment the version number before running the following commands!
 
-# Build source archive of package
-devtools::build(packageLocation, path=paste0(baseDir, "packaged/") )
+if (buildLevel == "package") {
 
-# Build binary archive of package
-devtools::build(packageLocation, path=paste0(baseDir, "packaged/"), binary = TRUE)
+  # Build source archive of package
+  devtools::build(packageLocation, path=paste0(baseDir, "packaged/") )
+  
+  # Build binary archive of package
+  devtools::build(packageLocation, path=paste0(baseDir, "packaged/"), binary = TRUE)
+
+}
 
 
 #############
 # Test installation from packaged files
-install.packages( paste0(baseDir, "/packaged/CatContModel_0.9.0.tar.gz"), repos=NULL)
-install.packages( paste0(baseDir, "/packaged/CatContModel_0.9.0.zip"), repos=NULL)
+if (FALSE) {
+  # unloadNamespace(packageName)
+  
+  install.packages( paste0(baseDir, "/packaged/CatContModel_0.9.0.tar.gz"), repos=NULL)
+  install.packages( paste0(baseDir, "/packaged/CatContModel_0.9.0.zip"), repos=NULL)
+}
 
 

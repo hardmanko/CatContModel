@@ -74,7 +74,7 @@ logMsg = function(..., end="\n", disable=FALSE) {
 	cat(paste0(msg, end))
 }
 
-logWarning = function(..., start="WARNING: ", end="\n", warn=TRUE, disable=FALSE) {
+logWarning = function(..., start="WARNING: ", end="\n", warn=TRUE, immediate. = FALSE, disable=FALSE) {
 	if (disable) {
 		return()
 	}
@@ -82,7 +82,7 @@ logWarning = function(..., start="WARNING: ", end="\n", warn=TRUE, disable=FALSE
 	msg = paste0(dots, collapse="")
 	cat(paste0(start, msg, end))
 	if (warn) {
-		warning(msg)
+		warning(msg, immediate. = immediate.)
 	}
 }
 
@@ -439,7 +439,7 @@ likelihood = function(paramList, data, modelVariant, dataType = "circular",
 
 	config = makeModelConfig(data, modelVariant=modelVariant, dataType=dataType, responseRange=responseRange, minSD=minSD)
 	
-	rval = CCM_CPP_likelihoodWrapper(param=manPar, data=data, config=config)
+	rval = CCM_CPP_likelihoodWrapper(param=manPar, data=data, configList=config)
 	
 	data$likelihood = rval$likelihoods
 	
@@ -533,7 +533,7 @@ getSubsampleIterationsToRemove = function(totalIterations, subsamples, subsample
 	}
 	
 	if (subsamples > 1 && subsampleProportion == 1) {
-		warning("Multiple subsamples were requested, but subsampleProportion == 1, so each subsample will be the whole data set.")
+		logWarning("Multiple subsamples were requested, but subsampleProportion == 1, so each subsample will be the whole data set.")
 	}
 	
 	subsampleProportion = min( max(subsampleProportion, 0), 1 )
@@ -789,7 +789,7 @@ removeConstantFactors = function(factors, warnOnRemoval = TRUE) {
 		}
 	}
 	if (warnOnRemoval && !is.null(removed)) {
-		warning( paste0("The following factors are constant and have been removed: ", paste(removed, collapse = ", "), ".") )
+		logWarning( "The following factors are constant and have been removed: ", paste(removed, collapse = ", "), ".")
 	}
 	
 	factors

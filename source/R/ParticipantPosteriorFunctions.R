@@ -28,7 +28,7 @@ getParameterPosterior = function(res, parName, pnum, cond, group = NULL, manifes
 	
 	if (resultIsType(res, "WP")) {
 		if (!is.null(group)) {
-			warning('The "group" argument is ignored for within-participants designs.')
+			logWarning('The "group" argument is ignored for within-participants designs.')
 		}
 		rval = getParameterPosterior.WP(res, parName, pnum, cond, manifest = manifest)
 	} else if (resultIsType(res, "BP")) {
@@ -181,7 +181,7 @@ getSingleIterationParameters = function(res, pnum, cond, iteration, group = NULL
 	
 	if (resultIsType(res, "WP")) {
 		if (!is.null(group)) {
-			warning('The "group" argument is ignored for within-participants designs.')
+			logWarning('The "group" argument is ignored for within-participants designs.')
 		}
 		rval = getSingleIterationParameters.WP(res, pnum, cond, iteration = iteration, removeInactiveCategories = removeInactiveCategories)
 	} else if (resultIsType(res, "BP")) {

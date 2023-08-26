@@ -403,7 +403,7 @@ conditionEffectPriorCredibleInterval = function(parName, p_i, ce_scale, cip = 0.
 conditionEffectPriorHist = function(parName, p_i, ce_scale, sdCutoff=50, n=1e6, minSD=1) {
   
   if (length(p_i > 1)) {
-    warning("Only scalar values of p_i are supported. Using the first value.")
+    logWarning("Only scalar values of p_i are supported. Using the first value.")
     p_i = p_i[1]
   }
   

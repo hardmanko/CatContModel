@@ -37,7 +37,7 @@ calculateWAIC_likelihoodMatrix = function(likeMat) {
     P_1 = P_1 + 2 * (a - b)
     
     # Calculate P_2
-    P_2 = P_2 + var( log(L) )
+    P_2 = P_2 + stats::var( log(L) )
     
   }
   
@@ -127,6 +127,7 @@ calcWAIC_MF_singleSubsample = function(res) {
 #' @param subsampleProportion The proportion of the total iterations to include in each subsample. This should probably only be less than 1 if `subsamples` is greater than 1. If `NULL`, `subsampleProportion` will be set to `1 / subsamples` and no iterations will be shared between subsamples (i.e. each subsample will be independent, except inasmuch as there is autocorrelation between iterations).
 #' @param onlyTotal If `TRUE`, exclude participant-level WAIC values (which aren't really valid because of the fact that participants are not independent). I recommend you leave this at `TRUE`.
 #' @param summarize Logical or `NULL`. Whether WAIC values from multiple subsamples should be summarized. If `NULL` (default), results will be summarized only if there are multiple subsamples.
+#' @param progress Boolean. If `TRUE`, a text progress bar is shown.
 #' @param impl Implementation of WAIC calculation. `PC`: Pure c++ (faster). `BL_LM`: Batch likelihood, then likelihood matrix (slower).
 #' 
 #' @return A data.frame containing WAIC values, estimates of the effective number of free parameters, and LPPD.
@@ -145,14 +146,15 @@ calcWAIC_MF_singleSubsample = function(res) {
 #' @seealso [calculateWAIC_likelihoodMatrix()]
 #' 
 #' @export
-calculateWAIC = function(res, subsamples = 1, subsampleProportion = 1, onlyTotal = TRUE, summarize = NULL, impl=c("PC", "BL_LM")) {
+calculateWAIC = function(res, subsamples = 1, subsampleProportion = 1, onlyTotal = TRUE, summarize = NULL, 
+												 progress = subsamples > 1, impl=c("PC", "BL_LM")) {
 	
 	summarize = valueIfNull(summarize, subsamples > 1)
 	
 	# catMu is always degrees in R now
 	#res = calculateWAIC_convertPosteriorCatMu(res)
 	
-	allWAIC = calculateWAIC_subsamples(res, subsamples, subsampleProportion, impl=impl[1])
+	allWAIC = calculateWAIC_subsamples(res, subsamples, subsampleProportion, progress = progress, impl = impl[1])
 	agg = calculateWAIC_aggregate(res, allWAIC, onlyTotal = onlyTotal, summarize = summarize)
 	agg
 	
@@ -160,7 +162,7 @@ calculateWAIC = function(res, subsamples = 1, subsampleProportion = 1, onlyTotal
 
 
 
-calculateWAIC_subsamples = function(res, subsamples, subsampleProportion, impl) {
+calculateWAIC_subsamples = function(res, subsamples, subsampleProportion, progress, impl) {
 	
 	subsampleIterationsToRemove = getSubsampleIterationsToRemove(res$runConfig$iterations, subsamples, subsampleProportion)
 	
@@ -335,7 +337,7 @@ calculateInappropriateFitStatistics = function(results, onlyTotal = TRUE) {
 		stop("In order to calculate the inappropriate fit statistics, you need to have calculated the participant likelihoods. Set 'calculateParticipantLikelihoods' to TRUE in the config and rerun the parameter estimation.")
 	}
 	
-	warning("AIC and BIC fit summaries are inappropriate for these models because the actual number of free parameters and the effective number of free parameters are very different. You should use WAIC instead. See the calculateWAIC function.")
+	logWarning("AIC and BIC fit summaries are inappropriate for these models because the actual number of free parameters and the effective number of free parameters are very different. You should use WAIC instead. See the calculateWAIC function.")
 	
 	
 	calcFits = function(pnum, ll, nParam, nObs) {

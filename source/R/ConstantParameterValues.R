@@ -64,7 +64,7 @@ setConstantParameterValue = function(data, parName, value, zeroConditionEffects 
 	} else {
 	  rval[[parName]] = value
 	  zeroConditionEffects = FALSE
-	  #warning("To set values for individual parameters, use a named list.")
+	  #logWarning("To set values for individual parameters, use a named list.")
 	}
 	
 	if (zeroConditionEffects) {
@@ -133,7 +133,7 @@ setConstantCategoryParameters = function(data, catParam, maxCategories, activate
 		catActive = catParam$catActive[ catParam$pnum == pnum ]
 		
 		if (length(catMu) > maxCategories) {
-			warning( paste("More categories provided for participant ", pnum, " than the maximum number of categories.", sep="") )
+			logWarning( "More categories provided for participant ", pnum, " than the maximum number of categories." )
 		}
 		
 		for (k in 1:maxCategories) {

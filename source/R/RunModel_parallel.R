@@ -64,6 +64,33 @@ makeParallelConfig = function(numNodes,
   parallelConfig
 }
 
+# Handles single number or list
+
+checkVariableParallelConfig = function(parallel, outputFile) {
+	
+	useOutputFile = !missing(outputFile)
+	
+	parallelConfig = NULL
+	
+	if (!is.null(parallel)) {
+		if (is.list(parallel)) {
+			parallelConfig = parallel
+			if (useOutputFile) {
+				parallelConfig$outputFile = outputFile
+			}
+		} else if (is.numeric(parallel) && length(parallel) == 1 && parallel > 1) {
+			
+			if (useOutputFile) {
+				parallelConfig = makeParallelConfig(numNodes = parallel, outputFile = outputFile)
+			} else {
+				parallelConfig = makeParallelConfig(numNodes = parallel)
+			}
+		}
+	}
+	
+	parallelConfig
+}
+
 
 
 runParallelJobs = function(pc, jobs, jobFun=NULL, startupMsg=NULL) {
@@ -94,9 +121,9 @@ runParallelJobs = function(pc, jobs, jobFun=NULL, startupMsg=NULL) {
   
   # Startup message
   if (is.null(startupMsg) || !is.character(startupMsg)) {
-    message(paste0("Starting ", length(jobs), " parallel jobs on ", pc$numNodes, " nodes."))
+    logMsg("Starting ", length(jobs), " parallel jobs on ", pc$numNodes, " nodes.")
   } else {
-    message(startupMsg)
+  	logMsg(startupMsg)
   }
   
   
@@ -108,14 +135,14 @@ runParallelJobs = function(pc, jobs, jobFun=NULL, startupMsg=NULL) {
     if (endsWith(pc$outputFile, ".txt")) {
       outputFiles[1] = pc$outputFile
       
-      message(paste0("Parallel progress for the first node will be written to: ", pc$outputFile))
+      logMsg("Parallel progress for the first job will be written to: ", pc$outputFile)
     } else {
 
       for (i in 1:length(jobs)) {
         outputFiles[i] = paste0(pc$outputFile, i, ".txt")
       }
       
-      message(paste0("Parallel progress for each job will be written to: ", paste(outputFiles, collapse=", ")))
+    	logMsg("Parallel progress for each job will be written to: ", paste(outputFiles, collapse=", "))
     }
     
     for (i in 1:length(jobs)) {
@@ -123,7 +150,7 @@ runParallelJobs = function(pc, jobs, jobFun=NULL, startupMsg=NULL) {
     }
     
   } else {
-    message("No parallel progress file will be written. See outputFile argument of makeParallelConfig().")
+  	logMsg("No parallel progress file will be written. See outputFile argument of makeParallelConfig().")
   }
   
  

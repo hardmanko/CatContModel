@@ -39,7 +39,7 @@ getCompletedIterations = function(res, check=TRUE) {
     }
     
     if (check && any(groupIter != groupIter[1])) {
-      warning("Different between-participants groups have different numbers of iterations.")
+    	logWarning("Different between-participants groups have different numbers of iterations.")
     }
     
     rval = groupIter[1]
@@ -52,7 +52,7 @@ getCompletedIterations = function(res, check=TRUE) {
     }
     
     if (check && any(chainIter != chainIter[1])) {
-      warning("Different parallel chains have different numbers of iterations.")
+    	logWarning("Different parallel chains have different numbers of iterations.")
     }
     
     rval = chainIter[1]
@@ -96,13 +96,13 @@ removeBurnIn = function(res, burnIn) {
 removeBurnIn.WP = function(results, burnIn) {
 	
 	if (length(burnIn) == 0) {
-		warning("No burn-in iterations removed because length(burnIn) == 0.")
+		logWarning("No burn-in iterations removed because length(burnIn) == 0.")
 		return(results)
 	}
   
 	if (length(burnIn) == 1) {
 	  if (burnIn <= 0) {
-	    warning("No burn-in iterations removed because burnIn <= 0.")
+	  	logWarning("No burn-in iterations removed because burnIn <= 0.")
 	    return(results)
 	  }
 		burnIn = 1:burnIn
@@ -162,7 +162,12 @@ cleanResults = function(res, burnIn) {
     
   } else if (resultIsType(res, "Parallel")) {
     res = removeBurnIn(res, burnIn)
-    rval = combineResults(resList=res$chains)
+    # If using MH optimization, don't warn on different MH tuning values
+    compareExclude = c()
+    if (res$chains[[1]]$MH$config$optimSamples > 0) {
+      compareExclude = "mhTuning"
+    }
+    rval = combineResults(resList=res$chains, doIntegrityChecks = TRUE, compareExclude = compareExclude)
     
   } else if (resultIsType(res, "CrossValidation")) {
     rval = removeBurnIn(res, burnIn)
@@ -213,7 +218,7 @@ getParameterTransformation = function(res, parName, inverse=FALSE, minSD=NULL) {
     if (inverse) {
       transformation = local(function(x) {
         if (x < minSD) {
-          warning(paste0("In SD parameter inverse transformation function: x < minSD (", x, " < ", minSD, ")"))
+        	logWarning("In SD parameter inverse transformation function: x < minSD (", x, " < ", minSD, ")" )
         }
         x
       })
@@ -723,7 +728,7 @@ getCatActiveDataFrame.BP = function(bpRes) {
 	
 	type2name = getFactorTypeToName(bpRes$config$factors)
 	
-	post = convertPosteriorsToMatrices(bpRes, parName = "catActive")
+	post = convertPosteriorsToMatrices(bpRes, parNames = "catActive")
 	
 	# Keep iteration and pnum, but sum across catActive parameters
 	caSum = apply(post$catActive, c(1, 3), sum)
@@ -759,7 +764,7 @@ getCatActiveDataFrame.BP = function(bpRes) {
 
 getCatActiveDataFrame.WP = function(results) {
 	
-	post = convertPosteriorsToMatrices(results, parName = "catActive")
+	post = convertPosteriorsToMatrices(results, parNames = "catActive")
 	
 	# Keep iteration and pnum, but sum across catActive parameters
 	caSum = apply(post$catActive, c(1, 3), sum)
@@ -869,7 +874,7 @@ convertPosteriorsToMatrix.WP = function(results, stripConstantParameters=TRUE, s
 		if (length(temp) == 1) {
 			temp = rep(temp, iterations)
 		} else if (length(temp) != iterations) {
-			warning(paste("Data vector for parameter ", usedParam[i], " of incorrect length.", sep=""))
+			logWarning("Data vector for parameter ", usedParam[i], " of incorrect length.")
 		}
 		
 		m[,i] = temp

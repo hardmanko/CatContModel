@@ -268,12 +268,12 @@ SIM_sampleParticipants = function(nPart,
   
   if ("catMu" %in% mvParam) {
     if (is.null(catMuPopulation)) {
-      warning("No catMu population provided. It will be sampled based on the max of nCatRange.")
+    	logWarning("No catMu population provided. It will be sampled based on the max of nCatRange.")
       catMuPopulation = SIM_sampleCatMuGrid(nCatRange[2])
     }
     
     if (nCatRange[2] > length(catMuPopulation)) {
-      warning("nCatRange[2] reduced to length(catMuPopulation).")
+    	logWarning("nCatRange[2] reduced to length(catMuPopulation).")
       nCatRange[2] = length(catMuPopulation)
     }
   }
@@ -336,10 +336,10 @@ SIM_sampleCatMuGrid = function(sampleSize, gridSize=sampleSize, noiseScale = 0.5
   }
   if (sampleSize > gridSize) {
     sampleSize = gridSize
-    warning("sampleSize > gridSize")
+    logWarning("sampleSize > gridSize")
   }
-  if (noiseScale > 1) {
-    warning()
+  if (noiseScale <= 0 || noiseScale >= 1) {
+  	stop("noiseScale must be between 0 and 1")
   }
   
   rangeWidth = catRange[2] - catRange[1]

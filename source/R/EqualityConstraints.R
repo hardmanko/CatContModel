@@ -18,9 +18,8 @@ getConstrainedConditionEffects = function(config) {
 	}
 	
 	if (length(unique(cec$target)) != nrow(cec)) {
-		#TODO: Remove duplicates?
-		#TODO: Put this elsewhere?
-		warning("Duplicate equality constraints.")
+		#TODO: Remove duplicates? Put this elsewhere?
+		logWarning("Duplicate equality constraints.")
 	}
 	
 	#strip non-condition constraints
@@ -118,7 +117,7 @@ getConstrainedConditionEffectList = function(config, parName, usedFactors) {
 getConditionParameterParts = function(parName) {
 	
 	if (!grepl("_cond[", parName, fixed=TRUE)) {
-		warning("Non-condition parameter provided to getConditionParameterParts().")
+		logWarning("Non-condition parameter provided to getConditionParameterParts().")
 		return("")
 	}
 	
@@ -142,7 +141,7 @@ getRootSourceConditionParameter = function(results, parName, cond, fullParam = N
 	source = results$equalityConstraints[[ target ]]
 	
 	if (is.null(source)) {
-		warning(paste("No source parameter specified for \"", target, "\". It must be a free parameter.", sep=""))
+		logWarning("No source parameter specified for \"", target, "\". It must be a free parameter.")
 		source = "FREE_PARAMETER"
 	}
 	
@@ -213,7 +212,7 @@ getConditionParameterPrior = function(results, parName, cond, fullParam = NULL) 
 	#rootSource = getRootSourceParameter(results, parName, cond)
 	
 	if (is.null(source)) {
-		warning(paste("No source parameter specified for \"", target, "\". It must be a free parameter.", sep=""))
+		logWarning("No source parameter specified for \"", target, "\". It must be a free parameter.")
 		source = "FREE_PARAMETER"
 	}
 	

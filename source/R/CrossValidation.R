@@ -307,7 +307,7 @@ CV_labelFoldData = function(data, nFolds, minCellCount=5) {
     
     smallCounts = agg$ObsCount < minCellCount
     if (any(smallCounts)) {
-      warning("Small observation count for some cells of the design (a cell is pnum * cond * fold).")
+    	logWarning("Small observation count for some cells of the design (a cell is pnum * cond * fold).")
     	print(agg[ smallCounts, ])
     }
   }

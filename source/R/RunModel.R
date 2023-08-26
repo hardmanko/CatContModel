@@ -74,14 +74,7 @@ makeRunConfig = function(iterations, iterationsPerStatusUpdate=10, verbose=TRUE)
 #' 
 runParameterEstimation = function(data, config, iterations, parallel=NULL, mhOptim=FALSE, runConfig=NULL) {
   
-  parallelConfig = NULL
-  if (!is.null(parallel)) {
-    if (is.list(parallel)) {
-      parallelConfig = parallel
-    } else if (is.numeric(parallel) && length(parallel) == 1 && parallel > 1) {
-      parallelConfig = makeParallelConfig(parallel, outputFile = "RunProgress_")
-    }
-  }
+  parallelConfig = checkVariableParallelConfig(parallel, outputFile = "RunProgress_")
   
   if (is.null(runConfig)) {
     runConfig = makeRunConfig(iterations)
@@ -134,6 +127,7 @@ RPE_mhOptim = function(data, modCfg, runConfig, mhOptim) {
 
 
 # Final RPE function that calls into C++
+# This is never parallel
 RPE_internal = function(data, modCfg, runConfig) {
   
   # Data checks are in checkModelConfig
@@ -143,7 +137,7 @@ RPE_internal = function(data, modCfg, runConfig) {
   equalityConstraints = getConstrainedConditionEffects(modCfg)
   
   if (runConfig$verbose) {
-    cat(paste0("Running ", runConfig$iterations, " iterations.\n"))
+  	logMsg("Running ", runConfig$iterations, " iterations.")
   }
   
   # Run estimation in C++
@@ -221,14 +215,14 @@ continueSampling = function(results, iterations, totalIterations=FALSE, combined
   #}
   
   if (iterations <= 0) {
-    warning("continueSampling can't be done if requested iterations <= 0. Returning the provided results.")
+  	logWarning("continueSampling can't be done if requested iterations <= 0. Returning the provided results.")
     return(results)
   }
   
   if (totalIterations) {
     completedIter = getCompletedIterations(results)
     if (completedIter >= iterations) {
-      message("No need to continueSampling: Enough iterations have already been sampled. Returning the provided results.")
+      logMsg("No need to continueSampling: Enough iterations have already been sampled. Returning the provided results.")
       return(results)
     }
     iterations = iterations - completedIter
@@ -442,7 +436,7 @@ compareResults = function(res1, res2,
     }
     
     if (length(mismatchedParams) > 0) {
-      warning(paste0("Mismatched MH tuning values for: ", paste(mismatchedParams, collapse=", "), "."))
+      logWarning("Mismatched MH tuning values for: ", paste(mismatchedParams, collapse=", "), ".")
     }
   }
   

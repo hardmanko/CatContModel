@@ -242,7 +242,7 @@ plotParameterSummary = function(res, catMuPrec = 2, factorOrder = NULL, cip = 0.
 				
 			} else {
 				if (any(!(parameterFactors %in% factorOrder))) {
-					warning("factorOrder does not contain some or all factors.")
+					logWarning("factorOrder does not contain some or all factors.")
 				} else {
 					#reorder only if factorOrder contains all factors.
 					parameterFactors = factorOrder[ factorOrder %in% parameterFactors ]

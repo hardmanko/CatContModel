@@ -294,10 +294,10 @@ makeMHConfig = function(optimSamples=10, optimSampleIter=100, optimRate=1,
   invalidConstantNames = names(constantTuningValues)[ !(names(constantTuningValues) %in% names(defaultMH)) ]
   
   if (length(invalidStartingNames) > 0) {
-    warning(paste("Invalid names in startingTuningValues: ", paste(invalidStartingNames, sep=", ")))
+  	logWarning("Invalid names in startingTuningValues: ", paste(invalidStartingNames, sep=", "))
   }
   if (length(invalidConstantNames) > 0) {
-    warning(paste("Invalid names in constantTuningValues: ", paste(invalidConstantNames, sep=", ")))
+  	logWarning("Invalid names in constantTuningValues: ", paste(invalidConstantNames, sep=", "))
   }
   
   targetsDF = data.frame()
@@ -466,13 +466,13 @@ optimizeMHTuning = function(data, modCfg,
   }
 
   if (mhOptimConfig$optimSamples <= 0 || mhOptimConfig$optimSampleIter <= 0) {
-    warning("No MH optimization possible: optimSamples <= 0 or optimSampleIter <= 0.")
+  	logWarning("No MH optimization possible: optimSamples <= 0 or optimSampleIter <= 0.")
     rval = list(chosenTuning=getMHTuningList(mhOptimConfig$targets))
     return(rval)
   }
   
   if (all(!is.na(mhOptimConfig$targets$constantTuning))) {
-    warning("All MH tuning values are constant. No optimization possible.")
+  	logWarning("All MH tuning values are constant. No optimization possible.")
     rval = list(chosenTuning=getMHTuningList(mhOptimConfig$targets))
     return(rval)
   }

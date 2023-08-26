@@ -200,7 +200,7 @@ checkModelConfig = function(data, config, immediateWarnings = FALSE, checkData =
   
   if (is.null(config$dataType)) {
     config$dataType = "circular"
-    message(paste0("Note: config$dataType set to ", config$dataType))
+    logMsg("Note: config$dataType set to ", config$dataType)
   } else if (!(config$dataType %in% c("circular", "linear"))) {
     stop("Invalid value for config$dataType. Choose from one of \"circular\" or \"linear\".")
   }
@@ -213,7 +213,7 @@ checkModelConfig = function(data, config, immediateWarnings = FALSE, checkData =
     
     if (is.null(config$responseRange)) {
       config$responseRange = range(data$response)
-      message(paste0("Note: config$responseRange set to ", paste(config$responseRange, collapse=", ")))
+      logMsg("Note: config$responseRange set to ", paste(config$responseRange, collapse=", "))
     }
     
     if (config$responseRange[1] >= config$responseRange[2]) {
@@ -257,8 +257,7 @@ checkModelConfig = function(data, config, immediateWarnings = FALSE, checkData =
     # By default, set cornerstone condition to the condition with the most data.
     dataCounts = stats::aggregate(study ~ cond, data, length) # This is not actually aggregating study, it's just for length
     config$cornerstoneConditionName = dataCounts$cond[which.max(dataCounts$study)]
-    msg = paste0("Note: config$cornerstoneConditionName set to \"", config$cornerstoneConditionName, "\".")
-    message(msg)
+    logMsg("Note: config$cornerstoneConditionName set to \"", config$cornerstoneConditionName, "\".")
   }
   if (!is.character(config$cornerstoneConditionName)) {
     config$cornerstoneConditionName = as.character(config$cornerstoneConditionName)
@@ -268,14 +267,13 @@ checkModelConfig = function(data, config, immediateWarnings = FALSE, checkData =
   # maxCategories
   if (config$modelVariant == "ZL") {
     if (!is.null(config$maxCategories) && config$maxCategories != 0) {
-      message("Note: config$maxCategories has been set to 0 because you are using the ZL modelVariant.")
+      logMsg("Note: config$maxCategories has been set to 0 because you are using the ZL modelVariant.")
     }
     config$maxCategories = 0
   }
   if (is.null(config$maxCategories)) {
     config$maxCategories = 16
-    msg = paste0("Note: config$maxCategories set to default of ", config$maxCategories, ".")
-    message(msg)
+    logMsg("Note: config$maxCategories set to default of ", config$maxCategories, ".")
   }
   
   ####################
@@ -288,22 +286,22 @@ checkModelConfig = function(data, config, immediateWarnings = FALSE, checkData =
       config$minSD = 0.001
       msg = paste0("Note: config$minSD set to default of ", config$minSD, " units")
     }
-    message(msg)
+  	logMsg(msg)
   }
   
   ##########################################
   # catMuPriorApproximationPrecision
   if (is.null(config$catMuPriorApproximationPrecision)) {
     config$catMuPriorApproximationPrecision = 60
-    message(paste0("Note: config$catMuPriorApproximationPrecision not set. Set to ", 
-              config$catMuPriorApproximationPrecision, " points at which the prior is evaluated."))
+    logMsg("Note: config$catMuPriorApproximationPrecision not set. Set to ", 
+              config$catMuPriorApproximationPrecision, " points at which the prior is evaluated.")
   }
   
   ###########################################
   # calculateParticipantLikelihoods
   if (is.null(config$calculateParticipantLikelihoods)) {
     config$calculateParticipantLikelihoods = FALSE
-    message(paste0("Note: config$calculateParticipantLikelihoods set to ", config$calculateParticipantLikelihoods, "."))
+    logMsg("Note: config$calculateParticipantLikelihoods set to ", config$calculateParticipantLikelihoods, ".")
   }
   
   #####################
@@ -315,7 +313,7 @@ checkModelConfig = function(data, config, immediateWarnings = FALSE, checkData =
   } else {
     for (n in names(config$priorOverrides)) {
       if (!(n %in% names(defaultPriors))) {
-        warning(paste0("Invalid prior name: ", n))
+      	logWarning("Invalid prior name: ", n)
       }
     }
   }
@@ -343,7 +341,7 @@ checkModelConfig = function(data, config, immediateWarnings = FALSE, checkData =
 
   if (is.null(config$factors)) {
     config$factors = makeFactors(cond=sort(unique(data$cond)), check=FALSE)
-    message("Note: factors not provided. A one-factor design is assumed.")
+    logMsg("Note: factors not provided. A one-factor design is assumed.")
   }
   config$factors = checkFactors(data, config$factors, factorsToCharacter = TRUE)
   
@@ -376,7 +374,7 @@ checkModelConfig = function(data, config, immediateWarnings = FALSE, checkData =
   ######################
   # Single Participant
   if (length(unique(data$pnum)) == 1) {
-    message("Single participant design detected. Removing hierarchical priors. See documentation for singleParticipantConfiguration() for more information.")
+    logMsg("Single participant design detected. Removing hierarchical priors. See documentation for singleParticipantConfiguration() for more information.")
     
     config = singleParticipantConfiguration(config)
   }
@@ -446,7 +444,7 @@ makeFactors = function(cond, ..., data=NULL, check=TRUE) {
   
   if (length(factorMap) == 0) {
     factorMap$DefaultFactor = cond
-    #message("Note: config$factors not provided. A one-factor design is assumed.")
+    #logMsg("Note: config$factors not provided. A one-factor design is assumed.")
   }
   
   # Copy over factors
@@ -544,7 +542,7 @@ verifyConditionEffects = function(config, immediateWarnings = FALSE) {
       config$conditionEffects[[ parName ]] = "all"
     }
     
-    message(paste0("Note: config$conditionEffects not set. It was set to use all factors for ", paste(pceToUse, collapse = ", "), "."))
+    logMsg("Note: config$conditionEffects not set. It was set to use all factors for ", paste(pceToUse, collapse = ", "), ".")
     
   } else { 
     
@@ -569,8 +567,8 @@ verifyConditionEffects = function(config, immediateWarnings = FALSE) {
     }
   }
   if (length(unmentionedCE) > 0) {
-    msg = paste0('In conditionEffects, the following parameters were set to the default value of "none": ', paste(unmentionedCE, collapse=", "))
-    message(msg)
+    logMsg('In conditionEffects, the following parameters were set to the default value of "none": ', 
+    			 paste(unmentionedCE, collapse=", "))
   }
   
   #Double check that condition effect factor names are in factors
@@ -598,7 +596,7 @@ verifyConditionEffects = function(config, immediateWarnings = FALSE) {
       inCPV = thisCPN %in% names(config$constantParamValues)
       
       if (all(inCPV)) {
-        message( paste0("Note: Parameter ", parName, " has constant value overrides on all condition effect parameters. It has been noted to have no condition parameters.") )
+        logMsg("Note: Parameter ", parName, " has constant value overrides on all condition effect parameters. It has been noted to have no condition parameters.")
         
         config$conditionEffects[[parName]] = "none"
         

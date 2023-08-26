@@ -196,7 +196,7 @@ convergencePlotStandard_parallel = function(parRes, parName, type=c("chain", "de
       grepl("catMu", parName, fixed=TRUE) || 
       grepl("catActive", parName, fixed=TRUE)) 
   {
-    warning(paste0("Invalid parameter name: \"", parName, "\""))
+  	logWarning("Invalid parameter name: \"", parName, "\"")
     return()
   }
   
@@ -260,8 +260,8 @@ convergencePlotStandard_parallel = function(parRes, parName, type=c("chain", "de
         }, error = errorCatcher)
         
         if (polsplineError != "") {
-          errToPrint = paste0("Error estimating density for parameter = ", parName, ". Density set to 0. ", polsplineError)
-          warning(errToPrint)
+          errToPrint = paste0("Error estimating density for parameter \"", parName, "\". Density set to 0. ", polsplineError)
+          logWarning(errToPrint)
           polsplineError = ""
           densMat[,i] = 0
         }
@@ -285,8 +285,8 @@ convergencePlotStandard_parallel = function(parRes, parName, type=c("chain", "de
       }, error = errorCatcher)
       
       if (polsplineError != "") {
-        errToPrint = paste0("Error estimating combined density for parameter=", parName, ". ", polsplineError)
-        warning(errToPrint)
+        errToPrint = paste0("Error estimating combined density for parameter \"", parName, "\". ", polsplineError)
+        logWarning(errToPrint)
         polsplineError = ""
       }
       

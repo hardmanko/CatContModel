@@ -154,7 +154,7 @@ makeDefaultFactors.BP = function(groups) {
 	}
 	
 	if (any(is.na(factors))) {
-		warning("Factor names appear to be inconsistent between the groups. Did you set up the factors correctly before running parameter estimation? You should examine and correct the factors data frames for the individual groups and rerunning parameter estimation. This is not something that can be reliably fixed after running parameter estimation.")
+		logWarning("Factor names appear to be inconsistent between the groups. Did you set up the factors correctly before running parameter estimation? You should examine and correct the factors data frames for the individual groups and rerunning parameter estimation. This is not something that can be reliably fixed after running parameter estimation.")
 	}
 	
 	factors = normalizeFactors(factors, removeConstant=TRUE)
@@ -162,7 +162,7 @@ makeDefaultFactors.BP = function(groups) {
 	type2name = getFactorTypeToName(factors)
 	if (length(groups) > 1 && length(type2name$bp) == 0) {
 		factors$BP_Group = factors$group
-		message("No between-participants factors found. A default between-participants factor named BP_Group has been created. To remove this factor from the design, set bpRes$config$factors$BP_Goup to NULL.")
+		logMsg("No between-participants factors found. A default between-participants factor named BP_Group has been created. To remove this factor from the design, set bpRes$config$factors$BP_Goup to NULL.")
 	}
 	
 	allFn = getAllFactorNames(factors)
