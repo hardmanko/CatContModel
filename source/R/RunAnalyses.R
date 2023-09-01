@@ -140,7 +140,9 @@ SA_checkOutputDir = function(outputDir, overwrite, loadExistingResults) {
   success = FALSE
   
   if (dir.exists(outputDir)) {
-    if (!loadExistingResults) {
+    if (loadExistingResults) {
+      success = TRUE
+    } else {
       if (is.na(overwrite)) {
         if (interactive()) {
           resp = utils::askYesNo(paste0('Directory "', outputDir, '"  already exists. Overwrite analysis files?'))
@@ -401,7 +403,7 @@ SA_preEstimationAnalyses = function(data, modCfg, shortName = NULL) {
 
     rval$chancePerformance = SA_runSingleAnalysis({
       chanceP = SA_chancePerformanceAnalysis(data, modCfg, perPnum=TRUE)
-      utils::write.csv(chanceP, tempFN)
+      utils::write.csv(chanceP, tempFN, row.names = FALSE)
       chanceP
     }, 
     name = "Chance Performance", hlev=hlev,
